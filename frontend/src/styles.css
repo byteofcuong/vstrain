@@ -49,6 +49,7 @@ h1,
 h2,
 p,
 ul,
+ol,
 dl,
 dd,
 fieldset {
@@ -56,7 +57,8 @@ fieldset {
   padding: 0;
 }
 
-ul {
+ul,
+ol {
   list-style: none;
 }
 
@@ -589,16 +591,191 @@ div.notice {
   gap: 0.4rem;
 }
 
-/* Bảng chi tiết mẫu */
+/* Cột bên phải: chi tiết mẫu và bản đồ */
 
-/* Bảng nằm cạnh cây chứ không đè lên: các mẫu mới nhất nằm sát mép phải của cây. */
-.sample {
+/* Cột nằm cạnh cây chứ không đè lên: các mẫu mới nhất nằm sát mép phải của cây. */
+.context {
   flex: none;
-  width: min(22rem, 45%);
-  padding: 1rem;
+  width: min(29rem, 44%);
   overflow-y: auto;
   border-left: 1px solid var(--line);
   background: var(--paper);
+}
+
+/* Chỉ có chi tiết mẫu thì cột hẹp lại, nhường chỗ cho cây. */
+.context:not(:has(.map)) {
+  width: min(22rem, 45%);
+}
+
+.sample {
+  padding: 1rem;
+}
+
+.sample + .map {
+  border-top: 1px solid var(--line);
+}
+
+/* Bản đồ */
+
+.map {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.map h2 {
+  font-size: var(--step-1);
+  font-weight: 650;
+}
+
+.map .hint {
+  margin-top: -0.35rem;
+}
+
+.map__summary {
+  color: var(--ink-soft);
+}
+
+.map__figure {
+  position: relative;
+}
+
+.map__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.map__area {
+  outline: none;
+}
+
+.map__area--has {
+  cursor: pointer;
+}
+
+/* Nét rộng tính bằng pixel ở mọi cỡ bản đồ: đường biên không dày lên khi bảng rộng ra. */
+.map__shape,
+.map__dots,
+.map__outline {
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.map__shape {
+  fill-rule: evenodd;
+  stroke: var(--paper);
+  stroke-width: 1px;
+}
+
+/*
+ * Mỗi đảo của Hoàng Sa, Trường Sa là một đoạn dài bằng 0; đầu nét tròn vẽ nó thành một chấm. Màu ở đây là màu
+ * của chấm thuộc địa bàn không có mẫu; địa bàn có mẫu đặt màu của nó qua thuộc tính style.
+ */
+.map__dots {
+  fill: none;
+  stroke: #a3b1ab;
+  stroke-width: 3px;
+}
+
+.map__outline {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2px;
+  pointer-events: none;
+}
+
+.map__outline--active {
+  stroke: var(--accent);
+  stroke-width: 3px;
+}
+
+.map__outline--context {
+  stroke: var(--ink-soft);
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 4;
+}
+
+.map__label {
+  fill: var(--ink-faint);
+  font-size: 26px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.map__scale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.9rem;
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+
+.map__scale ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+}
+
+.map__scale li {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.map__scale .swatch,
+.map__row .swatch {
+  border-radius: 2px;
+}
+
+.map__list {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.map__list caption {
+  margin-bottom: 0.2rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.map__list th {
+  font-weight: 400;
+  text-align: left;
+}
+
+.map__list td {
+  padding-right: 0.4rem;
+  color: var(--ink-soft);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.map__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.2rem 0.4rem;
+  border-color: transparent;
+  background: none;
+  text-align: left;
+}
+
+.map__row:hover {
+  border-color: var(--line);
+}
+
+.map__row[aria-pressed="true"] {
+  border-color: var(--ink);
+  font-weight: 600;
+}
+
+.map__note {
+  color: var(--ink-faint);
+  font-size: var(--step--1);
 }
 
 .sample__header {
@@ -653,7 +830,8 @@ div.notice {
     order: -1;
   }
 
-  .sample {
+  .context,
+  .context:not(:has(.map)) {
     width: 100%;
     max-height: 45%;
     border-top: 1px solid var(--line);

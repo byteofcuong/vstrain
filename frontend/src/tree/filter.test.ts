@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import { ColumnFormatError, parseColumn, type Column } from "./columns";
 import { dayRange } from "./dates";
-import { countSet, hasFilters, MISSING, NO_FILTERS, nodeMask, tipMask, visibleCounts } from "./filter";
+import {
+  countSet,
+  hasFilters,
+  intersect,
+  MISSING,
+  NO_FILTERS,
+  nodeMask,
+  tipMask,
+  toggleArea,
+  visibleCounts,
+} from "./filter";
 import { randomTree, smallTree } from "./fixtures";
 import { buildTipGrid, nearestTip } from "./grid";
 import { computePositions } from "./layout";
@@ -61,8 +71,8 @@ describe("tipMask", () => {
 
   it("filters by a range of days, both days included, and drops tips without a date", () => {
     // a1 2015, a2 2020, b1 2012, b2 2018 (đều là đầu ngày 1 tháng 1), b3 không có ngày.
-    const whole = tipMask(tree, columns, { dateFrom: "2012-01-01", dateTo: "2018-01-01", values: {} });
-    const inside = tipMask(tree, columns, { dateFrom: "2012-01-02", dateTo: "2017-12-31", values: {} });
+    const whole = tipMask(tree, columns, { ...NO_FILTERS, dateFrom: "2012-01-01", dateTo: "2018-01-01" });
+    const inside = tipMask(tree, columns, { ...NO_FILTERS, dateFrom: "2012-01-02", dateTo: "2017-12-31" });
 
     expect(Array.from(whole)).toEqual([1, 0, 1, 1, 0]);
     expect(Array.from(inside)).toEqual([1, 0, 0, 0, 0]);
@@ -75,14 +85,14 @@ describe("tipMask", () => {
     file.numDate[2] = from;
     file.numDate[3] = before;
 
-    const mask = tipMask(parseTree(file), columns, { dateFrom: "2015-03-01", dateTo: "2015-03-31", values: {} });
+    const mask = tipMask(parseTree(file), columns, { ...NO_FILTERS, dateFrom: "2015-03-01", dateTo: "2015-03-31" });
 
     expect(Array.from(mask)).toEqual([1, 0, 0, 0, 0]);
   });
 
   it("accepts a range that is open on one side", () => {
-    const from2016 = { dateFrom: "2016-01-01", dateTo: null, values: {} };
-    const until2015 = { dateFrom: null, dateTo: "2015-01-01", values: {} };
+    const from2016 = { ...NO_FILTERS, dateFrom: "2016-01-01" };
+    const until2015 = { ...NO_FILTERS, dateTo: "2015-01-01" };
 
     expect(Array.from(tipMask(tree, columns, from2016))).toEqual([0, 1, 0, 1, 0]);
     expect(Array.from(tipMask(tree, columns, until2015))).toEqual([1, 0, 1, 0, 0]);
@@ -91,28 +101,65 @@ describe("tipMask", () => {
   });
 
   it("keeps the tips whose value is one of the selected values", () => {
-    const mask = tipMask(tree, columns, { dateFrom: null, dateTo: null, values: { country: [1] } });
+    const mask = tipMask(tree, columns, { ...NO_FILTERS, values: { country: [1] } });
 
     expect(Array.from(mask)).toEqual([0, 0, 1, 0, 0]);
   });
 
   it("can select the tips that have no value", () => {
-    const mask = tipMask(tree, columns, { dateFrom: null, dateTo: null, values: { country: [MISSING, 1] } });
+    const mask = tipMask(tree, columns, { ...NO_FILTERS, values: { country: [MISSING, 1] } });
 
     expect(Array.from(mask)).toEqual([0, 0, 1, 1, 0]);
   });
 
   it("combines the date range and several columns with AND", () => {
-    const filters = { dateFrom: "2000-01-01", dateTo: "2016-01-01", values: { country: [0], clade: [0] } };
+    const filters = {
+      ...NO_FILTERS,
+      dateFrom: "2000-01-01",
+      dateTo: "2016-01-01",
+      values: { country: [0], clade: [0] },
+    };
 
     expect(Array.from(tipMask(tree, columns, filters))).toEqual([1, 0, 0, 0, 0]);
     expect(hasFilters(filters)).toBe(true);
   });
 
   it("ignores an empty selection, an unknown column and codes outside the column", () => {
-    const filters = { dateFrom: null, dateTo: null, values: { country: [], nothing: [3], clade: [0, 7, -5] } };
+    const filters = { ...NO_FILTERS, values: { country: [], nothing: [3], clade: [0, 7, -5] } };
 
     expect(Array.from(tipMask(tree, columns, filters))).toEqual([1, 1, 0, 0, 0]);
+  });
+});
+
+describe("toggleArea", () => {
+  it("selects an area, then adds and removes others of the same level", () => {
+    const one = toggleArea(null, "region", "vnr:a");
+    const two = toggleArea(one, "region", "vnr:b");
+
+    expect(one).toEqual({ level: "region", codes: ["vnr:a"] });
+    expect(two).toEqual({ level: "region", codes: ["vnr:a", "vnr:b"] });
+    expect(toggleArea(two, "region", "vnr:a")).toEqual({ level: "region", codes: ["vnr:b"] });
+  });
+
+  it("is no filter at all once the last area is removed", () => {
+    expect(toggleArea({ level: "macro", codes: ["vnm:south"] }, "macro", "vnm:south")).toBeNull();
+  });
+
+  it("starts over when the area is of another level", () => {
+    const south = { level: "macro" as const, codes: ["vnm:south", "vnm:north"] };
+
+    expect(toggleArea(south, "vn34", "vn34:ha-noi")).toEqual({ level: "vn34", codes: ["vn34:ha-noi"] });
+  });
+
+  it("counts as a filter", () => {
+    expect(hasFilters({ ...NO_FILTERS, area: { level: "macro", codes: ["vnm:south"] } })).toBe(true);
+    expect(NO_FILTERS.area).toBeNull();
+  });
+});
+
+describe("intersect", () => {
+  it("keeps the tips that both masks keep", () => {
+    expect(Array.from(intersect(Uint8Array.from([1, 1, 0, 0]), Uint8Array.from([1, 0, 1, 0])))).toEqual([1, 0, 0, 0]);
   });
 });
 

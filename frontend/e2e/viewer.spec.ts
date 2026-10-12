@@ -1,16 +1,11 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
+
+import { openTree, publishedFiles, SLUG, vi, type ColumnFile } from "./support";
 
 /**
  * Test đầu-cuối của viewer trên build DENV1 thật. Giá trị mong đợi được tính trong test từ chính các file
  * publish (`tree.json`, `tips.json`, `col.*.json`), không chép cứng, nên test vẫn đúng khi có build mới.
  */
-const SLUG = "dengue-denv1";
-
-interface ColumnFile {
-  values: string[];
-  labels?: string[];
-  codes: number[];
-}
 
 interface Published {
   manifest: {
@@ -27,11 +22,7 @@ interface Published {
 }
 
 async function published(request: APIRequestContext): Promise<Published> {
-  const datasets = await (await request.get("/api/datasets?limit=500")).json();
-  const dataset = datasets.items.find((item: { slug: string }) => item.slug === SLUG);
-  const manifestUrl: string = dataset.currentBuild.manifestUrl;
-  const base = manifestUrl.slice(0, manifestUrl.lastIndexOf("/") + 1);
-  const file = async (name: string) => (await request.get(base + name)).json();
+  const file = await publishedFiles(request);
   return {
     manifest: await file("manifest.json"),
     tree: await file("tree.json"),
@@ -59,13 +50,6 @@ function dayOf(decimalYear: number): string {
 function declaredDate(text: string): RegExp {
   return new RegExp(`^${text.replace(/X/g, "\\d")}$`);
 }
-
-async function openTree(page: Page): Promise<void> {
-  await page.goto(`/#/d/${SLUG}`);
-  await page.waitForFunction(() => (window.__vietstrain?.frames ?? 0) > 0 && window.__vietstrain!.stats !== null);
-}
-
-const vi = (value: number) => new Intl.NumberFormat("vi-VN").format(value);
 
 /** Bộ sinh số ngẫu nhiên có hạt giống: test chọn cùng 100 tip ở mọi lần chạy. */
 function seeded(seed: number): () => number {
@@ -325,9 +309,11 @@ test("switching language changes the text without loading the data again (criter
   expect(requests).toEqual([]);
 });
 
-test("a column that fails to load is reported and can be loaded again", async ({ page }) => {
+test("a column that fails to load is reported and can be loaded again", async ({ page, request }) => {
+  // Cột vật chủ: không phần nào khác của trang tự tải nó, nên lần tải đầu là lúc người xem chọn tô màu theo nó.
+  const host = await (await publishedFiles(request))<ColumnFile>("col.host.json");
   let failures = 0;
-  await page.route("**/col.country.json", async (route) => {
+  await page.route("**/col.host.json", async (route) => {
     // Lần tải đầu tiên của cột này bị cắt giữa chừng; các lần sau đi bình thường.
     if (failures === 0) {
       failures++;
@@ -338,16 +324,16 @@ test("a column that fails to load is reported and can be loaded again", async ({
   });
   await openTree(page);
 
-  await page.getByLabel("Tô màu theo").selectOption("country");
+  await page.getByLabel("Tô màu theo").selectOption("host");
 
-  const notice = page.getByRole("alert");
+  const notice = page.locator(".sidebar").getByRole("alert");
   await expect(notice).toContainText("Không tải được dữ liệu của cột này");
   // Lỗi của một cột không làm mất cây.
   expect(await page.evaluate(() => window.__vietstrain!.stats!.tipsVisible)).toBeGreaterThan(0);
 
   await notice.getByRole("button", { name: "Thử lại" }).click();
 
-  await expect(page.getByRole("button", { name: /^Vietnam/ })).toBeVisible();
+  await expect(page.locator(".legend__label").getByText(host.values[0], { exact: true })).toBeVisible();
   await expect(notice).toHaveCount(0);
   expect(failures).toBe(1);
 });

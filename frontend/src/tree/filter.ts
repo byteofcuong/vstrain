@@ -1,3 +1,4 @@
+import type { MapLevel } from "../map/types";
 import type { Column } from "./columns";
 import { dayRange } from "./dates";
 import type { Tree } from "./parse";
@@ -5,22 +6,51 @@ import type { Tree } from "./parse";
 /** Mã dùng trong bộ lọc cho "không có giá trị". */
 export const MISSING = -1;
 
+/** Các địa bàn được chọn trên bản đồ, cùng một cấp; mã là mã của bảng `admin_unit`. */
+export interface AreaFilter {
+  level: MapLevel;
+  codes: string[];
+}
+
 export interface Filters {
   /** Khoảng ngày (YYYY-MM-DD) của tip trên cây, tính cả hai ngày; `null` là không giới hạn. */
   dateFrom: string | null;
   dateTo: string | null;
   /** Với mỗi cột: các mã được giữ lại. Cột không có ở đây, hoặc có danh sách rỗng, là không lọc. */
   values: Record<string, number[]>;
+  /**
+   * Giữ các tip được xếp vào một trong những địa bàn này. `tipMask` không xử lý phần này: việc xếp tip vào địa bàn
+   * cần hình học của bản đồ, nên mặt nạ của nó được tính ở `map/placement` rồi giao với mặt nạ của `tipMask`.
+   */
+  area: AreaFilter | null;
 }
 
-export const NO_FILTERS: Filters = { dateFrom: null, dateTo: null, values: {} };
+export const NO_FILTERS: Filters = { dateFrom: null, dateTo: null, values: {}, area: null };
 
 export function hasFilters(filters: Filters): boolean {
   return (
     filters.dateFrom !== null ||
     filters.dateTo !== null ||
+    filters.area !== null ||
     Object.values(filters.values).some((codes) => codes.length > 0)
   );
+}
+
+/**
+ * Bật hoặc tắt một địa bàn trong bộ lọc của bản đồ. Địa bàn cùng cấp thì thêm vào hoặc bỏ ra; địa bàn ở cấp khác
+ * thì thay cả bộ lọc, vì hai cấp chồng lên nhau (chọn một miền rồi một tỉnh là muốn xem tỉnh đó).
+ */
+export function toggleArea(current: AreaFilter | null, level: MapLevel, code: string): AreaFilter | null {
+  if (current === null || current.level !== level) return { level, codes: [code] };
+  const codes = current.codes.includes(code)
+    ? current.codes.filter((other) => other !== code)
+    : [...current.codes, code];
+  return codes.length > 0 ? { level, codes } : null;
+}
+
+/** Giao của hai mặt nạ: 1 ở tip mà cả hai cùng giữ. */
+export function intersect(a: Uint8Array, b: Uint8Array): Uint8Array {
+  return Uint8Array.from(a, (kept, index) => kept & b[index]);
 }
 
 /** Mặt nạ theo tip: 1 là tip qua mọi bộ lọc. Một vòng lặp trên mảng số, không tạo object nào cho từng tip. */

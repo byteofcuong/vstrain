@@ -95,6 +95,74 @@ const MESSAGES = {
   viewOnGenBank: { vi: "Xem trên GenBank", en: "View on GenBank" },
   sampleLoadFailed: { vi: "Không tải được thông tin của mẫu này.", en: "Could not load this sample." },
   unknown: { vi: "Không rõ", en: "Unknown" },
+
+  map: { vi: "Bản đồ", en: "Map" },
+  mapShown: { vi: "Hiện", en: "Shown" },
+  mapHidden: { vi: "Ẩn", en: "Hidden" },
+  mapTitle: { vi: "Mẫu theo địa bàn", en: "Samples by area" },
+  mapOf: { vi: "Bản đồ Việt Nam theo {level}", en: "Map of Vietnam by {level}" },
+  mapGrain: { vi: "Cấp địa bàn", en: "Level" },
+  grainMacro: { vi: "Miền", en: "Macro-region" },
+  grainRegion: { vi: "Vùng", en: "Region" },
+  grainProvince: { vi: "Tỉnh", en: "Province" },
+  byMacro: { vi: "miền", en: "macro-region" },
+  byRegion: { vi: "vùng", en: "region" },
+  byProvince: { vi: "tỉnh", en: "province" },
+  provinceSet: { vi: "Bộ đơn vị cấp tỉnh", en: "Set of provinces" },
+  setCurrent: { vi: "34 đơn vị", en: "34 units" },
+  setOld: { vi: "63 tỉnh", en: "63 provinces" },
+  setCurrentHint: {
+    vi: "34 đơn vị có hiệu lực từ 1/7/2025. Mẫu lấy trước đó được tính vào đơn vị kế thừa tỉnh cũ.",
+    en: "The 34 units took effect on 1 July 2025. Earlier samples count for the unit that succeeded their province.",
+  },
+  setOldHint: {
+    vi: "63 tỉnh trước 1/7/2025. Mẫu chỉ mang mã của đơn vị mới không xếp được vào một tỉnh cũ.",
+    en: "The 63 provinces before 1 July 2025. A sample that only has a current unit cannot be placed in one of them.",
+  },
+  mapPlaced: {
+    vi: "{placed} trong {home} mẫu Việt Nam đang hiện xếp được theo {level}.",
+    en: "{placed} of the {home} samples from Vietnam shown can be placed by {level}.",
+  },
+  mapPlacedOnly: {
+    vi: "{placed} mẫu đang hiện xếp được theo {level}.",
+    en: "{placed} samples shown can be placed by {level}.",
+  },
+  mapUnplaced: {
+    vi: "{count} mẫu còn lại chỉ khai nơi lấy mẫu ở cấp thô hơn, hoặc không khai.",
+    en: "The other {count} give a coarser place, or none.",
+  },
+  mapLoading: { vi: "Đang tải bản đồ…", en: "Loading the map…" },
+  mapLoadFailed: {
+    vi: "Không tải được bản đồ. Cây vẫn dùng được.",
+    en: "Could not load the map. The tree still works.",
+  },
+  mapDataFailed: {
+    vi: "Không tải được dữ liệu địa bàn của các mẫu. Cây vẫn dùng được.",
+    en: "Could not load where the samples are from. The tree still works.",
+  },
+  areaSamples: { vi: "{name}: {count} mẫu", en: "{name}: {count} samples" },
+  areaSamplesOf: { vi: "{name}: {shown} trong {count} mẫu", en: "{name}: {shown} of {count} samples" },
+  areaEmpty: { vi: "Không có mẫu", en: "No samples" },
+  samplesCount: { vi: "{count} mẫu", en: "{count} samples" },
+  samplesCountOf: { vi: "{shown} trong {count} mẫu", en: "{shown} of {count} samples" },
+  mapScale: { vi: "Số mẫu đang hiện", en: "Samples shown" },
+  mapList: { vi: "Địa bàn có mẫu", en: "Areas with samples" },
+  mapListHint: {
+    vi: "Bấm vào một địa bàn, trên bản đồ hoặc trong danh sách, để chỉ xem mẫu của nó.",
+    en: "Select an area, on the map or in the list, to show only its samples.",
+  },
+  mapArea: { vi: "Địa bàn", en: "Area" },
+  mapCount: { vi: "Số mẫu", en: "Samples" },
+  mapNote: {
+    vi: "Màu theo số trình tự đã có, không phải số ca bệnh. Đường biên là sơ đồ, không dùng để xác định địa giới.",
+    en: "Colour shows how many sequences there are, not how many cases. Boundaries are schematic and do not define borders.",
+  },
+  mapCredit: {
+    vi: "Đường biên: OCHA, nguồn Tổng cục Thống kê (CC BY-IGO) cho 34 đơn vị; geoBoundaries cho 63 tỉnh, vùng và miền.",
+    en: "Boundaries: OCHA, source General Statistics Office of Vietnam (CC BY-IGO) for the 34 units; geoBoundaries for the 63 provinces, regions and macro-regions.",
+  },
+  areaFilter: { vi: "Địa bàn", en: "Area" },
+  removeAreaFilter: { vi: "Bỏ lọc theo địa bàn", en: "Remove the area filter" },
 } as const;
 
 export type MessageKey = keyof typeof MESSAGES;

@@ -1,6 +1,7 @@
 import { useId, useMemo } from "react";
 
 import type { Manifest, TipInfo } from "../data/load";
+import type { MapData } from "../map/types";
 import { useT, useUi } from "../state/store";
 import type { Coloring } from "../tree/colors";
 import type { Column } from "../tree/columns";
@@ -8,6 +9,7 @@ import { isoDate } from "../tree/dates";
 import { hasFilters, MISSING } from "../tree/filter";
 import type { Axis, Layout } from "../tree/layout";
 import type { Tree } from "../tree/parse";
+import { Choice } from "./Choice";
 import { Legend } from "./Legend";
 import { Search } from "./Search";
 
@@ -23,33 +25,10 @@ interface Props {
   onRetryColor(): void;
   tipVisible: Uint8Array;
   visibleCount: number;
-}
-
-function Choice<T extends string>({
-  legend,
-  value,
-  options,
-  onChange,
-}: {
-  legend: string;
-  value: T;
-  options: [T, string][];
-  onChange(value: T): void;
-}) {
-  const name = useId();
-  return (
-    <fieldset className="choice">
-      <legend>{legend}</legend>
-      <div className="choice__options">
-        {options.map(([option, label]) => (
-          <label key={option}>
-            <input type="radio" name={name} checked={value === option} onChange={() => onChange(option)} />
-            <span>{label}</span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  );
+  /** Hình học của bản đồ khi đã tải, để gọi tên các địa bàn đang lọc. */
+  map: MapData | null;
+  /** Dataset có cột địa bàn, tức là có bản đồ để bật, tắt. */
+  mapAvailable: boolean;
 }
 
 export function Sidebar({
@@ -63,6 +42,8 @@ export function Sidebar({
   onRetryColor,
   tipVisible,
   visibleCount,
+  map,
+  mapAvailable,
 }: Props) {
   const t = useT();
   const lang = useUi((state) => state.lang);
@@ -86,6 +67,11 @@ export function Sidebar({
   const { dateFrom, dateTo } = ui.filters;
 
   const filtered = Object.entries(ui.filters.values).filter(([, codes]) => codes.length > 0);
+  const area = ui.filters.area;
+  // Tên các địa bàn đang lọc; hình học chưa tải xong thì tạm hiện mã.
+  const areaNames = area?.codes.map(
+    (code) => map?.levels[area.level].find((candidate) => candidate.code === code)?.[lang] ?? code,
+  );
 
   return (
     <aside className="sidebar">
@@ -97,8 +83,18 @@ export function Sidebar({
             {t("clearFilters")}
           </button>
         )}
-        {filtered.length > 0 && (
+        {(filtered.length > 0 || areaNames) && (
           <ul className="chips">
+            {areaNames && (
+              <li>
+                <span>
+                  {t("areaFilter")}: {areaNames.join(", ")}
+                </span>
+                <button type="button" aria-label={t("removeAreaFilter")} onClick={ui.clearArea}>
+                  ×
+                </button>
+              </li>
+            )}
             {filtered.map(([key, codes]) => {
               const info = manifest.columns.find((column) => column.key === key);
               const column = columns.get(key);
@@ -198,6 +194,17 @@ export function Sidebar({
           ]}
           onChange={ui.setAxis}
         />
+        {mapAvailable && (
+          <Choice<"shown" | "hidden">
+            legend={t("map")}
+            value={ui.mapOpen ? "shown" : "hidden"}
+            options={[
+              ["shown", t("mapShown")],
+              ["hidden", t("mapHidden")],
+            ]}
+            onChange={(value) => ui.setMapOpen(value === "shown")}
+          />
+        )}
       </section>
     </aside>
   );

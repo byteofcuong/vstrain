@@ -1,13 +1,18 @@
 import { create } from "zustand";
 
 import { translate, type Lang, type MessageKey } from "../i18n";
-import { NO_FILTERS, type Filters } from "../tree/filter";
+import type { MapLevel } from "../map/types";
+import { NO_FILTERS, toggleArea, type Filters } from "../tree/filter";
 import type { Axis, Layout } from "../tree/layout";
 
 /**
  * Trạng thái giao diện: những lựa chọn của người xem. Dữ liệu cây KHÔNG nằm ở đây (xem `data/session.ts`):
  * store chỉ giữ vài giá trị nhỏ, nên một lần đổi màu hay lọc không kéo theo việc sao chép hay so sánh cây.
  */
+/** Cấp địa bàn như người xem chọn: miền, vùng hoặc tỉnh (bộ tỉnh nào thì chọn riêng). */
+export type MapGrain = "macro" | "region" | "province";
+export type ProvinceSet = "vn34" | "vn63";
+
 interface UiState {
   lang: Lang;
   layout: Layout;
@@ -17,6 +22,12 @@ interface UiState {
   filters: Filters;
   /** Tip đang được chọn (chỉ số tip), -1 là không chọn. */
   selectedTip: number;
+  /** Bảng bản đồ có đang mở không. */
+  mapOpen: boolean;
+  /** Cấp địa bàn người xem đã chọn cho bản đồ; `null` là chưa chọn, bản đồ tự lấy cấp hợp với dữ liệu. */
+  mapGrain: MapGrain | null;
+  /** Bộ đơn vị cấp tỉnh dùng khi xem theo tỉnh: 34 đơn vị hiện hành hoặc 63 tỉnh trước 1/7/2025. */
+  provinceSet: ProvinceSet;
 
   setLang(lang: Lang): void;
   setLayout(layout: Layout): void;
@@ -27,7 +38,13 @@ interface UiState {
   /** Bật hoặc tắt một giá trị trong bộ lọc của một cột. */
   toggleValue(key: string, code: number): void;
   clearColumnFilter(key: string): void;
+  /** Bật hoặc tắt một địa bàn trong bộ lọc của bản đồ. */
+  toggleArea(level: MapLevel, code: string): void;
+  clearArea(): void;
   clearFilters(): void;
+  setMapOpen(open: boolean): void;
+  setMapGrain(grain: MapGrain): void;
+  setProvinceSet(set: ProvinceSet): void;
   selectTip(tip: number): void;
   /** Về trạng thái ban đầu khi mở một dataset khác (giữ ngôn ngữ). */
   resetForDataset(): void;
@@ -52,6 +69,9 @@ export const useUi = create<UiState>((set) => ({
   colorKey: null,
   filters: NO_FILTERS,
   selectedTip: -1,
+  mapOpen: true,
+  mapGrain: null,
+  provinceSet: "vn34",
 
   setLang(lang) {
     try {
@@ -80,9 +100,17 @@ export const useUi = create<UiState>((set) => ({
       delete values[key];
       return { filters: { ...state.filters, values } };
     }),
+  toggleArea: (level, code) =>
+    set((state) => ({ filters: { ...state.filters, area: toggleArea(state.filters.area, level, code) } })),
+  clearArea: () => set((state) => ({ filters: { ...state.filters, area: null } })),
   clearFilters: () => set({ filters: NO_FILTERS }),
+  setMapOpen: (mapOpen) => set({ mapOpen }),
+  setMapGrain: (mapGrain) => set({ mapGrain }),
+  setProvinceSet: (provinceSet) => set({ provinceSet }),
   selectTip: (selectedTip) => set({ selectedTip }),
-  resetForDataset: () => set({ layout: "rect", axis: "time", colorKey: null, filters: NO_FILTERS, selectedTip: -1 }),
+  // Cấp của bản đồ được chọn lại theo dữ liệu của dataset mới; việc mở hay đóng bảng bản đồ là thói quen, giữ nguyên.
+  resetForDataset: () =>
+    set({ layout: "rect", axis: "time", colorKey: null, filters: NO_FILTERS, selectedTip: -1, mapGrain: null }),
 }));
 
 /** Hàm dịch theo ngôn ngữ đang chọn. Đổi ngôn ngữ chỉ vẽ lại chữ, không đụng tới dữ liệu cây. */
