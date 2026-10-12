@@ -193,14 +193,13 @@ class Build(Base):
 
     __tablename__ = "build"
     __table_args__ = (
-        CheckConstraint("status IN ('running', 'succeeded', 'failed')", name="status_known"),
         Index("uq_build_current_per_dataset", "dataset_id", unique=True, postgresql_where=text("is_current")),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     dataset_id: Mapped[int] = mapped_column(ForeignKey("dataset_def.id", ondelete="CASCADE"), index=True)
+    # Trạng thái không lưu riêng: đã publish (có `path`) là xong, chưa thì theo trạng thái của job.
     job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
-    status: Mapped[str] = mapped_column(String(20))
     is_current: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     sample_count: Mapped[int | None] = mapped_column(Integer)
     content_hash: Mapped[str | None] = mapped_column(String(64))

@@ -43,6 +43,11 @@ class Lineage:
     def clades(self) -> Path:
         return _ROOT / self.pathogen / "clades_genotypes.tsv"
 
+    @property
+    def clade_prefix(self) -> str:
+        """Phần đầu tên clade của lineage này trong file định nghĩa chung, ví dụ "DENV1/"."""
+        return f"{self.key.upper()}/"
+
     @cached_property
     def reference_length(self) -> int:
         lines = self.reference_fasta.read_text(encoding="ascii").splitlines()

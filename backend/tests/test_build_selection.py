@@ -127,14 +127,14 @@ def test_a_dataset_has_at_most_one_current_build(session):
     second = make_dataset(session, slug="dengue-denv2", lineage="denv2")
     session.add_all(
         [
-            Build(dataset_id=first.id, status="succeeded", is_current=True),
-            Build(dataset_id=first.id, status="succeeded", is_current=False),
-            Build(dataset_id=second.id, status="succeeded", is_current=True),
+            Build(dataset_id=first.id, is_current=True),
+            Build(dataset_id=first.id, is_current=False),
+            Build(dataset_id=second.id, is_current=True),
         ]
     )
     session.flush()
 
-    session.add(Build(dataset_id=first.id, status="succeeded", is_current=True))
+    session.add(Build(dataset_id=first.id, is_current=True))
     with pytest.raises(IntegrityError):
         session.flush()
 
