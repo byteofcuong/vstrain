@@ -6,11 +6,24 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
  */
 const SLUG = "dengue-denv1";
 
+interface ColumnFile {
+  values: string[];
+  labels?: string[];
+  codes: number[];
+}
+
 interface Published {
-  manifest: { counts: { nodes: number; tips: number }; dataset: { title: string } };
+  manifest: {
+    counts: { nodes: number; tips: number };
+    dataset: { title: string };
+    columns: { key: string; title: { vi: string; en: string } }[];
+  };
   tree: { name: string[]; numDate: (number | null)[]; tipNode: number[] };
-  tips: { displayName: string[]; accession: (string | null)[] };
-  country: { values: string[]; codes: number[] };
+  tips: { displayName: string[]; accession: (string | null)[]; collectionDate: (string | null)[] };
+  /** Cột genotype, mỗi node một mã. */
+  clade: ColumnFile;
+  /** Cột quốc gia, mỗi tip một mã. */
+  country: ColumnFile;
 }
 
 async function published(request: APIRequestContext): Promise<Published> {
@@ -23,8 +36,28 @@ async function published(request: APIRequestContext): Promise<Published> {
     manifest: await file("manifest.json"),
     tree: await file("tree.json"),
     tips: await file("tips.json"),
+    clade: await file("col.clade.json"),
     country: await file("col.country.json"),
   };
+}
+
+const DAY = 86_400_000;
+
+/** Vị trí của một thời điểm (năm thập phân) trong năm của nó, tính bằng ngày: phần nguyên là ngày thứ mấy, từ 0. */
+function dayPosition(decimalYear: number): number {
+  const year = Math.floor(decimalYear);
+  return ((decimalYear - year) * (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1))) / DAY;
+}
+
+/** Ngày lịch chứa một thời điểm ghi bằng năm thập phân; tính lại ở đây, không dùng mã của viewer. */
+function dayOf(decimalYear: number): string {
+  const days = Math.floor(dayPosition(decimalYear) + 1e-6);
+  return new Date(Date.UTC(Math.floor(decimalYear), 0, 1) + days * DAY).toISOString().slice(0, 10);
+}
+
+/** Mẫu khớp một ngày lấy mẫu đã khai: "2020-09-XX" khớp mọi ngày của tháng 9 năm 2020. */
+function declaredDate(text: string): RegExp {
+  return new RegExp(`^${text.replace(/X/g, "\\d")}$`);
 }
 
 async function openTree(page: Page): Promise<void> {
@@ -73,8 +106,62 @@ test("the tree shows every tip of the published build (criterion V2)", async ({ 
   await expect(
     page.getByText(`Đang hiện ${vi(data.manifest.counts.tips)} trong ${vi(data.manifest.counts.tips)} mẫu`),
   ).toBeVisible();
-  // Mặc định tô màu theo genotype: chú giải có các genotype của DENV1.
-  await expect(page.getByRole("button", { name: /DENV1\/I\b/ }).first()).toBeVisible();
+});
+
+test("the date range is the one of the tips in the published tree (criterion V2)", async ({ page, request }) => {
+  const data = await published(request);
+  const dates = data.tree.tipNode.map((node) => data.tree.numDate[node]!);
+  const earliest = dates.indexOf(Math.min(...dates));
+  const latest = dates.indexOf(Math.max(...dates));
+  const [first, last] = [dayOf(dates[earliest]), dayOf(dates[latest])];
+  // Hai ngày này phải nằm trong ngày lấy mẫu đã khai của chính hai tip đó.
+  expect(first).toMatch(declaredDate(data.tips.collectionDate[earliest]!));
+  expect(last).toMatch(declaredDate(data.tips.collectionDate[latest]!));
+  await openTree(page);
+
+  for (const label of ["Từ ngày", "Đến ngày"]) {
+    await expect(page.getByLabel(label)).toHaveAttribute("min", first);
+    await expect(page.getByLabel(label)).toHaveAttribute("max", last);
+  }
+});
+
+test("the colour columns and the legend counts agree with the manifest and the column file (criterion V2)", async ({
+  page,
+  request,
+}) => {
+  const data = await published(request);
+  const labels = data.clade.labels ?? data.clade.values;
+  const counts = labels.map(() => 0);
+  let missing = 0;
+  for (const node of data.tree.tipNode) {
+    if (data.clade.codes[node] < 0) missing++;
+    else counts[data.clade.codes[node]]++;
+  }
+  const expected: Record<string, string> = Object.fromEntries(labels.map((label, code) => [label, vi(counts[code])]));
+  if (missing > 0) expected["Không có thông tin"] = vi(missing);
+  await openTree(page);
+
+  const select = page.getByLabel("Tô màu theo");
+  await expect(select.locator("option")).toHaveText([
+    "Không tô màu",
+    ...data.manifest.columns.map((column) => column.title.vi),
+  ]);
+  // Mặc định tô màu theo genotype.
+  await expect(select).toHaveValue("clade");
+
+  const rows = page.locator(".legend__row");
+  await expect(rows).toHaveCount(Object.keys(expected).length);
+  const shown = await rows.evaluateAll((elements) =>
+    elements.map((element) => ({
+      label: element.querySelector(".legend__label")!.textContent,
+      count: element.querySelector(".legend__count")!.textContent,
+      color: getComputedStyle(element.querySelector(".swatch")!).backgroundColor,
+    })),
+  );
+  expect(Object.fromEntries(shown.map((row) => [row.label, row.count]))).toEqual(expected);
+  // Tối đa tám giá trị có màu riêng; mỗi giá trị trong số đó một màu khác nhau.
+  const distinct = Math.min(8, labels.length);
+  expect(new Set(shown.slice(0, distinct).map((row) => row.color)).size).toBe(distinct);
 });
 
 test("hovering and selecting 100 random tips gives the right sample each time (criterion 3c)", async ({
@@ -112,7 +199,13 @@ test("hovering and selecting 100 random tips gives the right sample each time (c
     await expect(page.getByRole("status").locator("strong")).toHaveText(data.tips.displayName[tip]);
 
     await page.mouse.click(point!.x, point!.y);
-    await expect(page.locator(".sample__facts div", { hasText: "Mã nội bộ" }).locator("dd")).toHaveText(expectedId);
+    const facts = page.locator(".sample__facts");
+    await expect(facts.locator("div", { hasText: "Mã nội bộ" }).locator("dd")).toHaveText(expectedId);
+    // Ngày của tip trên cây nằm trong ngày lấy mẫu đã khai (phần "XX" là phần không được khai).
+    const declared = data.tips.collectionDate[tip];
+    if (declared !== null) {
+      await expect(facts.locator("div", { hasText: "Ngày trên cây" }).locator("dd")).toHaveText(declaredDate(declared));
+    }
   }
 });
 
@@ -153,6 +246,35 @@ test("the date range filter keeps the tips whose date is inside it", async ({ pa
 
   await expect(page.getByText(`Đang hiện ${vi(expected)} trong ${vi(data.manifest.counts.tips)} mẫu`)).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__vietstrain!.stats!.tipsVisible)).toBe(expected);
+});
+
+test("both days of the date range are included, up to the last moment of the closing day", async ({
+  page,
+  request,
+}) => {
+  const data = await published(request);
+  const total = data.manifest.counts.tips;
+  const days = data.tree.tipNode.map((node) => dayOf(data.tree.numDate[node]!));
+  // Ngày của tip nằm muộn nhất trong ngày của nó: nơi một cận đặt lỏng tay sẽ làm rơi tip.
+  const lateness = data.tree.tipNode.map((node) => (dayPosition(data.tree.numDate[node]!) + 1e-6) % 1);
+  const day = days[lateness.indexOf(Math.max(...lateness))];
+  const count = (keep: (other: string) => boolean) => days.filter(keep).length;
+  await openTree(page);
+
+  const shows = async (expected: number) => {
+    await expect(page.getByText(`Đang hiện ${vi(expected)} trong ${vi(total)} mẫu`)).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__vietstrain!.stats!.tipsVisible)).toBe(expected);
+  };
+  await page.getByLabel("Từ ngày").fill(day);
+  await page.getByLabel("Đến ngày").fill(day);
+  await shows(count((other) => other === day));
+
+  await page.getByLabel("Từ ngày").fill("");
+  await shows(count((other) => other <= day));
+
+  await page.getByLabel("Từ ngày").fill(day);
+  await page.getByLabel("Đến ngày").fill("");
+  await shows(count((other) => other >= day));
 });
 
 test("searching by accession opens the details of that sample", async ({ page, request }) => {

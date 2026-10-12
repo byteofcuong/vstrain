@@ -4,7 +4,7 @@ import type { Manifest, TipInfo } from "../data/load";
 import { useT, useUi } from "../state/store";
 import type { Coloring } from "../tree/colors";
 import type { Column } from "../tree/columns";
-import { decimalYear, isoDate } from "../tree/dates";
+import { isoDate } from "../tree/dates";
 import { hasFilters, MISSING } from "../tree/filter";
 import type { Axis, Layout } from "../tree/layout";
 import type { Tree } from "../tree/parse";
@@ -24,9 +24,6 @@ interface Props {
   tipVisible: Uint8Array;
   visibleCount: number;
 }
-
-/** Một ngày gần trọn: bộ lọc "đến ngày" tính cả ngày được chọn. */
-const ALMOST_A_DAY = 0.99 / 366;
 
 function Choice<T extends string>({
   legend,
@@ -86,12 +83,7 @@ export function Sidebar({
     return low <= high ? [isoDate(low), isoDate(high)] : ["", ""];
   }, [tree]);
 
-  const { dateMin, dateMax } = ui.filters;
-  const setFrom = (text: string) => ui.setDateRange(text === "" ? null : decimalYear(text), dateMax);
-  const setTo = (text: string) => {
-    const value = text === "" ? null : decimalYear(text);
-    ui.setDateRange(dateMin, value === null ? null : value + ALMOST_A_DAY);
-  };
+  const { dateFrom, dateTo } = ui.filters;
 
   const filtered = Object.entries(ui.filters.values).filter(([, codes]) => codes.length > 0);
 
@@ -169,8 +161,8 @@ export function Sidebar({
               type="date"
               min={firstDay}
               max={lastDay}
-              value={dateMin === null ? "" : isoDate(dateMin)}
-              onChange={(event) => setFrom(event.target.value)}
+              value={dateFrom ?? ""}
+              onChange={(event) => ui.setDateRange(event.target.value || null, dateTo)}
             />
           </div>
           <div>
@@ -180,8 +172,8 @@ export function Sidebar({
               type="date"
               min={firstDay}
               max={lastDay}
-              value={dateMax === null ? "" : isoDate(dateMax - ALMOST_A_DAY)}
-              onChange={(event) => setTo(event.target.value)}
+              value={dateTo ?? ""}
+              onChange={(event) => ui.setDateRange(dateFrom, event.target.value || null)}
             />
           </div>
         </fieldset>

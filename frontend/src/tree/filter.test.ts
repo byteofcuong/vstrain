@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ColumnFormatError, parseColumn, type Column } from "./columns";
+import { dayRange } from "./dates";
 import { countSet, hasFilters, MISSING, NO_FILTERS, nodeMask, tipMask, visibleCounts } from "./filter";
 import { randomTree, smallTree } from "./fixtures";
 import { buildTipGrid, nearestTip } from "./grid";
@@ -58,38 +59,58 @@ describe("tipMask", () => {
     expect(hasFilters(NO_FILTERS)).toBe(false);
   });
 
-  it("filters by an inclusive date range and drops tips without a date", () => {
-    const mask = tipMask(tree, columns, { dateMin: 2012, dateMax: 2018, values: {} });
+  it("filters by a range of days, both days included, and drops tips without a date", () => {
+    // a1 2015, a2 2020, b1 2012, b2 2018 (đều là đầu ngày 1 tháng 1), b3 không có ngày.
+    const whole = tipMask(tree, columns, { dateFrom: "2012-01-01", dateTo: "2018-01-01", values: {} });
+    const inside = tipMask(tree, columns, { dateFrom: "2012-01-02", dateTo: "2017-12-31", values: {} });
 
-    // a1 2015, a2 2020, b1 2012, b2 2018, b3 không có ngày.
-    expect(Array.from(mask)).toEqual([1, 0, 1, 1, 0]);
+    expect(Array.from(whole)).toEqual([1, 0, 1, 1, 0]);
+    expect(Array.from(inside)).toEqual([1, 0, 0, 0, 0]);
+  });
+
+  it("takes the first moment of the range and leaves out the first moment after it", () => {
+    const [from, before] = dayRange("2015-03-01", "2015-03-31");
+    const file = smallTree();
+    // Tip a1 nằm đúng ở thời điểm đầu của khoảng, a2 đúng ở thời điểm đầu tiên sau khoảng.
+    file.numDate[2] = from;
+    file.numDate[3] = before;
+
+    const mask = tipMask(parseTree(file), columns, { dateFrom: "2015-03-01", dateTo: "2015-03-31", values: {} });
+
+    expect(Array.from(mask)).toEqual([1, 0, 0, 0, 0]);
   });
 
   it("accepts a range that is open on one side", () => {
-    expect(Array.from(tipMask(tree, columns, { dateMin: 2016, dateMax: null, values: {} }))).toEqual([0, 1, 0, 1, 0]);
+    const from2016 = { dateFrom: "2016-01-01", dateTo: null, values: {} };
+    const until2015 = { dateFrom: null, dateTo: "2015-01-01", values: {} };
+
+    expect(Array.from(tipMask(tree, columns, from2016))).toEqual([0, 1, 0, 1, 0]);
+    expect(Array.from(tipMask(tree, columns, until2015))).toEqual([1, 0, 1, 0, 0]);
+    expect(hasFilters(from2016)).toBe(true);
+    expect(hasFilters(until2015)).toBe(true);
   });
 
   it("keeps the tips whose value is one of the selected values", () => {
-    const mask = tipMask(tree, columns, { dateMin: null, dateMax: null, values: { country: [1] } });
+    const mask = tipMask(tree, columns, { dateFrom: null, dateTo: null, values: { country: [1] } });
 
     expect(Array.from(mask)).toEqual([0, 0, 1, 0, 0]);
   });
 
   it("can select the tips that have no value", () => {
-    const mask = tipMask(tree, columns, { dateMin: null, dateMax: null, values: { country: [MISSING, 1] } });
+    const mask = tipMask(tree, columns, { dateFrom: null, dateTo: null, values: { country: [MISSING, 1] } });
 
     expect(Array.from(mask)).toEqual([0, 0, 1, 1, 0]);
   });
 
   it("combines the date range and several columns with AND", () => {
-    const filters = { dateMin: 2000, dateMax: 2016, values: { country: [0], clade: [0] } };
+    const filters = { dateFrom: "2000-01-01", dateTo: "2016-01-01", values: { country: [0], clade: [0] } };
 
     expect(Array.from(tipMask(tree, columns, filters))).toEqual([1, 0, 0, 0, 0]);
     expect(hasFilters(filters)).toBe(true);
   });
 
   it("ignores an empty selection, an unknown column and codes outside the column", () => {
-    const filters = { dateMin: null, dateMax: null, values: { country: [], nothing: [3], clade: [0, 7, -5] } };
+    const filters = { dateFrom: null, dateTo: null, values: { country: [], nothing: [3], clade: [0, 7, -5] } };
 
     expect(Array.from(tipMask(tree, columns, filters))).toEqual([1, 1, 0, 0, 0]);
   });

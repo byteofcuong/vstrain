@@ -11,7 +11,9 @@ from collections.abc import Sequence
 from typing import Any
 
 _DIV_DECIMALS = 7
-_DATE_DECIMALS = 4  # 0,0001 năm là chưa tới một giờ
+# Trần, không phải độ chính xác thật: `augur export v2` đã làm tròn `num_date` 3 chữ số (0,001 năm là gần 9 giờ),
+# và TreeTime đặt tip vào giữa ngày lấy mẫu. Viewer đổi sang ngày lịch bằng cách lấy ngày chứa thời điểm đó.
+_DATE_DECIMALS = 4
 
 
 def _rounded(value: Any, decimals: int) -> float | None:

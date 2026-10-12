@@ -1,23 +1,24 @@
 import type { Column } from "./columns";
+import { dayRange } from "./dates";
 import type { Tree } from "./parse";
 
 /** Mã dùng trong bộ lọc cho "không có giá trị". */
 export const MISSING = -1;
 
 export interface Filters {
-  /** Khoảng ngày (năm thập phân), tính cả hai đầu; `null` là không giới hạn. */
-  dateMin: number | null;
-  dateMax: number | null;
+  /** Khoảng ngày (YYYY-MM-DD) của tip trên cây, tính cả hai ngày; `null` là không giới hạn. */
+  dateFrom: string | null;
+  dateTo: string | null;
   /** Với mỗi cột: các mã được giữ lại. Cột không có ở đây, hoặc có danh sách rỗng, là không lọc. */
   values: Record<string, number[]>;
 }
 
-export const NO_FILTERS: Filters = { dateMin: null, dateMax: null, values: {} };
+export const NO_FILTERS: Filters = { dateFrom: null, dateTo: null, values: {} };
 
 export function hasFilters(filters: Filters): boolean {
   return (
-    filters.dateMin !== null ||
-    filters.dateMax !== null ||
+    filters.dateFrom !== null ||
+    filters.dateTo !== null ||
     Object.values(filters.values).some((codes) => codes.length > 0)
   );
 }
@@ -27,14 +28,12 @@ export function tipMask(tree: Tree, columns: ReadonlyMap<string, Column>, filter
   const { tipCount, tipNode, numDate } = tree;
   const mask = new Uint8Array(tipCount).fill(1);
 
-  const { dateMin, dateMax } = filters;
-  if (dateMin !== null || dateMax !== null) {
-    const low = dateMin ?? -Infinity;
-    const high = dateMax ?? Infinity;
+  if (filters.dateFrom !== null || filters.dateTo !== null) {
+    const [from, before] = dayRange(filters.dateFrom, filters.dateTo);
     for (let k = 0; k < tipCount; k++) {
       const date = numDate[tipNode[k]];
       // Tip không có ngày không thuộc khoảng ngày nào.
-      if (!(date >= low && date <= high)) mask[k] = 0;
+      if (!(date >= from && date < before)) mask[k] = 0;
     }
   }
 

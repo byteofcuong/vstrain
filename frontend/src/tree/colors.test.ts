@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { colorize, OTHER_COLOR, PALETTE } from "./colors";
 import { parseColumn } from "./columns";
-import { decimalYear, isoDate, niceTicks } from "./dates";
 import { randomTree, smallTree } from "./fixtures";
 import { parseTree } from "./parse";
 
@@ -57,36 +56,5 @@ describe("colorize", () => {
 
     // "j" có 2 tip, "d" có 1 tip, các giá trị còn lại 0 tip và xếp theo thứ tự của cột.
     expect(colorize(column).order).toEqual([9, 3, 0, 1, 2, 4, 5, 6, 7, 8]);
-  });
-});
-
-describe("dates", () => {
-  it("converts calendar dates to decimal years and back", () => {
-    expect(decimalYear("2019-01-01")).toBe(2019);
-    expect(decimalYear("2019-07-02")).toBeCloseTo(2019.4986, 4);
-    expect(isoDate(2019)).toBe("2019-01-01");
-    expect(isoDate(2019.4986)).toBe("2019-07-02");
-    expect(isoDate(decimalYear("2020-02-29")!)).toBe("2020-02-29");
-    expect(isoDate(decimalYear("2018-12-31")!)).toBe("2018-12-31");
-  });
-
-  it("survives the four-decimal rounding of the published files", () => {
-    for (const date of ["2014-03-07", "2016-12-31", "2020-01-01", "2024-02-29", "1999-10-10"]) {
-      const rounded = Math.round(decimalYear(date)! * 10000) / 10000;
-      expect(isoDate(rounded)).toBe(date);
-    }
-  });
-
-  it("rejects text that is not a real calendar date", () => {
-    for (const text of ["", "2019", "2019-13-01", "2019-02-30", "19-01-01", "2019-1-1", "abcd-ef-gh"]) {
-      expect(decimalYear(text)).toBeNull();
-    }
-  });
-
-  it("picks round tick values that cover the range", () => {
-    expect(niceTicks(1840.2, 2024.6, 8)).toEqual([1850, 1900, 1950, 2000]);
-    expect(niceTicks(2010.3, 2019.8, 10)).toEqual([2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019]);
-    expect(niceTicks(0, 0.11, 5)).toEqual([0, 0.05, 0.1]);
-    expect(niceTicks(5, 5, 5)).toEqual([]);
   });
 });

@@ -22,7 +22,8 @@ interface UiState {
   setLayout(layout: Layout): void;
   setAxis(axis: Axis): void;
   setColorKey(key: string | null): void;
-  setDateRange(dateMin: number | null, dateMax: number | null): void;
+  /** Hai ngày dạng YYYY-MM-DD, tính cả hai; `null` là không giới hạn ở đầu đó. */
+  setDateRange(dateFrom: string | null, dateTo: string | null): void;
   /** Bật hoặc tắt một giá trị trong bộ lọc của một cột. */
   toggleValue(key: string, code: number): void;
   clearColumnFilter(key: string): void;
@@ -63,7 +64,7 @@ export const useUi = create<UiState>((set) => ({
   setLayout: (layout) => set({ layout }),
   setAxis: (axis) => set({ axis }),
   setColorKey: (colorKey) => set({ colorKey }),
-  setDateRange: (dateMin, dateMax) => set((state) => ({ filters: { ...state.filters, dateMin, dateMax } })),
+  setDateRange: (dateFrom, dateTo) => set((state) => ({ filters: { ...state.filters, dateFrom, dateTo } })),
   toggleValue: (key, code) =>
     set((state) => {
       const current = state.filters.values[key] ?? [];
