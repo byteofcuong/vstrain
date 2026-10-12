@@ -307,7 +307,7 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 - [x] T6.9 Bố cục toả tròn. Kiểm chứng: vitest; Playwright đổi bố cục và trục, không mất tip nào
 - [x] T6.10 Song ngữ Việt, Anh; đổi ngôn ngữ không tải lại dữ liệu (tiêu chí V3). Kiểm chứng: Playwright đếm request sau khi đổi ngôn ngữ (0)
 - [x] T6.11 Đo tiêu chí 3, 3b, V1 trên dataset 35 nghìn và 100 nghìn tip. Số liệu ở `do-dac/results/W5-viewer-webapp/`, diễn giải ở `do-dac/bao-cao/TIEN-DO.md` mục 16
-- [ ] T6.12 Service `web` (nginx) phục vụ frontend đã build và thư mục publish, chuyển `/api` sang `api`
+- [x] T6.12 Service `web` (nginx 1.28) ở cổng 8080 phục vụ frontend đã build và thư mục publish, chuyển `/api` sang `api` (ADR-006). Kiểm chứng: `npm run e2e:web` → 14 passed (9 test của viewer chạy qua nginx với CSP bật, 5 test của cấu hình nginx); sửa thử 15 chỗ trong `nginx.conf`, cả 15 bị test bắt. Khác kế hoạch: nén gzip lúc phát thay vì nén sẵn brotli (image nginx chính thức không có brotli; với dataset có trần 2.000 mẫu, nén lúc phát tốn 10–30 ms cho lần tải đầu)
 
 **Kết quả kiểm chứng của T6.1–T6.10 (2026-10-13):** `npm run test` → 97 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 9 passed trên bản build, với dataset DENV1 thật (1.964 tip).
 

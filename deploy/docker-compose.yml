@@ -66,6 +66,19 @@ services:
     command: ["python", "-m", "app.jobs.worker"]
     restart: on-failure            # worker tự bắt lỗi trong vòng lặp; đây là lớp dự phòng nếu tiến trình vẫn chết
 
+  # Cổng vào của bản triển khai (http://127.0.0.1:8080): frontend đã build, file publish, và /api chuyển sang `api`.
+  # Frontend được build trên máy (`npm run build` trong frontend/) rồi mount vào; chưa build thì trang trả 404.
+  web:
+    image: nginx:1.28-alpine
+    depends_on:
+      - api                         # nginx phân giải tên `api` lúc khởi động
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../frontend/dist:/usr/share/nginx/html:ro
+      - ../data/builds:/srv/builds:ro
+
 volumes:
   pgdata:
   work:

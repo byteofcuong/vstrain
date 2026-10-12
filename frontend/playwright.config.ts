@@ -7,6 +7,8 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "e2e",
+  // Các kiểm tra của nginx chỉ có nghĩa khi chạy qua service `web`: xem `playwright.web.config.ts`.
+  testIgnore: ["deploy.spec.ts"],
   timeout: 30_000,
   fullyParallel: true,
   reporter: [["list"]],

@@ -41,7 +41,7 @@ Mỗi module có đặc tả riêng ở `specs/SPEC-<module id>.md`, viết ngay
 | Cơ sở dữ liệu | PostgreSQL 16 | Kiêm hàng đợi job (`FOR UPDATE SKIP LOCKED`) |
 | Công cụ sinh học | Augur 34.1.4, Nextclade 3.24, IQ-TREE 3.0.1, TreeTime 0.12.1 | Đúng phiên bản đã đo |
 | Frontend | React 19, TypeScript, Vite, Zustand, MapLibre GL | Từ module `viewer` |
-| Triển khai | Docker Compose trên một máy | Chưa có HTTPS, chưa lên server |
+| Triển khai | Docker Compose trên một máy; nginx 1.28 là cổng vào (`http://127.0.0.1:8080`) | Chưa có HTTPS, chưa lên server |
 
 Lý do của từng lựa chọn lớn được ghi thành ADR trong `docs/decisions/`.
 
@@ -84,9 +84,14 @@ Kiểm tra kiểu:  npm run typecheck
 Lint và format: npm run lint            (eslint và prettier --check)
 Build:          npm run build
 Test đầu-cuối:  npm run e2e             (Playwright; cần backend đang chạy và dataset dengue-denv1 đã có build)
+Test qua nginx: npm run e2e:web         (cùng bộ test, cộng kiểm tra của nginx; cần `npm run build` và service `web` đang chạy)
 ```
 
 Test đầu-cuối tự build frontend rồi phục vụ bản build ở cổng 4173 (cổng này phải đang trống), nên nó thử đúng thứ sẽ được triển khai. Khi một lần chạy thất bại, đọc lỗi và thư mục `test-results/` trước khi chạy lại: lần chạy sau xoá chúng. Chromium của Playwright 1.60.0 đã có trên máy từ giai đoạn đo đạc; phiên bản `@playwright/test` được ghim đúng 1.60.0 để không phải tải trình duyệt khác.
+
+### Bản triển khai trên máy
+
+`docker compose ... up -d` bật thêm service `web` (nginx) ở `http://127.0.0.1:8080`: đây là địa chỉ để dùng webapp. Nó phát `frontend/dist`, nên phải chạy `npm run build` trước; chưa build thì trang trả 404. Build lại frontend không cần khởi động lại nginx. Sửa `deploy/nginx.conf` thì nạp lại bằng `docker compose -f deploy/docker-compose.yml exec web nginx -s reload`. Lý do của cấu hình ở `docs/decisions/ADR-006-*.md`.
 
 ## Project Structure
 
@@ -96,7 +101,7 @@ specs/                → đặc tả từng module
 tasks/plan.md         → kế hoạch triển khai
 tasks/todo.md         → danh sách task, tiêu chí nghiệm thu, checkpoint
 docs/decisions/       → ADR: lý do của các quyết định kiến trúc
-deploy/               → docker-compose.yml, Dockerfile
+deploy/               → docker-compose.yml, Dockerfile, nginx.conf (service `web`)
 backend/app/          → mã backend, mỗi module một gói con (geo/, samples/, ...)
 backend/migrations/   → migration Alembic
 backend/tests/        → pytest

@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:web": "playwright test --config playwright.web.config.ts"
   },
   "dependencies": {
     "react": "^19.3.0",
