@@ -7,8 +7,13 @@ import type { View } from "./view";
  * Vẽ cây lên Canvas 2D.
  *
  * Auspice tạo khoảng 3,5 phần tử SVG cho mỗi tip và đổi thuộc tính từng phần tử khi lọc hay đổi màu. Ở đây
- * mỗi khung hình là vài path: nhánh được gom theo màu, tip được gom theo màu, và khi nhiều tip rơi vào cùng
- * một pixel thì chỉ vẽ một. Chi phí của một khung hình vì thế bị chặn bởi số pixel chứ không chỉ bởi số tip.
+ * mỗi khung hình là vài path, và những gì rơi vào cùng một pixel chỉ được vẽ một lần:
+ * - mỗi node trong có một đoạn nối (dọc, hoặc cung tròn) phủ từ con đầu tới con cuối, thay vì mỗi con một đoạn
+ *   chồng lên nhau;
+ * - trong bố cục chữ nhật, một đoạn chỉ được vẽ khi nó phủ ít nhất một pixel mà chưa đoạn nào cùng màu, cùng
+ *   hàng (hoặc cùng cột) phủ tới;
+ * - tip nhỏ được gom theo ô 2 × 2 pixel, và các ô kề nhau cùng màu được vẽ bằng một hình chữ nhật.
+ * Số lệnh vẽ của một khung hình vì thế bị chặn bởi số pixel của canvas, không tăng mãi theo số tip.
  */
 
 export interface Theme {
@@ -48,27 +53,83 @@ export interface Scene {
 
 export interface DrawStats {
   tipsVisible: number;
+  /** Số tip được thể hiện trên canvas: mỗi ô pixel có tip được tính một lần. */
   tipsDrawn: number;
+  /** Số đoạn nhánh thật sự được đưa vào path (thân nhánh và đoạn nối), sau khi bỏ những đoạn trùng pixel. */
   branchesDrawn: number;
+  /** Thời gian vẽ nhánh và vẽ tip của khung hình này (mili giây). */
+  branchMilliseconds: number;
+  tipMilliseconds: number;
 }
+
+/** Phần của Canvas 2D mà việc vẽ cây dùng tới; test thay nó bằng một bản ghi lại các lệnh vẽ. */
+export type Surface = Pick<
+  CanvasRenderingContext2D,
+  | "beginPath"
+  | "moveTo"
+  | "lineTo"
+  | "arc"
+  | "stroke"
+  | "fill"
+  | "fillRect"
+  | "fillText"
+  | "fillStyle"
+  | "strokeStyle"
+  | "lineWidth"
+  | "lineCap"
+  | "font"
+  | "textAlign"
+  | "textBaseline"
+>;
 
 /** Bộ đệm dùng lại giữa các khung hình, để mỗi lần vẽ không cấp phát mảng mới. */
 export interface Scratch {
-  seen: Uint8Array;
-  drawn: Int32Array;
+  /** Với mỗi ô của lưới tip: 0 là trống, còn lại là mã màu của tip chiếm ô đó, cộng 2. */
+  cells: Int16Array;
+  /** Danh sách đang gom (tip, hoặc đoạn ô liền nhau) và thứ tự của nó sau khi xếp theo màu. */
+  items: Int32Array;
+  lengths: Int32Array;
   sorted: Int32Array;
   bucket: Int32Array;
+  /** Với mỗi node trong: khoảng (theo chiều xếp tip) mà các con đang xét của nó trải ra. */
+  low: Float32Array;
+  high: Float32Array;
+  /** Mỗi hàng pixel một dãy bit, mỗi bit một pixel đã có thân nhánh đi qua trong lượt vẽ hiện tại. */
+  rowBits: Uint32Array;
+  /** Lượt vẽ gần nhất đã dùng tới hàng này; khác lượt hiện tại nghĩa là dãy bit của hàng còn là của lượt cũ. */
+  rowPass: Int32Array;
+  /** Như trên, cho từng cột pixel và các đoạn nối dọc. */
+  columnBits: Uint32Array;
+  columnPass: Int32Array;
+  pass: number;
 }
 
 export function createScratch(): Scratch {
-  return { seen: new Uint8Array(0), drawn: new Int32Array(0), sorted: new Int32Array(0), bucket: new Int32Array(0) };
+  return {
+    cells: new Int16Array(0),
+    items: new Int32Array(0),
+    lengths: new Int32Array(0),
+    sorted: new Int32Array(0),
+    bucket: new Int32Array(0),
+    low: new Float32Array(0),
+    high: new Float32Array(0),
+    rowBits: new Uint32Array(0),
+    rowPass: new Int32Array(0),
+    columnBits: new Uint32Array(0),
+    columnPass: new Int32Array(0),
+    pass: 0,
+  };
 }
 
 const FULL_TURN = 2 * Math.PI;
-/** Nhánh ngắn hơn mức này (pixel) theo cả hai chiều thì không nhìn thấy được và được bỏ qua. */
+/** Đoạn ngắn hơn mức này (pixel) thì không nhìn thấy được và được bỏ qua. */
 const TINY = 0.25;
 /** Tô màu nhánh theo cột chỉ khi cột có ít giá trị: mỗi màu là một lượt duyệt qua mọi node. */
 export const MAX_BRANCH_COLORS = 32;
+/** Chiều cao dải ghi nhãn trục ở đáy canvas (bố cục chữ nhật). */
+export const AXIS_BAND = 24;
+/** Tip có bán kính dưới mức này được vẽ thành ô vuông trên lưới 2 × 2 pixel thay vì hình tròn. */
+const SMALL_TIP = 1.5;
 
 /** Bán kính của tip theo khoảng cách giữa hai tip kề nhau trên màn hình. */
 export function tipRadius(scene: Pick<Scene, "tree" | "positions" | "view">): number {
@@ -80,57 +141,331 @@ export function tipRadius(scene: Pick<Scene, "tree" | "positions" | "view">): nu
   return Math.min(4.5, Math.max(1, spacing * 0.4));
 }
 
-function traceBranches(ctx: CanvasRenderingContext2D, scene: Scene, visible: 0 | 1, code: number | null): number {
+/**
+ * Với mỗi node trong, tìm khoảng mà các con có trạng thái `visible` của nó trải ra theo chiều xếp tip (toạ độ y
+ * trong bố cục chữ nhật, góc trong bố cục toả tròn). Đoạn nối của node đó phủ đúng khoảng này.
+ */
+function childExtents(scene: Scene, scratch: Scratch, visible: 0 | 1): void {
+  const { tree, positions, nodeVisible } = scene;
+  const { parent, nodeCount } = tree;
+  const across = positions.angle ?? positions.y;
+  if (scratch.low.length < nodeCount) {
+    scratch.low = new Float32Array(nodeCount);
+    scratch.high = new Float32Array(nodeCount);
+  }
+  const { low, high } = scratch;
+  low.fill(Infinity, 0, nodeCount);
+  high.fill(-Infinity, 0, nodeCount);
+  for (let i = 1; i < nodeCount; i++) {
+    if (nodeVisible[i] !== visible) continue;
+    const up = parent[i];
+    const at = across[i];
+    if (at < low[up]) low[up] = at;
+    if (at > high[up]) high[up] = at;
+  }
+}
+
+function clampIndex(value: number, count: number): number {
+  const index = Math.floor(value);
+  return index < 0 ? 0 : index >= count ? count - 1 : index;
+}
+
+/**
+ * Đánh dấu các bit từ `first` tới `last` (tính cả hai đầu) của dãy bit bắt đầu ở từ `base`. Trả `true` nếu có ít
+ * nhất một bit trước đó chưa được đánh dấu, tức đoạn này phủ thêm pixel mới và cần được vẽ.
+ */
+export function claimBits(bits: Uint32Array, base: number, first: number, last: number): boolean {
+  const firstWord = first >> 5;
+  const lastWord = last >> 5;
+  let fresh = false;
+  for (let word = firstWord; word <= lastWord; word++) {
+    // Mặt nạ là số nguyên 32 bit có dấu (-1 là cả 32 bit), cắt bớt ở từ đầu và từ cuối của đoạn.
+    let mask = -1;
+    if (word === firstWord) mask &= -1 << (first & 31);
+    if (word === lastWord) mask &= -1 >>> (31 - (last & 31));
+    const current = bits[base + word] | 0;
+    if ((current & mask) !== mask) {
+      fresh = true;
+      bits[base + word] = current | mask;
+    }
+  }
+  return fresh;
+}
+
+/** Chuẩn bị các dãy bit cho một lượt vẽ nhánh mới trên canvas `columns` × `rows` pixel; trả về số của lượt. */
+function beginCoverage(scratch: Scratch, rows: number, columns: number): number {
+  const rowWords = (columns + 31) >> 5;
+  const columnWords = (rows + 31) >> 5;
+  if (scratch.rowBits.length < rows * rowWords) scratch.rowBits = new Uint32Array(rows * rowWords);
+  if (scratch.rowPass.length < rows) scratch.rowPass = new Int32Array(rows);
+  if (scratch.columnBits.length < columns * columnWords) scratch.columnBits = new Uint32Array(columns * columnWords);
+  if (scratch.columnPass.length < columns) scratch.columnPass = new Int32Array(columns);
+  // Không xoá cả bảng ở mỗi lượt (mỗi màu nhánh là một lượt): hàng nào được dùng tới mới xoá, khi số lượt ghi
+  // ở hàng đó khác lượt hiện tại.
+  scratch.pass += 1;
+  return scratch.pass;
+}
+
+/**
+ * Đưa vào path các nhánh có trạng thái `visible` (và, nếu `code` khác `null`, có mã màu đó): thân nhánh của từng
+ * node rồi tới đoạn nối của từng node trong. Thân nhánh mang màu của node con, đoạn nối mang màu của node cha.
+ * Phải gọi `childExtents` cho cùng trạng thái `visible` trước đó.
+ */
+function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 | 1, code: number | null): number {
   const { tree, positions, view, width, height, nodeVisible, nodeCodes } = scene;
   const { parent, nodeCount } = tree;
   const { x, y, along, angle } = positions;
   const { scaleX, scaleY, offsetX, offsetY } = view;
-  const centerX = offsetX + 0.5 * scaleX;
-  const centerY = offsetY + 0.5 * scaleY;
+  const { low, high } = scratch;
+  const coloured = code !== null && nodeCodes !== null;
   let count = 0;
 
   ctx.beginPath();
+
+  if (angle === null) {
+    const rows = Math.max(1, Math.ceil(height));
+    const columns = Math.max(1, Math.ceil(width));
+    const rowWords = (columns + 31) >> 5;
+    const columnWords = (rows + 31) >> 5;
+    const pass = beginCoverage(scratch, rows, columns);
+    const { rowBits, rowPass, columnBits, columnPass } = scratch;
+
+    // Thân nhánh: đoạn ngang từ vị trí của cha tới vị trí của node, ở hàng của node.
+    for (let i = 1; i < nodeCount; i++) {
+      if (nodeVisible[i] !== visible) continue;
+      if (coloured && nodeCodes[i] !== code) continue;
+      const py = offsetY + y[i] * scaleY;
+      if (py < -1 || py > height + 1) continue;
+      const x0 = offsetX + x[parent[i]] * scaleX;
+      const x1 = offsetX + x[i] * scaleX;
+      const from = x0 < x1 ? x0 : x1;
+      const to = x0 < x1 ? x1 : x0;
+      if (to < 0 || from > width || to - from < TINY) continue;
+      const row = clampIndex(py, rows);
+      const base = row * rowWords;
+      if (rowPass[row] !== pass) {
+        rowBits.fill(0, base, base + rowWords);
+        rowPass[row] = pass;
+      }
+      if (!claimBits(rowBits, base, clampIndex(from, columns), clampIndex(to, columns))) continue;
+      ctx.moveTo(x0, py);
+      ctx.lineTo(x1, py);
+      count++;
+    }
+
+    // Đoạn nối: một đoạn dọc ở vị trí của node trong, phủ từ con trên cùng tới con dưới cùng.
+    for (let p = 0; p < nodeCount; p++) {
+      if (!(low[p] <= high[p])) continue;
+      if (coloured && nodeCodes[p] !== code) continue;
+      const px = offsetX + x[p] * scaleX;
+      if (px < -1 || px > width + 1) continue;
+      const from = offsetY + (low[p] < y[p] ? low[p] : y[p]) * scaleY;
+      const to = offsetY + (high[p] > y[p] ? high[p] : y[p]) * scaleY;
+      if (to < 0 || from > height || to - from < TINY) continue;
+      const column = clampIndex(px, columns);
+      const base = column * columnWords;
+      if (columnPass[column] !== pass) {
+        columnBits.fill(0, base, base + columnWords);
+        columnPass[column] = pass;
+      }
+      if (!claimBits(columnBits, base, clampIndex(from, rows), clampIndex(to, rows))) continue;
+      ctx.moveTo(px, from);
+      ctx.lineTo(px, to);
+      count++;
+    }
+    return count;
+  }
+
+  const centerX = offsetX + 0.5 * scaleX;
+  const centerY = offsetY + 0.5 * scaleY;
+  const unit = 0.5 * scaleX;
+
+  // Thân nhánh: đoạn dọc theo bán kính, từ vòng tròn của cha ra tới node, ở góc của node.
   for (let i = 1; i < nodeCount; i++) {
     if (nodeVisible[i] !== visible) continue;
-    if (code !== null && nodeCodes !== null && nodeCodes[i] !== code) continue;
-    const up = parent[i];
-    const x0 = offsetX + x[up] * scaleX;
-    const y0 = offsetY + y[up] * scaleY;
+    if (coloured && nodeCodes[i] !== code) continue;
     const x1 = offsetX + x[i] * scaleX;
     const y1 = offsetY + y[i] * scaleY;
+    // Điểm đầu nằm trên cùng tia với node, ở bán kính của cha; không cần tính sin, cos.
+    const ratio = along[i] > 0 ? along[parent[i]] / along[i] : 0;
+    const x0 = centerX + (x1 - centerX) * ratio;
+    const y0 = centerY + (y1 - centerY) * ratio;
     if ((x0 < 0 && x1 < 0) || (x0 > width && x1 > width) || (y0 < 0 && y1 < 0) || (y0 > height && y1 > height)) {
-      // Trong bố cục toả tròn, cung nối hai đầu có thể đi qua khung nhìn dù cả hai đầu ở ngoài; chấp nhận
-      // bỏ sót trường hợp hiếm này để không phải vẽ mọi nhánh khi đã phóng to.
       continue;
     }
     const dx = x1 - x0;
     const dy = y1 - y0;
     if (dx < TINY && dx > -TINY && dy < TINY && dy > -TINY) continue;
-
     ctx.moveTo(x0, y0);
-    if (angle === null) {
-      ctx.lineTo(x0, y1);
-    } else if (along[up] > 0) {
-      ctx.arc(centerX, centerY, along[up] * 0.5 * scaleX, angle[up], angle[i], angle[i] < angle[up]);
-    }
     ctx.lineTo(x1, y1);
+    count++;
+  }
+
+  // Đoạn nối: một cung ở bán kính của node trong, phủ từ con có góc nhỏ nhất tới con có góc lớn nhất.
+  for (let p = 0; p < nodeCount; p++) {
+    if (!(low[p] <= high[p])) continue;
+    if (coloured && nodeCodes[p] !== code) continue;
+    const radius = along[p] * unit;
+    const from = low[p] < angle[p] ? low[p] : angle[p];
+    const to = high[p] > angle[p] ? high[p] : angle[p];
+    if ((to - from) * radius < TINY) continue;
+    // Vòng tròn của cung nằm hẳn ngoài khung nhìn thì bỏ; cung nằm ngoài nhưng vòng tròn cắt khung nhìn vẫn
+    // được vẽ, chấp nhận thừa để phép kiểm tra rẻ.
+    if (centerX + radius < 0 || centerX - radius > width || centerY + radius < 0 || centerY - radius > height) {
+      continue;
+    }
+    ctx.moveTo(centerX + radius * Math.cos(from), centerY + radius * Math.sin(from));
+    ctx.arc(centerX, centerY, radius, from, to);
     count++;
   }
   return count;
 }
 
-function ensure(scratch: Scratch, pixels: number, tips: number, colors: number): void {
-  if (scratch.seen.length < pixels) scratch.seen = new Uint8Array(pixels);
-  else scratch.seen.fill(0, 0, pixels);
-  if (scratch.drawn.length < tips) {
-    scratch.drawn = new Int32Array(tips);
-    scratch.sorted = new Int32Array(tips);
+function drawBranches(ctx: Surface, scene: Scene, scratch: Scratch): number {
+  const { nodeCodes, colors, theme } = scene;
+  // Đầu vuông để chỗ đoạn dọc gặp đoạn ngang không hở một góc.
+  ctx.lineCap = "square";
+
+  // Nhánh mờ trước, nhánh đang hiện đè lên trên.
+  childExtents(scene, scratch, 0);
+  let count = traceBranches(ctx, scene, scratch, 0, null);
+  ctx.strokeStyle = theme.branchMuted;
+  ctx.lineWidth = 0.75;
+  ctx.stroke();
+
+  childExtents(scene, scratch, 1);
+  ctx.lineWidth = 1;
+  if (nodeCodes !== null && colors.length <= MAX_BRANCH_COLORS) {
+    for (let code = -1; code < colors.length; code++) {
+      const traced = traceBranches(ctx, scene, scratch, 1, code);
+      if (traced === 0) continue;
+      count += traced;
+      ctx.strokeStyle = code < 0 ? theme.branch : colors[code];
+      ctx.stroke();
+    }
+  } else {
+    count += traceBranches(ctx, scene, scratch, 1, null);
+    ctx.strokeStyle = theme.branch;
+    ctx.stroke();
   }
-  if (scratch.bucket.length < colors + 2) scratch.bucket = new Int32Array(colors + 2);
-  else scratch.bucket.fill(0, 0, colors + 2);
+  return count;
 }
 
-function ring(ctx: CanvasRenderingContext2D, scene: Scene, tip: number, radius: number, lineWidth: number): void {
+/** Xếp `count` mục theo mã màu bằng sắp xếp đếm; `slotOf(n)` là mã màu cộng 2 của mục thứ n. Trả về mảng mốc. */
+function sortBySlot(scratch: Scratch, count: number, slots: number, slotOf: (n: number) => number): Int32Array {
+  const { sorted, bucket } = scratch;
+  bucket.fill(0, 0, slots + 1);
+  for (let n = 0; n < count; n++) bucket[slotOf(n) + 1]++;
+  for (let slot = 1; slot <= slots; slot++) bucket[slot] += bucket[slot - 1];
+  // Sau vòng này `bucket[s]` là vị trí kết thúc của các mục có mã s.
+  for (let n = 0; n < count; n++) sorted[bucket[slotOf(n)]++] = n;
+  return bucket;
+}
+
+function drawTips(ctx: Surface, scene: Scene, scratch: Scratch, radius: number): [visible: number, drawn: number] {
+  const { tree, positions, view, width, height, tipVisible, tipCodes, colors, theme } = scene;
+  const { tipNode, tipCount } = tree;
+  const { x, y } = positions;
+  const { scaleX, scaleY, offsetX, offsetY } = view;
+
+  // Mỗi ô của lưới nhiều nhất một tip. Tip nhỏ được vẽ thành ô vuông 2 pixel nên ô là 2 × 2 pixel; tip lớn hơn
+  // nằm thưa, mỗi ô là một pixel.
+  const small = radius < SMALL_TIP;
+  const shift = small ? 1 : 0;
+  const gridWidth = (Math.ceil(width) >> shift) + 1;
+  const gridHeight = (Math.ceil(height) >> shift) + 1;
+  // Mã màu cộng 2 làm "ngăn": ngăn 1 là tip không có giá trị (mã -1), ngăn 0 để trống cho ô không có tip.
+  const slots = colors.length + 2;
+  if (scratch.cells.length < gridWidth * gridHeight) scratch.cells = new Int16Array(gridWidth * gridHeight);
+  else scratch.cells.fill(0, 0, gridWidth * gridHeight);
+  if (scratch.items.length < tipCount) {
+    scratch.items = new Int32Array(tipCount);
+    scratch.lengths = new Int32Array(tipCount);
+    scratch.sorted = new Int32Array(tipCount);
+  }
+  if (scratch.bucket.length < slots + 1) scratch.bucket = new Int32Array(slots + 1);
+  const { cells, items, lengths, sorted } = scratch;
+
+  let tipsVisible = 0;
+  let tipsDrawn = 0;
+  for (let k = 0; k < tipCount; k++) {
+    if (!tipVisible[k]) continue;
+    tipsVisible++;
+    const node = tipNode[k];
+    const px = offsetX + x[node] * scaleX;
+    const py = offsetY + y[node] * scaleY;
+    if (px < 0 || py < 0 || px >= width || py >= height) continue;
+    const at = (py >> shift) * gridWidth + (px >> shift);
+    if (cells[at] !== 0) continue;
+    cells[at] = (tipCodes === null ? -1 : tipCodes[k]) + 2;
+    items[tipsDrawn++] = k;
+  }
+  const colorOf = (slot: number) =>
+    slot === 1 ? (tipCodes === null ? theme.branch : theme.missing) : colors[slot - 2];
+
+  if (!small) {
+    // Tip đủ lớn: mỗi tip một hình tròn ở đúng vị trí của nó, gom theo màu để mỗi màu tô một lần.
+    const ends = sortBySlot(scratch, tipsDrawn, slots, (n) => (tipCodes === null ? -1 : tipCodes[items[n]]) + 2);
+    let from = 0;
+    for (let slot = 1; slot < slots; slot++) {
+      const to = ends[slot];
+      if (to > from) {
+        ctx.fillStyle = colorOf(slot);
+        ctx.beginPath();
+        for (let n = from; n < to; n++) {
+          const node = tipNode[items[sorted[n]]];
+          const px = offsetX + x[node] * scaleX;
+          const py = offsetY + y[node] * scaleY;
+          ctx.moveTo(px + radius, py);
+          ctx.arc(px, py, radius, 0, FULL_TURN);
+        }
+        ctx.fill();
+      }
+      from = to;
+    }
+    return [tipsVisible, tipsDrawn];
+  }
+
+  // Tip nhỏ: quét lưới theo từng hàng, mỗi dãy ô liền nhau cùng màu thành một hình chữ nhật. Số lệnh vẽ vì thế
+  // bị chặn bởi số ô của lưới chứ không theo số tip.
+  let runs = 0;
+  for (let row = 0; row < gridHeight; row++) {
+    let at = row * gridWidth;
+    const end = at + gridWidth;
+    while (at < end) {
+      const slot = cells[at];
+      if (slot === 0) {
+        at++;
+        continue;
+      }
+      let stop = at + 1;
+      while (stop < end && cells[stop] === slot) stop++;
+      items[runs] = at;
+      lengths[runs] = stop - at;
+      runs++;
+      at = stop;
+    }
+  }
+  const ends = sortBySlot(scratch, runs, slots, (n) => cells[items[n]]);
+  const side = 1 << shift;
+  let from = 0;
+  for (let slot = 1; slot < slots; slot++) {
+    const to = ends[slot];
+    if (to > from) {
+      ctx.fillStyle = colorOf(slot);
+      for (let n = from; n < to; n++) {
+        const run = sorted[n];
+        const at = items[run];
+        const column = at % gridWidth;
+        ctx.fillRect(column << shift, ((at - column) / gridWidth) << shift, lengths[run] << shift, side);
+      }
+    }
+    from = to;
+  }
+  return [tipsVisible, tipsDrawn];
+}
+
+function ring(ctx: Surface, scene: Scene, tip: number, radius: number, lineWidth: number): void {
   if (tip < 0 || tip >= scene.tree.tipCount) return;
   const node = scene.tree.tipNode[tip];
   const px = scene.view.offsetX + scene.positions.x[node] * scene.view.scaleX;
@@ -142,10 +477,7 @@ function ring(ctx: CanvasRenderingContext2D, scene: Scene, tip: number, radius: 
   ctx.stroke();
 }
 
-/** Chiều cao dải ghi nhãn trục ở đáy canvas (bố cục chữ nhật). */
-export const AXIS_BAND = 24;
-
-function drawGuides(ctx: CanvasRenderingContext2D, scene: Scene): void {
+function drawGuides(ctx: Surface, scene: Scene): void {
   const { guides, theme, view, height } = scene;
   if (guides === null) return;
   ctx.strokeStyle = theme.guide;
@@ -180,7 +512,7 @@ function drawGuides(ctx: CanvasRenderingContext2D, scene: Scene): void {
 }
 
 /** Dải nhãn trục ở đáy, vẽ sau cùng để cây đã phóng to không đè lên chữ. */
-function drawAxisBand(ctx: CanvasRenderingContext2D, scene: Scene): void {
+function drawAxisBand(ctx: Surface, scene: Scene): void {
   const { guides, theme, width, height } = scene;
   if (guides === null || guides.kind !== "lines") return;
   ctx.fillStyle = theme.background;
@@ -195,94 +527,28 @@ function drawAxisBand(ctx: CanvasRenderingContext2D, scene: Scene): void {
 }
 
 /** Vẽ một khung hình. `ctx` đã được đặt tỉ lệ theo devicePixelRatio; mọi toạ độ ở đây là pixel CSS. */
-export function drawTree(ctx: CanvasRenderingContext2D, scene: Scene, scratch: Scratch): DrawStats {
-  const { tree, positions, view, width, height, tipVisible, tipCodes, nodeCodes, colors, theme } = scene;
+export function drawTree(ctx: Surface, scene: Scene, scratch: Scratch): DrawStats {
+  const { width, height, theme } = scene;
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, width, height);
+  ctx.lineCap = "butt";
   drawGuides(ctx, scene);
-  ctx.lineJoin = "round";
 
-  // Nhánh mờ trước, nhánh đang hiện đè lên trên.
-  let branchesDrawn = traceBranches(ctx, scene, 0, null);
-  ctx.strokeStyle = theme.branchMuted;
-  ctx.lineWidth = 0.75;
-  ctx.stroke();
-
-  if (nodeCodes !== null && colors.length <= MAX_BRANCH_COLORS) {
-    for (let code = -1; code < colors.length; code++) {
-      const traced = traceBranches(ctx, scene, 1, code);
-      if (traced === 0) continue;
-      branchesDrawn += traced;
-      ctx.strokeStyle = code < 0 ? theme.branch : colors[code];
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-  } else {
-    branchesDrawn += traceBranches(ctx, scene, 1, null);
-    ctx.strokeStyle = theme.branch;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-
-  // Tip: mỗi pixel nhiều nhất một tip, rồi gom theo màu bằng sắp xếp đếm.
-  const gridWidth = Math.ceil(width);
-  const gridHeight = Math.ceil(height);
-  ensure(scratch, gridWidth * gridHeight, tree.tipCount, colors.length);
-  const { seen, drawn, sorted, bucket } = scratch;
-  const { tipNode, tipCount } = tree;
-  const { x, y } = positions;
-  const { scaleX, scaleY, offsetX, offsetY } = view;
-  let tipsVisible = 0;
-  let tipsDrawn = 0;
-  for (let k = 0; k < tipCount; k++) {
-    if (!tipVisible[k]) continue;
-    tipsVisible++;
-    const node = tipNode[k];
-    const px = Math.floor(offsetX + x[node] * scaleX);
-    const py = Math.floor(offsetY + y[node] * scaleY);
-    if (px < 0 || py < 0 || px >= gridWidth || py >= gridHeight) continue;
-    const at = py * gridWidth + px;
-    if (seen[at]) continue;
-    seen[at] = 1;
-    drawn[tipsDrawn++] = k;
-    // Ô 0 dành cho tip không có giá trị (mã -1).
-    bucket[(tipCodes === null ? -1 : tipCodes[k]) + 2]++;
-  }
-  for (let c = 1; c < colors.length + 2; c++) bucket[c] += bucket[c - 1];
-  for (let n = 0; n < tipsDrawn; n++) {
-    const k = drawn[n];
-    sorted[bucket[(tipCodes === null ? -1 : tipCodes[k]) + 1]++] = k;
-  }
-
+  const started = performance.now();
+  const branchesDrawn = drawBranches(ctx, scene, scratch);
+  const branchesDone = performance.now();
   const radius = tipRadius(scene);
-  let from = 0;
-  for (let code = -1; code < colors.length; code++) {
-    const to = bucket[code + 1];
-    if (to > from) {
-      ctx.fillStyle = code < 0 ? (tipCodes === null ? theme.branch : theme.missing) : colors[code];
-      if (radius < 1.5) {
-        const side = radius * 2;
-        for (let n = from; n < to; n++) {
-          const node = tipNode[sorted[n]];
-          ctx.fillRect(offsetX + x[node] * scaleX - radius, offsetY + y[node] * scaleY - radius, side, side);
-        }
-      } else {
-        ctx.beginPath();
-        for (let n = from; n < to; n++) {
-          const node = tipNode[sorted[n]];
-          const px = offsetX + x[node] * scaleX;
-          const py = offsetY + y[node] * scaleY;
-          ctx.moveTo(px + radius, py);
-          ctx.arc(px, py, radius, 0, FULL_TURN);
-        }
-        ctx.fill();
-      }
-    }
-    from = to;
-  }
+  const [tipsVisible, tipsDrawn] = drawTips(ctx, scene, scratch, radius);
+  const tipsDone = performance.now();
 
   ring(ctx, scene, scene.selectedTip, radius + 4, 2.5);
   if (scene.hoverTip !== scene.selectedTip) ring(ctx, scene, scene.hoverTip, radius + 3, 1.5);
   drawAxisBand(ctx, scene);
-  return { tipsVisible, tipsDrawn, branchesDrawn };
+  return {
+    tipsVisible,
+    tipsDrawn,
+    branchesDrawn,
+    branchMilliseconds: branchesDone - started,
+    tipMilliseconds: tipsDone - branchesDone,
+  };
 }

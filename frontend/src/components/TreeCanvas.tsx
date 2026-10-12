@@ -58,6 +58,8 @@ export interface DebugHook {
   stats: DrawStats | null;
   /** Thời gian của lần vẽ gần nhất (mili giây), chỉ tính phần vẽ lên canvas. */
   drawMilliseconds: number;
+  /** Thời điểm lần vẽ gần nhất kết thúc, theo `performance.now()`. */
+  lastDrawAt: number;
   tipCount: number;
   /** Toạ độ của một tip trên trang (pixel của viewport), hoặc `null` nếu nó nằm ngoài canvas. */
   tipPoint(tip: number): { x: number; y: number } | null;
@@ -91,6 +93,7 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
   const statsRef = useRef<DrawStats | null>(null);
   const framesRef = useRef(0);
   const drawMsRef = useRef(0);
+  const drawnAtRef = useRef(0);
   const dragRef = useRef<{ x: number; y: number; moved: boolean; pointer: number } | null>(null);
   const [hover, setHover] = useState<Hover | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -141,9 +144,14 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const started = performance.now();
     statsRef.current = drawTree(ctx, current, scratchRef.current);
-    drawMsRef.current = performance.now() - started;
+    drawnAtRef.current = performance.now();
+    drawMsRef.current = drawnAtRef.current - started;
     framesRef.current += 1;
-    if (framesRef.current === 1) performance.mark("vietstrain:first-frame");
+    if (framesRef.current === 1) {
+      performance.mark("vietstrain:first-frame");
+      // Khung hình kế tiếp bắt đầu nghĩa là khung hình đầu đã được trình duyệt đưa lên màn hình.
+      requestAnimationFrame(() => performance.mark("vietstrain:first-frame-presented"));
+    }
   }, [scene]);
 
   /** Gom mọi yêu cầu vẽ trong một khung hình thành một lần vẽ. */
@@ -303,6 +311,9 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
       },
       get drawMilliseconds() {
         return drawMsRef.current;
+      },
+      get lastDrawAt() {
+        return drawnAtRef.current;
       },
       tipCount: tree.tipCount,
       tipPoint(tip) {
