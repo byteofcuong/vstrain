@@ -48,7 +48,9 @@ class ToolNotAllowed(ToolError):
 
 
 class ToolTimeout(ToolError):
-    pass
+    def __init__(self, tool: str, timeout: float, log_tail: str) -> None:
+        super().__init__(f"{tool} did not finish within {timeout:g} seconds")
+        self.log_tail = log_tail
 
 
 class ToolFailed(ToolError):
@@ -72,7 +74,8 @@ def _tail(log_path: Path) -> str:
     with log_path.open("rb") as handle:
         handle.seek(0, os.SEEK_END)
         handle.seek(max(0, handle.tell() - _LOG_TAIL_BYTES))
-        return handle.read().decode("utf-8", errors="replace")
+        # Bỏ ký tự NUL: công cụ có thể in dữ liệu nhị phân, mà PostgreSQL không nhận NUL trong văn bản.
+        return handle.read().decode("utf-8", errors="replace").replace("\x00", "")
 
 
 def run_tool(
@@ -136,8 +139,10 @@ def run_tool(
         log_path=log_path,
         log_tail=_tail(log_path),
     )
-    if timed_out.is_set():
-        raise ToolTimeout(f"{arguments[0]} did not finish within {timeout:g} seconds")
+    # Chỉ coi là quá giờ khi tiến trình thật sự bị dừng bằng SIGKILL: đồng hồ có thể điểm ngay sau khi
+    # công cụ vừa tự kết thúc.
+    if timed_out.is_set() and result.exit_code == -signal.SIGKILL:
+        raise ToolTimeout(arguments[0], timeout, result.log_tail)
     if result.exit_code != 0:
         raise ToolFailed(arguments[0], result.exit_code, result.log_tail)
     return result

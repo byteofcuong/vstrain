@@ -49,18 +49,28 @@ def claim(session: Session, worker: str) -> Job | None:
     return job
 
 
-def finish(session: Session, job: Job, result: dict[str, Any] | None = None) -> None:
-    job.status = JobStatus.SUCCEEDED.value
-    job.result = result
-    job.finished_at = func.now()
+def _close(session: Session, job: Job, status: JobStatus, **values: Any) -> bool:
+    """Ghi kết cục của job, chỉ khi nó còn đang chạy; trả về có ghi được hay không.
+
+    Job có thể đã bị đánh dấu thất bại vì worker im lặng quá lâu. Khi worker đó chạy xong, nó không được ghi
+    đè lên kết cục đã có.
+    """
+    result = session.execute(
+        update(Job)
+        .where(Job.id == job.id, Job.status == JobStatus.RUNNING.value)
+        .values(status=status.value, finished_at=func.now(), **values)
+    )
     session.commit()
+    return result.rowcount == 1
 
 
-def fail(session: Session, job: Job, error: str) -> None:
-    job.status = JobStatus.FAILED.value
-    job.error = error[-_ERROR_LIMIT:]  # giữ phần cuối: nguyên nhân thường nằm ở cuối thông báo lỗi
-    job.finished_at = func.now()
-    session.commit()
+def finish(session: Session, job: Job, result: dict[str, Any] | None = None) -> bool:
+    return _close(session, job, JobStatus.SUCCEEDED, result=result)
+
+
+def fail(session: Session, job: Job, error: str) -> bool:
+    # PostgreSQL không nhận ký tự NUL trong văn bản; giữ phần cuối vì nguyên nhân thường nằm ở cuối thông báo.
+    return _close(session, job, JobStatus.FAILED, error=error.replace("\x00", "")[-_ERROR_LIMIT:])
 
 
 def heartbeat(session: Session, job_id: int) -> None:

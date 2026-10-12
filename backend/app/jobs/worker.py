@@ -57,20 +57,28 @@ class Worker:
                     if handler is None:
                         raise LookupError(f"No handler for job kind {job.kind!r}")
                     result = handler(context)
+                    # Ghi kết quả nằm trong `try`: kết quả không lưu được (không phải JSON) cũng là job thất bại.
+                    if queue.finish(session, job, result):
+                        log.info("Job %s succeeded", job.id)
+                    else:
+                        log.warning("Job %s finished after it had been marked failed; result discarded", job.id)
                 except Exception as error:
                     # Lỗi của một job không được làm worker dừng: ghi lại rồi lấy job kế tiếp.
                     log.exception("Job %s failed", job.id)
                     session.rollback()
                     queue.fail(session, job, f"{type(error).__name__}: {error}")
-                else:
-                    queue.finish(session, job, result)
-                    log.info("Job %s succeeded", job.id)
             return True
 
     def run_forever(self, *, poll_seconds: float = 1.0, stop: threading.Event | None = None) -> None:
         stop = stop or threading.Event()
         while not stop.is_set():
-            if not self.run_one():
+            try:
+                worked = self.run_one()
+            except Exception:
+                # Lỗi ngoài handler (mất kết nối database chẳng hạn) không được làm worker thoát.
+                log.exception("Worker loop error; trying again")
+                worked = False
+            if not worked:
                 stop.wait(poll_seconds)
 
     @contextmanager

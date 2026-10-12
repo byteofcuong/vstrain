@@ -145,3 +145,38 @@ def test_concurrent_workers_claim_every_job_exactly_once(committed):
 
     assert len(claimed) == 20
     assert set(claimed) == expected
+
+
+def test_a_job_failed_by_the_sweep_is_not_revived_by_its_slow_worker(session):
+    queue.enqueue(session, "noop")
+    job = queue.claim(session, "slow-worker")
+    session.execute(text("UPDATE job SET heartbeat_at = now() - interval '5 minutes' WHERE id = :id"), {"id": job.id})
+    queue.fail_stale(session, dt.timedelta(seconds=90))
+
+    recorded = queue.finish(session, job, {"tips": 30})
+
+    session.expire_all()
+    assert recorded is False
+    assert (job.status, job.result) == ("failed", None)
+    assert "stopped reporting" in job.error
+
+
+def test_a_finished_job_cannot_be_failed_afterwards(session):
+    queue.enqueue(session, "noop")
+    job = queue.claim(session, "w1")
+    assert queue.finish(session, job, {"ok": True}) is True
+
+    assert queue.fail(session, job, "too late") is False
+
+    session.expire_all()
+    assert (job.status, job.error) == ("succeeded", None)
+
+
+def test_an_error_text_with_nul_bytes_can_be_stored(session):
+    queue.enqueue(session, "noop")
+    job = queue.claim(session, "w1")
+
+    queue.fail(session, job, "crashed\x00 with binary\x00 output")
+
+    session.expire_all()
+    assert job.error == "crashed with binary output"

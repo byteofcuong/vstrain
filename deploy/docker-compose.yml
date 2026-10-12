@@ -64,6 +64,7 @@ services:
       init:
         condition: service_completed_successfully
     command: ["python", "-m", "app.jobs.worker"]
+    restart: on-failure            # worker tự bắt lỗi trong vòng lặp; đây là lớp dự phòng nếu tiến trình vẫn chết
 
 volumes:
   pgdata:

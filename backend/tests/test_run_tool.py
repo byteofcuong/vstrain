@@ -115,3 +115,18 @@ def test_only_the_end_of_a_long_log_is_returned(tmp_path):
     assert len(result.log_tail) <= 4000
     assert result.log_tail.rstrip().endswith("the end")
     assert (tmp_path / "tool.log").stat().st_size > 100_000
+
+
+def test_nul_bytes_in_the_output_are_dropped_from_the_log_tail(tmp_path):
+    result = run(tmp_path, "python3", "-c", "import sys; sys.stdout.buffer.write(b'before\\x00after\\n')")
+
+    assert result.log_tail.strip() == "beforeafter"
+
+
+def test_a_timeout_error_carries_what_the_tool_printed_before_it_hung(tmp_path):
+    hang = "import time; print('reading alignment', flush=True); time.sleep(60)"
+
+    with pytest.raises(ToolTimeout) as error:
+        run(tmp_path, "python3", "-c", hang, timeout=1.5)
+
+    assert "reading alignment" in error.value.log_tail

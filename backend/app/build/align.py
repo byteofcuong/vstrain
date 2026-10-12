@@ -6,6 +6,7 @@ phụ thuộc các mẫu khác và lưu lại được.
 """
 
 import csv
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -19,6 +20,8 @@ from app.pathogens import DENGUE, Lineage
 from app.samples.importer import read_fasta
 
 _TIMEOUT_SECONDS = 1800
+# Mã nucleotide của IUPAC và dấu gạch; chuỗi đã được viết hoa lúc nhập.
+_NUCLEOTIDES = re.compile(r"[ACGTURYKMSWBDHVN-]+")
 
 
 def _int(value: str | None) -> int | None:
@@ -50,6 +53,8 @@ def _alignment(lineage: Lineage, aligned: str | None, stats: dict[str, str] | No
         return {**result, "error": stats.get("errors") or "Nextclade returned no alignment for this sequence"}
     if len(aligned) != lineage.reference_length:
         return {**result, "error": f"Aligned length {len(aligned)} differs from the reference"}
+    if not _NUCLEOTIDES.fullmatch(aligned):
+        return {**result, "error": "Aligned sequence contains characters that are not nucleotide codes"}
 
     valid_nt = sum(aligned.count(base) for base in "ACGT")
     # Nextclade vẫn gióng được genome của serotype khác (khoảng 30% vị trí khác reference), nên phải tự loại.
@@ -86,44 +91,58 @@ def align_batch(
     if not samples:
         return {"aligned": 0, "failed": 0}
 
-    folder = context.work_dir / name
-    folder.mkdir(parents=True, exist_ok=True)
-    # Công cụ chỉ thấy mã nội bộ: tên hiển thị của mẫu không bao giờ được ghi vào file này.
-    with (folder / "input.fasta").open("w", encoding="ascii", newline="\n") as handle:
-        for _, internal_id, sequence, _ in samples:
-            handle.write(f">{internal_id}\n{sequence}\n")
+    # Chuỗi có ký tự không phải mã nucleotide (xuống dòng, dấu ">", chữ ngoài ASCII) không được ghi ra file:
+    # nó có thể tạo ra một dòng tiêu đề giả, hoặc làm hỏng cả lô.
+    usable = [sample for sample in samples if _NUCLEOTIDES.fullmatch(sample.sequence)]
+    aligned: dict[str, str] = {}
+    stats: dict[str, dict[str, str]] = {}
+    version = tool_version or "nextclade (not run)"
+    if usable:
+        folder = context.work_dir / name
+        folder.mkdir(parents=True, exist_ok=True)
+        # Công cụ chỉ thấy mã nội bộ: tên hiển thị của mẫu không bao giờ được ghi vào file này.
+        with (folder / "input.fasta").open("w", encoding="ascii", newline="\n") as handle:
+            for sample in usable:
+                handle.write(f">{sample.internal_id}\n{sample.sequence}\n")
 
-    version = tool_version or nextclade_version(context)
-    context.run_tool(
-        name,
-        [
-            "nextclade",
-            "run",
-            f"--input-ref={lineage.reference_fasta}",
-            f"--input-annotation={lineage.annotation}",
-            *lineage.nextclade_alignment_args,
-            f"--output-fasta={folder / 'aligned.fasta'}",
-            f"--output-tsv={folder / 'nextclade.tsv'}",
-            f"--jobs={settings.tool_threads}",
-            folder / "input.fasta",
-        ],
-        timeout=_TIMEOUT_SECONDS,
-    )
+        version = tool_version or nextclade_version(context)
+        context.run_tool(
+            name,
+            [
+                "nextclade",
+                "run",
+                f"--input-ref={lineage.reference_fasta}",
+                f"--input-annotation={lineage.annotation}",
+                *lineage.nextclade_alignment_args,
+                f"--output-fasta={folder / 'aligned.fasta'}",
+                f"--output-tsv={folder / 'nextclade.tsv'}",
+                f"--jobs={settings.tool_threads}",
+                folder / "input.fasta",
+            ],
+            timeout=_TIMEOUT_SECONDS,
+        )
+        with (folder / "aligned.fasta").open(encoding="ascii") as handle:
+            aligned = dict(read_fasta(handle))
+        with (folder / "nextclade.tsv").open(encoding="utf-8", newline="") as handle:
+            stats = {row["seqName"]: row for row in csv.DictReader(handle, delimiter="\t")}
 
-    with (folder / "aligned.fasta").open(encoding="ascii") as handle:
-        aligned = dict(read_fasta(handle))
-    with (folder / "nextclade.tsv").open(encoding="utf-8", newline="") as handle:
-        stats = {row["seqName"]: row for row in csv.DictReader(handle, delimiter="\t")}
-
+    usable_ids = {sample.id for sample in usable}
     rows = [
         {
-            "sample_id": sample_id,
+            "sample_id": sample.id,
             "lineage": lineage.key,
-            "sequence_sha256": sha256,
+            "sequence_sha256": sample.sha256,
             "tool": version,
-            **_alignment(lineage, aligned.get(internal_id), stats.get(internal_id)),
+            **(
+                _alignment(lineage, aligned.get(sample.internal_id), stats.get(sample.internal_id))
+                if sample.id in usable_ids
+                else {
+                    **_alignment(lineage, None, None),
+                    "error": "Sequence contains characters that are not nucleotide codes",
+                }
+            ),
         }
-        for sample_id, internal_id, _, sha256 in samples
+        for sample in samples
     ]
     statement = insert(SampleAlignment).values(rows)
     replaced = {column: statement.excluded[column] for column in rows[0] if column != "sample_id"}
@@ -159,15 +178,17 @@ def _pending(context: JobContext, lineage: Lineage, *, retry_failed: bool) -> li
 def align_pending(context: JobContext) -> dict[str, dict[str, int]]:
     """Job gióng mọi genome còn thiếu kết quả; chạy lại thì chỉ làm phần còn thiếu.
 
-    Tham số: `lineage` (mặc định là mọi lineage), `batch_size` (mặc định 1000; mỗi lô là một bước của job) và
+    Tham số: `lineage` (mặc định là mọi lineage), `batch_size` (mặc định 1000, tối đa 2000; mỗi lô là một bước) và
     `retry_failed` (gióng lại cả những mẫu đã thất bại, dùng sau khi đổi cấu hình).
     """
+    context.check_params("lineage", "batch_size", "retry_failed")
     requested = context.params.get("lineage")
     if requested is not None and requested not in DENGUE:
         raise ValueError(f"Unknown lineage {requested!r}")
     batch_size = int(context.params.get("batch_size", 1000))
-    if not 1 <= batch_size <= 5000:
-        raise ValueError("batch_size must be between 1 and 5000")
+    # Mỗi mẫu là 13 tham số trong câu lệnh ghi kết quả; PostgreSQL nhận tối đa 65.535 tham số một câu lệnh.
+    if not 1 <= batch_size <= 2000:
+        raise ValueError("batch_size must be between 1 and 2000")
 
     version: str | None = None
     totals: dict[str, dict[str, int]] = {}

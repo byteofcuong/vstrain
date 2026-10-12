@@ -140,3 +140,63 @@ def test_tool_versions_handler_reports_the_tools_of_the_worker_image(session, tm
     assert job.result["augur"].startswith("augur 34.")
     assert job.result["nextclade"].startswith("nextclade 3.")
     assert "IQ-TREE" in job.result["iqtree"]
+
+
+def test_a_result_that_cannot_be_stored_fails_the_job_and_the_worker_keeps_going(session, tmp_path):
+    broken = queue.enqueue(session, "bad_result")
+    fine = queue.enqueue(session, "ok")
+    handlers = {"bad_result": lambda _context: {"value": object()}, "ok": lambda _context: {"ok": True}}
+    worker = make_worker(session, tmp_path, handlers)
+
+    assert [worker.run_one(), worker.run_one()] == [True, True]
+
+    session.expire_all()
+    assert (broken.status, fine.status) == ("failed", "succeeded")
+    assert broken.error
+
+
+def test_run_forever_survives_an_error_outside_any_handler(session, tmp_path):
+    import threading
+
+    from sqlalchemy.exc import OperationalError
+
+    stop = threading.Event()
+    calls = {"count": 0}
+
+    @contextmanager
+    def flaky_sessions():
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise OperationalError("SELECT 1", {}, ConnectionRefusedError("database restarting"))
+        yield session
+
+    job = queue.enqueue(session, "once")
+    worker = Worker(
+        flaky_sessions, {"once": lambda _context: stop.set()}, name="w", work_root=tmp_path, heartbeat_seconds=None
+    )
+
+    worker.run_forever(poll_seconds=0.01, stop=stop)
+
+    session.expire_all()
+    assert calls["count"] >= 2
+    assert job.status == "succeeded"
+
+
+def test_a_job_with_an_unknown_parameter_is_rejected(session, tmp_path):
+    from app.jobs.handlers import HANDLERS
+
+    jobs = [
+        queue.enqueue(session, "build_dataset", {"dataset": "dengue-denv1", "tree_builder_args": "; touch pwned"}),
+        queue.enqueue(session, "align_pending", {"lineage": "denv1", "nextclade_args": "--x"}),
+        queue.enqueue(session, "publish_build", {"build_id": 1, "root": "/etc"}),
+        queue.enqueue(session, "tool_versions", {"tool": "sh"}),
+    ]
+    worker = make_worker(session, tmp_path, HANDLERS)
+
+    for _ in jobs:
+        worker.run_one()
+
+    session.expire_all()
+    assert [job.status for job in jobs] == ["failed"] * 4
+    assert "tree_builder_args" in jobs[0].error and "Unknown job parameter" in jobs[0].error
+    assert not list(tmp_path.rglob("pwned"))

@@ -75,3 +75,21 @@ def test_a_tool_outside_the_allowlist_fails_the_step(session, context):
 
     assert [row.status for row in steps(session)] == ["failed"]
     assert not (context.work_dir / "x").exists()
+
+
+def test_a_tool_that_prints_nul_bytes_still_gets_its_step_recorded(session, context):
+    context.run_tool("tree", ["python3", "-c", "import sys; sys.stdout.buffer.write(b'ok\\x00\\n')"], timeout=20)
+
+    (row,) = steps(session)
+    assert (row.status, row.log_tail.strip()) == ("succeeded", "ok")
+
+
+def test_a_timed_out_tool_leaves_its_last_output_in_the_step(session, context):
+    hang = "import time; print('optimizing', flush=True); time.sleep(60)"
+
+    with pytest.raises(Exception, match="did not finish"):
+        context.run_tool("refine", ["python3", "-c", hang], timeout=1.5)
+
+    (row,) = steps(session)
+    assert row.status == "failed"
+    assert "optimizing" in row.log_tail and "did not finish" in row.log_tail

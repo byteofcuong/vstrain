@@ -146,6 +146,7 @@ def run_tree_steps(context: JobContext, lineage: Lineage) -> Path:
 
 def build_dataset(context: JobContext) -> dict[str, Any]:
     """Job dựng một build mới cho dataset có slug ở tham số `dataset`."""
+    context.check_params("dataset")
     session = context.session
     slug = context.params.get("dataset")
     dataset = session.scalars(select(DatasetDef).filter_by(slug=slug)).one_or_none()
@@ -165,18 +166,21 @@ def build_dataset(context: JobContext) -> dict[str, Any]:
     with context.step("publish") as step:
         tips = tip_names(json.loads(auspice_path.read_text(encoding="utf-8")))
         # `augur refine --clock-filter-iqd` loại mẫu lệch đồng hồ phân tử; build chỉ giữ mẫu thật sự có trong cây.
-        dropped = session.scalars(
-            select(Sample.internal_id)
-            .join(BuildSample, BuildSample.sample_id == Sample.id)
-            .where(BuildSample.build_id == build_id, Sample.internal_id.not_in(tips))
-            .order_by(Sample.internal_id)
-        ).all()
-        session.execute(
-            delete(BuildSample).where(
-                BuildSample.build_id == build_id,
-                BuildSample.sample_id.in_(select(Sample.id).where(Sample.internal_id.in_(dropped))),
-            )
+        members = dict(
+            session.execute(
+                select(Sample.internal_id, Sample.id)
+                .join(BuildSample, BuildSample.sample_id == Sample.id)
+                .where(BuildSample.build_id == build_id)
+            ).all()
         )
+        dropped = sorted(set(members) - tips)
+        if dropped:
+            session.execute(
+                delete(BuildSample).where(
+                    BuildSample.build_id == build_id,
+                    BuildSample.sample_id.in_([members[internal_id] for internal_id in dropped]),
+                )
+            )
         build = session.get(Build, build_id)
         build.sample_count = len(tips)
         build.finished_at = func.now()
@@ -191,6 +195,7 @@ def build_dataset(context: JobContext) -> dict[str, Any]:
 
 def republish_build(context: JobContext) -> dict[str, Any]:
     """Job publish lại một build đã dựng (tham số `build_id`), sau khi sửa địa danh hay tên mẫu trong DB."""
+    context.check_params("build_id")
     build_id = context.params.get("build_id")
     build = context.session.get(Build, build_id) if isinstance(build_id, int) else None
     if build is None:

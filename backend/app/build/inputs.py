@@ -23,7 +23,9 @@ def augur_date(date_min: dt.date, date_max: dt.date) -> str:
         return date_min.isoformat()
     if (date_min.year, date_min.month) == (date_max.year, date_max.month):
         return f"{date_min.year:04d}-{date_min.month:02d}-XX"
-    return f"{date_min.year:04d}-XX-XX"
+    if date_min.year == date_max.year:
+        return f"{date_min.year:04d}-XX-XX"
+    return "XXXX-XX-XX"  # khoảng vắt qua hai năm: dạng này không diễn tả được, coi như không biết ngày
 
 
 def clade_definitions(lineage: Lineage) -> str:
@@ -45,10 +47,10 @@ def start_build(session: Session, dataset: DatasetDef, job_id: int) -> Build:
     build = Build(dataset_id=dataset.id, job_id=job_id)
     session.add(build)
     session.flush()
+    # Truyền danh sách dòng riêng để SQLAlchemy tự chia lô: một câu lệnh chỉ nhận tối đa 65.535 tham số.
     session.execute(
-        insert(BuildSample).values(
-            [{"build_id": build.id, "sample_id": choice.sample_id, "role": choice.role} for choice in choices]
-        )
+        insert(BuildSample),
+        [{"build_id": build.id, "sample_id": choice.sample_id, "role": choice.role} for choice in choices],
     )
     session.flush()
     return build

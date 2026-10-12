@@ -15,6 +15,7 @@ _VERSION_COMMANDS = {
 
 def tool_versions(context: JobContext) -> dict[str, Any]:
     """Ghi phiên bản các công cụ sinh học trong image worker; dùng để kiểm tra worker sau khi triển khai."""
+    context.check_params()
     versions = {}
     for tool, command in _VERSION_COMMANDS.items():
         result = context.run_tool(tool, command, timeout=60)

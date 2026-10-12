@@ -1,4 +1,5 @@
 import datetime as dt
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, Query
@@ -17,6 +18,8 @@ files_router = APIRouter(tags=["builds"])
 
 # Thư mục publish đặt tên theo hash nội dung và không bao giờ đổi, nên trình duyệt được giữ file vĩnh viễn.
 _IMMUTABLE = "public, max-age=31536000, immutable"
+# Đúng một dạng đường dẫn được phát: <slug>/b<mã build>/p-<12 chữ số hex>/<tên file>.
+_PUBLISHED_FILE = re.compile(r"[a-z0-9][a-z0-9-]*/b[0-9]+/p-[0-9a-f]{12}/[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
 class CurrentBuild(ApiModel):
@@ -140,9 +143,12 @@ def get_dataset(slug: str, session: SessionDep) -> DatasetDetail:
 @files_router.get("/builds/{path:path}", include_in_schema=False)
 def build_file(path: str) -> FileResponse:
     """Phát một file của một bản publish. Khi triển khai thật, nginx phát thẳng thư mục này."""
+    missing = ApiError(404, "FILE_NOT_FOUND", "No such published file")
+    # Kiểm tra dạng đường dẫn trước khi chạm vào hệ thống file, rồi kiểm tra lại sau khi phân giải liên kết.
+    if _PUBLISHED_FILE.fullmatch(path) is None:
+        raise missing
     root = builds_root().resolve()
     target = (root / path).resolve()
-    # Chỉ phát file nằm trực tiếp trong thư mục publish (`p-<hash>`), và không ra ngoài thư mục gốc.
-    if not (target.is_relative_to(root) and target.parent.name.startswith("p-") and target.is_file()):
-        raise ApiError(404, "FILE_NOT_FOUND", "No such published file")
+    if not (target.is_relative_to(root) and target.is_file()):
+        raise missing
     return FileResponse(target, headers={"Cache-Control": _IMMUTABLE})

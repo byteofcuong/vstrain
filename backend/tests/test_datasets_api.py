@@ -114,12 +114,20 @@ def test_an_unknown_dataset_gives_a_structured_404(client):
         "/builds/dengue-denv1/b000001/auspice.json",  # cây gốc của build, không phải bản publish
         "/builds/khong-co/p-abc/manifest.json",
         "/builds/..%2F..%2Fsecret.json",
+        "/builds/dengue-denv1/b000001/p-0123456789ab/a%00b.json",
+        "/builds/dengue-denv1/b000001/.tmp-abc/manifest.json",
+        "/builds/p-0123456789ab/secret.json",
+        "/builds/dengue-denv1/b000001/p-0123456789ab/sub/manifest.json",
         "/builds/dengue-denv1",
     ],
 )
 def test_only_files_inside_a_publication_folder_are_served(session, client, dataset, data_dir, path):
     build = published(session, dataset, data_dir)
     (data_dir / "secret.json").write_text(json.dumps({"password": "x"}))
+    for folder in ("builds/p-0123456789ab", f"builds/dengue-denv1/b{build.id:06d}/.tmp-abc"):
+        (data_dir / folder).mkdir(parents=True)
+        (data_dir / folder / "secret.json").write_text("{}")
+        (data_dir / folder / "manifest.json").write_text("{}")
     assert (data_dir / "builds" / f"dengue-denv1/b{build.id:06d}/auspice.json").is_file()
 
     response = client.get(path.replace("b000001", f"b{build.id:06d}"))

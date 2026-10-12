@@ -221,3 +221,20 @@ def test_divergence_threshold_keeps_sylvatic_genotypes_and_rejects_other_serotyp
     stats = {"totalSubstitutions": str(length * percent_different // 100), "coverage": "1.0", "errors": ""}
 
     assert _alignment(DENV1, aligned, stats)["status"] == status
+
+
+def test_a_sequence_with_characters_that_are_not_nucleotides_never_reaches_the_tool(session, tmp_path):
+    seed_geo(session)
+    strange = add_sample(session, accession="ODD00001")
+    session.add(
+        SampleSequence(sample_id=strange.id, sequence="ACGT>fake\nheader€" + "A" * 50, length=66, sha256="1" * 64)
+    )
+    session.flush()
+    queue.enqueue(session, "align")
+    context = JobContext(session=session, job=queue.claim(session, "w1"), work_dir=tmp_path)
+
+    counts = align_batch(context, DENV1, [strange.id])
+
+    assert counts == {"aligned": 0, "failed": 1}
+    assert "not nucleotide codes" in alignment(session, "ODD00001").error
+    assert list(tmp_path.rglob("input.fasta")) == []

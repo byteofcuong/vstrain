@@ -167,7 +167,12 @@ def _write_folder(final: Path, files: dict[str, bytes]) -> None:
     try:
         for name, content in files.items():
             (temporary / name).write_bytes(content)
-        temporary.rename(final)
+        try:
+            temporary.rename(final)
+        except OSError:
+            # Một job khác vừa publish đúng nội dung này: thư mục đích đã có đủ, không còn gì phải làm.
+            if not final.exists():
+                raise
     finally:
         # Thư mục tạm do chính hàm này tạo, tên ngẫu nhiên, nằm cạnh thư mục đích.
         shutil.rmtree(temporary, ignore_errors=True)

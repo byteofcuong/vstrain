@@ -42,6 +42,12 @@ class JobContext:
     def params(self) -> dict[str, Any]:
         return self.job.params
 
+    def check_params(self, *allowed: str) -> None:
+        """Từ chối job có tham số lạ, thay vì lặng lẽ bỏ qua: tham số chỉ được là những gì handler khai báo."""
+        unknown = sorted(set(self.params) - set(allowed))
+        if unknown:
+            raise ValueError(f"Unknown job parameters: {', '.join(unknown)[:200]}")
+
     @contextmanager
     def step(self, name: str) -> Iterator[StepHandle]:
         self._steps += 1
@@ -64,7 +70,7 @@ class JobContext:
         row.status = status
         row.finished_at = func.now()
         row.metrics = {"wall_seconds": round(time.monotonic() - started, 3), **handle.metrics}
-        row.log_tail = log_tail[-_LOG_TAIL_CHARS:] if log_tail else None
+        row.log_tail = log_tail.replace("\x00", "")[-_LOG_TAIL_CHARS:] if log_tail else None
         self.session.commit()
 
     def run_tool(
@@ -77,8 +83,8 @@ class JobContext:
                 result = tools.run_tool(
                     argv, cwd=self.work_dir, log_path=log_path, timeout=timeout, env=env, allowed=self.allowed_tools
                 )
-            except tools.ToolFailed as error:
-                step.log_tail = error.log_tail
+            except (tools.ToolFailed, tools.ToolTimeout) as error:
+                step.log_tail = f"{error.log_tail}\n{type(error).__name__}: {str(error).splitlines()[0]}"
                 raise
             step.metrics.update(result.metrics())
             step.log_tail = result.log_tail

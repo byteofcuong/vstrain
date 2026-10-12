@@ -115,3 +115,7 @@ def test_input_files_carry_internal_ids_and_dates_and_nothing_else(session, data
     assert all(re.fullmatch(r"S\d{7}", row["strain"]) for row in metadata)
     for foreign_text in ("Hà_Nội", "touch", "Thailand", "15/3/2019", first.accession):
         assert foreign_text not in everything
+
+
+def test_a_range_spanning_two_years_is_written_as_an_unknown_date():
+    assert augur_date(dt.date(2019, 12, 1), dt.date(2020, 1, 31)) == "XXXX-XX-XX"
