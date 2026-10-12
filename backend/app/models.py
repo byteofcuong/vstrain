@@ -15,6 +15,7 @@ from sqlalchemy import (
     MetaData,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -132,3 +133,47 @@ class SampleSequence(Base):
     sequence: Mapped[str] = mapped_column(Text)
     length: Mapped[int] = mapped_column(Integer)
     sha256: Mapped[str] = mapped_column(String(64))  # để biết chuỗi có đổi không mà không phải so cả chuỗi
+
+
+class JobStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class Job(Base):
+    """Một việc chạy nền. Bảng này chính là hàng đợi: worker lấy dòng `queued` bằng FOR UPDATE SKIP LOCKED."""
+
+    __tablename__ = "job"
+    __table_args__ = (CheckConstraint("status IN ('queued', 'running', 'succeeded', 'failed')", name="status_known"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(40))  # tên handler trong worker
+    params: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    status: Mapped[str] = mapped_column(String(20), server_default=JobStatus.QUEUED.value, index=True)
+    priority: Mapped[int] = mapped_column(Integer, server_default=text("0"))  # số lớn hơn được lấy trước
+    result: Mapped[dict | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(Text)
+    worker: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # worker báo còn sống
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class JobStep(Base):
+    """Một bước của job, ghi ngay khi bắt đầu để giao diện thấy tiến độ khi job còn chạy."""
+
+    __tablename__ = "job_step"
+    __table_args__ = (UniqueConstraint("job_id", "position"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("job.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer)  # thứ tự của bước trong job, từ 1
+    name: Mapped[str] = mapped_column(String(60))
+    status: Mapped[str] = mapped_column(String(20))  # 'running' | 'succeeded' | 'failed'
+    started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    metrics: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))  # thời gian, CPU, bộ nhớ
+    log_tail: Mapped[str | None] = mapped_column(Text)

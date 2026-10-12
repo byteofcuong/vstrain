@@ -143,9 +143,9 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 **Mô tả:** Hàng đợi job là một bảng trong PostgreSQL. Worker lấy job bằng `FOR UPDATE SKIP LOCKED` nên nhiều worker không lấy trùng.
 
 **Nghiệm thu:**
-- [ ] `enqueue` tạo job `queued`; `claim` trả job ưu tiên cao nhất, cũ nhất trước, đổi sang `running`, ghi tên worker và giờ bắt đầu
-- [ ] 4 luồng cùng `claim` 20 job trên kết nối thật: mỗi job được lấy đúng một lần
-- [ ] `finish` ghi `succeeded` kèm kết quả; `fail` ghi `failed` kèm lỗi; hàng đợi trống thì `claim` trả `None`
+- [x] `enqueue` tạo job `queued`; `claim` trả job ưu tiên cao nhất, cũ nhất trước, đổi sang `running`, ghi tên worker và giờ bắt đầu
+- [x] 4 luồng cùng `claim` 20 job trên kết nối thật: mỗi job được lấy đúng một lần
+- [x] `finish` ghi `succeeded` kèm kết quả; `fail` ghi `failed` kèm lỗi; hàng đợi trống thì `claim` trả `None`
 
 **Kiểm chứng:** `DC run --rm api pytest tests/test_job_queue.py`
 **Phụ thuộc:** T2.2. **Cỡ:** M.
