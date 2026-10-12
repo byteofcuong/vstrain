@@ -1,0 +1,106 @@
+vnm:central	macro_region		Miền Trung	Central Vietnam		
+vnm:north	macro_region		Miền Bắc	Northern Vietnam		
+vnm:south	macro_region		Miền Nam	Southern Vietnam		
+vn34:an-giang	province	vn34	An Giang	An Giang		
+vn34:bac-ninh	province	vn34	Bắc Ninh	Bac Ninh		
+vn34:ca-mau	province	vn34	Cà Mau	Ca Mau		
+vn34:can-tho	province	vn34	Cần Thơ	Can Tho		
+vn34:cao-bang	province	vn34	Cao Bằng	Cao Bang		
+vn34:dak-lak	province	vn34	Đắk Lắk	Dak Lak		
+vn34:da-nang	province	vn34	Đà Nẵng	Da Nang		
+vn34:dien-bien	province	vn34	Điện Biên	Dien Bien		
+vn34:dong-nai	province	vn34	Đồng Nai	Dong Nai		
+vn34:dong-thap	province	vn34	Đồng Tháp	Dong Thap		
+vn34:gia-lai	province	vn34	Gia Lai	Gia Lai		
+vn34:hai-phong	province	vn34	Hải Phòng	Hai Phong		
+vn34:ha-noi	province	vn34	Hà Nội	Ha Noi		
+vn34:ha-tinh	province	vn34	Hà Tĩnh	Ha Tinh		
+vn34:ho-chi-minh	province	vn34	Hồ Chí Minh	Ho Chi Minh		
+vn34:hue	province	vn34	Huế	Hue		
+vn34:hung-yen	province	vn34	Hưng Yên	Hung Yen		
+vn34:khanh-hoa	province	vn34	Khánh Hòa	Khanh Hoa		
+vn34:lai-chau	province	vn34	Lai Châu	Lai Chau		
+vn34:lam-dong	province	vn34	Lâm Đồng	Lam Dong		
+vn34:lang-son	province	vn34	Lạng Sơn	Lang Son		
+vn34:lao-cai	province	vn34	Lào Cai	Lao Cai		
+vn34:nghe-an	province	vn34	Nghệ An	Nghe An		
+vn34:ninh-binh	province	vn34	Ninh Bình	Ninh Binh		
+vn34:phu-tho	province	vn34	Phú Thọ	Phu Tho		
+vn34:quang-ngai	province	vn34	Quảng Ngãi	Quang Ngai		
+vn34:quang-ninh	province	vn34	Quảng Ninh	Quang Ninh		
+vn34:quang-tri	province	vn34	Quảng Trị	Quang Tri		
+vn34:son-la	province	vn34	Sơn La	Son La		
+vn34:tay-ninh	province	vn34	Tây Ninh	Tay Ninh		
+vn34:thai-nguyen	province	vn34	Thái Nguyên	Thai Nguyen		
+vn34:thanh-hoa	province	vn34	Thanh Hóa	Thanh Hoa		
+vn34:tuyen-quang	province	vn34	Tuyên Quang	Tuyen Quang		
+vn34:vinh-long	province	vn34	Vĩnh Long	Vinh Long		
+vn63:an-giang	province	vn63	An Giang	An Giang	vnr:mekong-delta	vn34:an-giang
+vn63:bac-giang	province	vn63	Bắc Giang	Bac Giang	vnr:northern-midlands-and-mountains	vn34:bac-ninh
+vn63:bac-kan	province	vn63	Bắc Kạn	Bac Kan	vnr:northern-midlands-and-mountains	vn34:thai-nguyen
+vn63:bac-lieu	province	vn63	Bạc Liêu	Bac Lieu	vnr:mekong-delta	vn34:ca-mau
+vn63:bac-ninh	province	vn63	Bắc Ninh	Bac Ninh	vnr:red-river-delta	vn34:bac-ninh
+vn63:ba-ria-vung-tau	province	vn63	Bà Rịa - Vũng Tàu	Ba Ria - Vung Tau	vnr:southeast	vn34:ho-chi-minh
+vn63:ben-tre	province	vn63	Bến Tre	Ben Tre	vnr:mekong-delta	vn34:vinh-long
+vn63:binh-dinh	province	vn63	Bình Định	Binh Dinh	vnr:north-central-and-central-coast	vn34:gia-lai
+vn63:binh-duong	province	vn63	Bình Dương	Binh Duong	vnr:southeast	vn34:ho-chi-minh
+vn63:binh-phuoc	province	vn63	Bình Phước	Binh Phuoc	vnr:southeast	vn34:dong-nai
+vn63:binh-thuan	province	vn63	Bình Thuận	Binh Thuan	vnr:north-central-and-central-coast	vn34:lam-dong
+vn63:ca-mau	province	vn63	Cà Mau	Ca Mau	vnr:mekong-delta	vn34:ca-mau
+vn63:can-tho	province	vn63	Cần Thơ	Can Tho	vnr:mekong-delta	vn34:can-tho
+vn63:cao-bang	province	vn63	Cao Bằng	Cao Bang	vnr:northern-midlands-and-mountains	vn34:cao-bang
+vn63:dak-lak	province	vn63	Đắk Lắk	Dak Lak	vnr:central-highlands	vn34:dak-lak
+vn63:dak-nong	province	vn63	Đắk Nông	Dak Nong	vnr:central-highlands	vn34:lam-dong
+vn63:da-nang	province	vn63	Đà Nẵng	Da Nang	vnr:north-central-and-central-coast	vn34:da-nang
+vn63:dien-bien	province	vn63	Điện Biên	Dien Bien	vnr:northern-midlands-and-mountains	vn34:dien-bien
+vn63:dong-nai	province	vn63	Đồng Nai	Dong Nai	vnr:southeast	vn34:dong-nai
+vn63:dong-thap	province	vn63	Đồng Tháp	Dong Thap	vnr:mekong-delta	vn34:dong-thap
+vn63:gia-lai	province	vn63	Gia Lai	Gia Lai	vnr:central-highlands	vn34:gia-lai
+vn63:ha-giang	province	vn63	Hà Giang	Ha Giang	vnr:northern-midlands-and-mountains	vn34:tuyen-quang
+vn63:hai-duong	province	vn63	Hải Dương	Hai Duong	vnr:red-river-delta	vn34:hai-phong
+vn63:hai-phong	province	vn63	Hải Phòng	Hai Phong	vnr:red-river-delta	vn34:hai-phong
+vn63:ha-nam	province	vn63	Hà Nam	Ha Nam	vnr:red-river-delta	vn34:ninh-binh
+vn63:ha-noi	province	vn63	Hà Nội	Ha Noi	vnr:red-river-delta	vn34:ha-noi
+vn63:ha-tinh	province	vn63	Hà Tĩnh	Ha Tinh	vnr:north-central-and-central-coast	vn34:ha-tinh
+vn63:hau-giang	province	vn63	Hậu Giang	Hau Giang	vnr:mekong-delta	vn34:can-tho
+vn63:hoa-binh	province	vn63	Hòa Bình	Hoa Binh	vnr:northern-midlands-and-mountains	vn34:phu-tho
+vn63:ho-chi-minh	province	vn63	Hồ Chí Minh	Ho Chi Minh	vnr:southeast	vn34:ho-chi-minh
+vn63:hue	province	vn63	Huế	Hue	vnr:north-central-and-central-coast	vn34:hue
+vn63:hung-yen	province	vn63	Hưng Yên	Hung Yen	vnr:red-river-delta	vn34:hung-yen
+vn63:khanh-hoa	province	vn63	Khánh Hòa	Khanh Hoa	vnr:north-central-and-central-coast	vn34:khanh-hoa
+vn63:kien-giang	province	vn63	Kiên Giang	Kien Giang	vnr:mekong-delta	vn34:an-giang
+vn63:kon-tum	province	vn63	Kon Tum	Kon Tum	vnr:central-highlands	vn34:quang-ngai
+vn63:lai-chau	province	vn63	Lai Châu	Lai Chau	vnr:northern-midlands-and-mountains	vn34:lai-chau
+vn63:lam-dong	province	vn63	Lâm Đồng	Lam Dong	vnr:central-highlands	vn34:lam-dong
+vn63:lang-son	province	vn63	Lạng Sơn	Lang Son	vnr:northern-midlands-and-mountains	vn34:lang-son
+vn63:lao-cai	province	vn63	Lào Cai	Lao Cai	vnr:northern-midlands-and-mountains	vn34:lao-cai
+vn63:long-an	province	vn63	Long An	Long An	vnr:mekong-delta	vn34:tay-ninh
+vn63:nam-dinh	province	vn63	Nam Định	Nam Dinh	vnr:red-river-delta	vn34:ninh-binh
+vn63:nghe-an	province	vn63	Nghệ An	Nghe An	vnr:north-central-and-central-coast	vn34:nghe-an
+vn63:ninh-binh	province	vn63	Ninh Bình	Ninh Binh	vnr:red-river-delta	vn34:ninh-binh
+vn63:ninh-thuan	province	vn63	Ninh Thuận	Ninh Thuan	vnr:north-central-and-central-coast	vn34:khanh-hoa
+vn63:phu-tho	province	vn63	Phú Thọ	Phu Tho	vnr:northern-midlands-and-mountains	vn34:phu-tho
+vn63:phu-yen	province	vn63	Phú Yên	Phu Yen	vnr:north-central-and-central-coast	vn34:dak-lak
+vn63:quang-binh	province	vn63	Quảng Bình	Quang Binh	vnr:north-central-and-central-coast	vn34:quang-tri
+vn63:quang-nam	province	vn63	Quảng Nam	Quang Nam	vnr:north-central-and-central-coast	vn34:da-nang
+vn63:quang-ngai	province	vn63	Quảng Ngãi	Quang Ngai	vnr:north-central-and-central-coast	vn34:quang-ngai
+vn63:quang-ninh	province	vn63	Quảng Ninh	Quang Ninh	vnr:red-river-delta	vn34:quang-ninh
+vn63:quang-tri	province	vn63	Quảng Trị	Quang Tri	vnr:north-central-and-central-coast	vn34:quang-tri
+vn63:soc-trang	province	vn63	Sóc Trăng	Soc Trang	vnr:mekong-delta	vn34:can-tho
+vn63:son-la	province	vn63	Sơn La	Son La	vnr:northern-midlands-and-mountains	vn34:son-la
+vn63:tay-ninh	province	vn63	Tây Ninh	Tay Ninh	vnr:southeast	vn34:tay-ninh
+vn63:thai-binh	province	vn63	Thái Bình	Thai Binh	vnr:red-river-delta	vn34:hung-yen
+vn63:thai-nguyen	province	vn63	Thái Nguyên	Thai Nguyen	vnr:northern-midlands-and-mountains	vn34:thai-nguyen
+vn63:thanh-hoa	province	vn63	Thanh Hóa	Thanh Hoa	vnr:north-central-and-central-coast	vn34:thanh-hoa
+vn63:tien-giang	province	vn63	Tiền Giang	Tien Giang	vnr:mekong-delta	vn34:dong-thap
+vn63:tra-vinh	province	vn63	Trà Vinh	Tra Vinh	vnr:mekong-delta	vn34:vinh-long
+vn63:tuyen-quang	province	vn63	Tuyên Quang	Tuyen Quang	vnr:northern-midlands-and-mountains	vn34:tuyen-quang
+vn63:vinh-long	province	vn63	Vĩnh Long	Vinh Long	vnr:mekong-delta	vn34:vinh-long
+vn63:vinh-phuc	province	vn63	Vĩnh Phúc	Vinh Phuc	vnr:red-river-delta	vn34:phu-tho
+vn63:yen-bai	province	vn63	Yên Bái	Yen Bai	vnr:northern-midlands-and-mountains	vn34:lao-cai
+vnr:central-highlands	region		Tây Nguyên	Central Highlands	vnm:central	
+vnr:mekong-delta	region		Đồng bằng sông Cửu Long	Mekong Delta	vnm:south	
+vnr:north-central-and-central-coast	region		Bắc Trung Bộ và Duyên hải miền Trung	North Central and Central Coast	vnm:central	
+vnr:northern-midlands-and-mountains	region		Trung du và miền núi phía Bắc	Northern Midlands and Mountains	vnm:north	
+vnr:red-river-delta	region		Đồng bằng sông Hồng	Red River Delta	vnm:north	
+vnr:southeast	region		Đông Nam Bộ	Southeast	vnm:south	
