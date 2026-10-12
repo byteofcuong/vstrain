@@ -102,6 +102,9 @@ export interface Scratch {
   columnBits: Uint32Array;
   columnPass: Int32Array;
   pass: number;
+  /** Các node xếp theo mã màu của nhánh, và vị trí kết thúc của từng mã trong danh sách đó. */
+  byCode: Int32Array;
+  codeEnd: Int32Array;
 }
 
 export function createScratch(): Scratch {
@@ -118,12 +121,17 @@ export function createScratch(): Scratch {
     columnBits: new Uint32Array(0),
     columnPass: new Int32Array(0),
     pass: 0,
+    byCode: new Int32Array(0),
+    codeEnd: new Int32Array(0),
   };
 }
 
 const FULL_TURN = 2 * Math.PI;
+const QUARTER_TURN = Math.PI / 2;
 /** Đoạn ngắn hơn mức này (pixel) thì không nhìn thấy được và được bỏ qua. */
 const TINY = 0.25;
+/** Nét nằm ngoài khung nhìn quá mức này (pixel) thì không hiện ra, kể cả khi tính bề dày của nét. */
+const OUTSIDE = 2;
 /** Tô màu nhánh theo cột chỉ khi cột có ít giá trị: mỗi màu là một lượt duyệt qua mọi node. */
 export const MAX_BRANCH_COLORS = 32;
 /** Chiều cao dải ghi nhãn trục ở đáy canvas (bố cục chữ nhật). */
@@ -252,17 +260,51 @@ function turnFrom(angle: number, from: number): number {
 }
 
 /**
- * Đưa vào path các nhánh có trạng thái `visible` (và, nếu `code` khác `null`, có mã màu đó): thân nhánh của từng
- * node rồi tới đoạn nối của từng node trong. Thân nhánh mang màu của node con, đoạn nối mang màu của node cha.
- * Phải gọi `childExtents` cho cùng trạng thái `visible` trước đó.
+ * Xếp các node theo mã màu vào `scratch.byCode` (cùng mã thì giữ thứ tự trong cây), để mỗi lượt màu chỉ duyệt
+ * các node của màu đó thay vì cả cây. Trả về mảng mốc: các node mang mã `code` nằm từ `ends[code]` (hoặc 0 với mã
+ * -1) tới trước `ends[code + 1]`. Node có mã ngoài bảng màu không được xếp vào đâu.
  */
-function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 | 1, code: number | null): number {
-  const { tree, positions, view, width, height, nodeVisible, nodeCodes } = scene;
-  const { parent, nodeCount } = tree;
+function groupByCode(scene: Scene, scratch: Scratch, nodeCodes: Int32Array): Int32Array {
+  const { nodeCount } = scene.tree;
+  // Mã -1 (không có giá trị) đứng ở ngăn 0, mã c ở ngăn c + 1.
+  const slots = scene.colors.length + 1;
+  if (scratch.byCode.length < nodeCount) scratch.byCode = new Int32Array(nodeCount);
+  if (scratch.codeEnd.length < slots + 1) scratch.codeEnd = new Int32Array(slots + 1);
+  const { byCode, codeEnd } = scratch;
+  codeEnd.fill(0, 0, slots + 1);
+  for (let i = 0; i < nodeCount; i++) {
+    const slot = nodeCodes[i] + 1;
+    if (slot >= 0 && slot < slots) codeEnd[slot + 1]++;
+  }
+  for (let slot = 1; slot <= slots; slot++) codeEnd[slot] += codeEnd[slot - 1];
+  // Lúc này `codeEnd[s]` là vị trí bắt đầu của ngăn s; sau vòng dưới nó thành vị trí kết thúc.
+  for (let i = 0; i < nodeCount; i++) {
+    const slot = nodeCodes[i] + 1;
+    if (slot >= 0 && slot < slots) byCode[codeEnd[slot]++] = i;
+  }
+  return codeEnd;
+}
+
+/**
+ * Đưa vào path các nhánh có trạng thái `visible` của các node `nodes[start]` tới `nodes[end - 1]` (của các node
+ * từ `start` tới `end - 1` khi `nodes` là `null`): thân nhánh của từng node rồi tới đoạn nối của từng node trong.
+ * Thân nhánh mang màu của node con, đoạn nối mang màu của node cha. Phải gọi `childExtents` cho cùng trạng thái
+ * `visible` trước đó.
+ */
+function traceBranches(
+  ctx: Surface,
+  scene: Scene,
+  scratch: Scratch,
+  visible: 0 | 1,
+  nodes: Int32Array | null,
+  start: number,
+  end: number,
+): number {
+  const { tree, positions, view, width, height, nodeVisible } = scene;
+  const { parent } = tree;
   const { x, y, along, angle } = positions;
   const { scaleX, scaleY, offsetX, offsetY } = view;
   const { low, high } = scratch;
-  const coloured = code !== null && nodeCodes !== null;
   let count = 0;
 
   ctx.beginPath();
@@ -276,9 +318,10 @@ function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 
     const { rowBits, rowPass, columnBits, columnPass } = scratch;
 
     // Thân nhánh: đoạn ngang từ vị trí của cha tới vị trí của node, ở hàng của node.
-    for (let i = 1; i < nodeCount; i++) {
-      if (nodeVisible[i] !== visible) continue;
-      if (coloured && nodeCodes[i] !== code) continue;
+    for (let k = start; k < end; k++) {
+      const i = nodes === null ? k : nodes[k];
+      // Gốc không có thân nhánh.
+      if (i === 0 || nodeVisible[i] !== visible) continue;
       const py = offsetY + y[i] * scaleY;
       if (py < -1 || py > height + 1) continue;
       const x0 = offsetX + x[parent[i]] * scaleX;
@@ -299,9 +342,9 @@ function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 
     }
 
     // Đoạn nối: một đoạn dọc ở vị trí của node trong, phủ từ con trên cùng tới con dưới cùng.
-    for (let p = 0; p < nodeCount; p++) {
+    for (let k = start; k < end; k++) {
+      const p = nodes === null ? k : nodes[k];
       if (!(low[p] <= high[p])) continue;
-      if (coloured && nodeCodes[p] !== code) continue;
       const px = offsetX + x[p] * scaleX;
       if (px < -1 || px > width + 1) continue;
       const from = offsetY + (low[p] < y[p] ? low[p] : y[p]) * scaleY;
@@ -338,11 +381,18 @@ function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 
   const ringWords = (rays + 31) >> 5;
   const pass = beginCoverage(scratch, rays, rings);
   const { rowBits: rayBits, rowPass: rayPass, columnBits: ringBits, columnPass: ringPass } = scratch;
+  // Hình quạt rộng hơn khung nhìn (nó là cả vòng tròn khi tâm cây nằm trong khung nhìn). Khi cây không nằm trọn
+  // trong khung nhìn, từng nét còn được so với bốn cạnh của khung nhìn, nới ra `OUTSIDE` pixel.
+  const clipped = centerX - unit < 0 || centerX + unit > width || centerY - unit < 0 || centerY + unit > height;
+  const left = -OUTSIDE;
+  const right = width + OUTSIDE;
+  const top = -OUTSIDE;
+  const bottom = height + OUTSIDE;
 
   // Thân nhánh: đoạn dọc theo bán kính, từ vòng tròn của cha ra tới node, ở góc của node.
-  for (let i = 1; i < nodeCount; i++) {
-    if (nodeVisible[i] !== visible) continue;
-    if (coloured && nodeCodes[i] !== code) continue;
+  for (let k = start; k < end; k++) {
+    const i = nodes === null ? k : nodes[k];
+    if (i === 0 || nodeVisible[i] !== visible) continue;
     const turn = turnFrom(angle[i], sectorFrom);
     if (turn > sweep) continue;
     const inner = along[parent[i]] * unit;
@@ -350,6 +400,19 @@ function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 
     const near = inner < outer ? inner : outer;
     const far = inner < outer ? outer : inner;
     if (far < nearest || near > farthest || far - near < TINY) continue;
+    const x1 = offsetX + x[i] * scaleX;
+    const y1 = offsetY + y[i] * scaleY;
+    // Điểm đầu nằm trên cùng tia với node, ở bán kính của cha; không cần tính sin, cos.
+    const ratio = along[i] > 0 ? along[parent[i]] / along[i] : 0;
+    const x0 = centerX + (x1 - centerX) * ratio;
+    const y0 = centerY + (y1 - centerY) * ratio;
+    // Hai đầu cùng nằm ngoài một cạnh của khung nhìn thì cả đoạn thẳng nằm ngoài.
+    if (
+      clipped &&
+      ((x0 < left && x1 < left) || (x0 > right && x1 > right) || (y0 < top && y1 < top) || (y0 > bottom && y1 > bottom))
+    ) {
+      continue;
+    }
     const ray = clampIndex(turn / perRay, rays);
     const base = ray * rayWords;
     if (rayPass[ray] !== pass) {
@@ -357,19 +420,15 @@ function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 
       rayPass[ray] = pass;
     }
     if (!claimBits(rayBits, base, clampIndex(near - nearest, rings), clampIndex(far - nearest, rings))) continue;
-    const x1 = offsetX + x[i] * scaleX;
-    const y1 = offsetY + y[i] * scaleY;
-    // Điểm đầu nằm trên cùng tia với node, ở bán kính của cha; không cần tính sin, cos.
-    const ratio = along[i] > 0 ? along[parent[i]] / along[i] : 0;
-    ctx.moveTo(centerX + (x1 - centerX) * ratio, centerY + (y1 - centerY) * ratio);
+    ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
     count++;
   }
 
   // Đoạn nối: một cung ở bán kính của node trong, phủ từ con có góc nhỏ nhất tới con có góc lớn nhất.
-  for (let p = 0; p < nodeCount; p++) {
+  for (let k = start; k < end; k++) {
+    const p = nodes === null ? k : nodes[k];
     if (!(low[p] <= high[p])) continue;
-    if (coloured && nodeCodes[p] !== code) continue;
     const radius = along[p] * unit;
     if (radius < nearest - 1 || radius > farthest + 1) continue;
     const from = low[p] < angle[p] ? low[p] : angle[p];
@@ -401,7 +460,22 @@ function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 
       }
       if (!claimBits(ringBits, base, clampIndex(first / perRay, rays), clampIndex(last / perRay, rays))) continue;
     }
-    ctx.moveTo(centerX + radius * Math.cos(from), centerY + radius * Math.sin(from));
+    const fromX = centerX + radius * Math.cos(from);
+    const fromY = centerY + radius * Math.sin(from);
+    if (clipped) {
+      // Hộp bao của cung: hai đầu mút, cùng điểm thấp nhất, trái nhất, cao nhất của vòng tròn nếu cung đi qua
+      // (góc π/2, π, 3π/2; cung không đi qua góc 0 vì góc của mọi node nằm trong [0, 2π)). Cung bị loại ở đây
+      // đã ghi ô của nó vào bảng, nhưng nó nằm ngoài khung nhìn ít nhất `OUTSIDE` pixel trong khi một ô chỉ
+      // rộng một pixel, nên cung nào bị bỏ vì các ô đó cũng nằm ngoài khung nhìn.
+      const toX = centerX + radius * Math.cos(to);
+      const toY = centerY + radius * Math.sin(to);
+      const minX = from <= Math.PI && to >= Math.PI ? centerX - radius : fromX < toX ? fromX : toX;
+      const maxX = fromX > toX ? fromX : toX;
+      const maxY = from <= QUARTER_TURN && to >= QUARTER_TURN ? centerY + radius : fromY > toY ? fromY : toY;
+      const minY = from <= 3 * QUARTER_TURN && to >= 3 * QUARTER_TURN ? centerY - radius : fromY < toY ? fromY : toY;
+      if (maxX < left || minX > right || maxY < top || minY > bottom) continue;
+    }
+    ctx.moveTo(fromX, fromY);
     ctx.arc(centerX, centerY, radius, from, to);
     count++;
   }
@@ -410,12 +484,13 @@ function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 
 
 function drawBranches(ctx: Surface, scene: Scene, scratch: Scratch): number {
   const { nodeCodes, colors, theme } = scene;
+  const { nodeCount } = scene.tree;
   // Đầu vuông để chỗ đoạn dọc gặp đoạn ngang không hở một góc.
   ctx.lineCap = "square";
 
   // Nhánh mờ trước, nhánh đang hiện đè lên trên.
   childExtents(scene, scratch, 0);
-  let count = traceBranches(ctx, scene, scratch, 0, null);
+  let count = traceBranches(ctx, scene, scratch, 0, null, 0, nodeCount);
   ctx.strokeStyle = theme.branchMuted;
   ctx.lineWidth = 0.75;
   ctx.stroke();
@@ -423,15 +498,20 @@ function drawBranches(ctx: Surface, scene: Scene, scratch: Scratch): number {
   childExtents(scene, scratch, 1);
   ctx.lineWidth = 1;
   if (nodeCodes !== null && colors.length <= MAX_BRANCH_COLORS) {
+    // Mỗi màu một lượt vẽ, bắt đầu từ các nhánh không có giá trị (mã -1).
+    const ends = groupByCode(scene, scratch, nodeCodes);
+    let start = 0;
     for (let code = -1; code < colors.length; code++) {
-      const traced = traceBranches(ctx, scene, scratch, 1, code);
+      const end = ends[code + 1];
+      const traced = end > start ? traceBranches(ctx, scene, scratch, 1, scratch.byCode, start, end) : 0;
+      start = end;
       if (traced === 0) continue;
       count += traced;
       ctx.strokeStyle = code < 0 ? theme.branch : colors[code];
       ctx.stroke();
     }
   } else {
-    count += traceBranches(ctx, scene, scratch, 1, null);
+    count += traceBranches(ctx, scene, scratch, 1, null, 0, nodeCount);
     ctx.strokeStyle = theme.branch;
     ctx.stroke();
   }

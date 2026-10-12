@@ -92,6 +92,21 @@ describe("drawTree, rectangular layout", () => {
     expect(recorder.lines).toHaveLength(9);
   });
 
+  it("leaves out the branches whose colour code is not in the palette", () => {
+    // a2 mang mã 7 và b2 mang mã -2: cả hai nằm ngoài bảng hai màu, nên thân của chúng không được vẽ.
+    const nodeCodes = Int32Array.from([-1, 0, 0, 7, 1, 1, -2, 1]);
+    const { recorder } = draw(scene(tree, "rect", 100, { nodeCodes, colors: ["red", "blue"] }));
+
+    expect(horizontal(recorder.lines).map((line) => [...span(line), line.style])).toEqual([
+      [0, 50, 12.5, "red"], // A
+      [50, 75, 0, "red"], // a1
+      [0, 25, 75, "blue"], // B
+      [25, 60, 50, "blue"], // b1
+    ]);
+    // Ba đoạn nối (gốc, A, B) vẫn đủ: chúng mang màu của node trong.
+    expect(vertical(recorder.lines).map((line) => line.style)).toEqual(["branch", "red", "blue"]);
+  });
+
   it("draws each tip once, in the colour of its code", () => {
     const tipCodes = Int32Array.from([0, 1, 0, -1, 1]);
     const { recorder, stats } = draw(scene(tree, "rect", 400, { tipCodes, colors: ["red", "blue"] }));
@@ -183,19 +198,25 @@ describe("drawTree, level of detail on a tree much larger than the canvas", () =
   const drawn = draw(scene(tree, "rect", size));
   const positions = computePositions(tree, "rect", "time");
 
-  /** Thân nhánh của các node được chọn, tính thẳng từ vị trí, bỏ đoạn ngắn hơn một phần tư pixel. */
-  const stemsOf = (chosen: (node: number) => boolean): [number, number, number][] => {
+  type Chooser = (node: number) => boolean;
+  const everything: Chooser = () => true;
+
+  /**
+   * Thân nhánh của các node được chọn, tính thẳng từ vị trí, bỏ đoạn ngắn hơn một phần tư pixel. Với `painted`,
+   * chỉ lấy thân của các node mà nó nhận (các node mang cùng một màu).
+   */
+  const stemsOf = (chosen: Chooser, painted: Chooser = everything): [number, number, number][] => {
     const all: [number, number, number][] = [];
     for (let i = 1; i < tree.nodeCount; i++) {
-      if (!chosen(i)) continue;
+      if (!chosen(i) || !painted(i)) continue;
       const x0 = positions.x[tree.parent[i]] * size;
       const x1 = positions.x[i] * size;
       if (Math.abs(x1 - x0) >= 0.25) all.push([Math.min(x0, x1), Math.max(x0, x1), positions.y[i] * size]);
     }
     return all;
   };
-  /** Đoạn nối của từng node trong, phủ các con được chọn của nó. */
-  const connectorsOf = (chosen: (node: number) => boolean): [number, number, number][] => {
+  /** Đoạn nối của từng node trong (mà `painted` nhận), phủ các con được chọn của nó. */
+  const connectorsOf = (chosen: Chooser, painted: Chooser = everything): [number, number, number][] => {
     const low = new Float64Array(tree.nodeCount).fill(Infinity);
     const high = new Float64Array(tree.nodeCount).fill(-Infinity);
     for (let i = 1; i < tree.nodeCount; i++) {
@@ -206,7 +227,7 @@ describe("drawTree, level of detail on a tree much larger than the canvas", () =
     }
     const all: [number, number, number][] = [];
     for (let p = 0; p < tree.nodeCount; p++) {
-      if (!(low[p] <= high[p])) continue;
+      if (!(low[p] <= high[p]) || !painted(p)) continue;
       const from = Math.min(low[p], positions.y[p]) * size;
       const to = Math.max(high[p], positions.y[p]) * size;
       if (to - from >= 0.25) all.push([from, to, positions.x[p] * size]);
@@ -225,7 +246,6 @@ describe("drawTree, level of detail on a tree much larger than the canvas", () =
       Math.max(line.y0, line.y1),
       line.x0,
     ]);
-  const everything = () => true;
 
   it("draws far fewer segments than the tree has branches", () => {
     // 5.998 thân nhánh và 2.999 đoạn nối, trên một canvas 151 × 151 pixel.
@@ -263,6 +283,38 @@ describe("drawTree, level of detail on a tree much larger than the canvas", () =
       expect(pixels(keptConnectors(lines)), `${style} connectors`).toEqual(pixels(connectorsOf(chosen)));
     }
     expect(stemsOf((node) => filtered.nodeVisible[node] === 1).length).toBeGreaterThan(5);
+  });
+
+  it("draws the branches of every colour completely, each in its own colour", () => {
+    // Mã màu gán theo từng cụm 40 node liền nhau trong cây (gần giống các clade), gồm cả mã -1 (không có giá trị).
+    // Một nửa số tip bị lọc đi, để lượt nhánh mờ cũng có mặt.
+    const colors = ["red", "green", "blue", "gold"];
+    const nodeCodes = Int32Array.from({ length: tree.nodeCount }, (_, node) => (Math.floor(node / 40) % 5) - 1);
+    const tipVisible = Uint8Array.from({ length: tree.tipCount }, (_, tip) => (tip % 600 < 300 ? 1 : 0));
+    const coloured = scene(tree, "rect", size, { nodeCodes, colors, tipVisible });
+    const { recorder, stats } = draw(coloured);
+    const visible: Chooser = (node) => coloured.nodeVisible[node] === 1;
+
+    for (let code = -1; code < colors.length; code++) {
+      const style = code < 0 ? "branch" : colors[code];
+      const painted: Chooser = (node) => nodeCodes[node] === code;
+      const lines = recorder.lines.filter((line) => line.style === style);
+      expect(stemsOf(visible, painted).length, style).toBeGreaterThan(200);
+      expect(pixels(keptStems(lines)), `${style} stems`).toEqual(pixels(stemsOf(visible, painted)));
+      expect(pixels(keptConnectors(lines)), `${style} connectors`).toEqual(pixels(connectorsOf(visible, painted)));
+    }
+    const muted = recorder.lines.filter((line) => line.style === "muted");
+    expect(pixels(keptStems(muted))).toEqual(pixels(stemsOf((node) => !visible(node))));
+    expect(stats.branchesDrawn).toBe(recorder.lines.length);
+    // Nhánh mờ được vẽ trước, rồi tới từng màu theo thứ tự mã.
+    expect([...new Set(recorder.lines.map((line) => line.style))]).toEqual([
+      "muted",
+      "branch",
+      "red",
+      "green",
+      "blue",
+      "gold",
+    ]);
   });
 
   it("marks exactly the 2 by 2 pixel cells that hold a tip, in the colour of the first tip of each cell", () => {

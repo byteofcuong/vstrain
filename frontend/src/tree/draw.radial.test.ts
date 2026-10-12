@@ -102,9 +102,14 @@ interface Bend {
 
 /**
  * Mọi nhánh giữa các node được chọn, tính thẳng từ vị trí của node: chưa bỏ bớt, chưa cắt theo khung nhìn. Đây
- * là "đáp án" để so với những gì bộ vẽ thật sự đưa ra.
+ * là "đáp án" để so với những gì bộ vẽ thật sự đưa ra. Với `painted`, chỉ lấy thân của các node mà nó nhận và
+ * cung của các node trong mà nó nhận: đó là các nhánh mang cùng một màu.
  */
-function branchesOf(drawn: Scene, chosen: (node: number) => boolean): { stems: Stem[]; bends: Bend[] } {
+function branchesOf(
+  drawn: Scene,
+  chosen: (node: number) => boolean,
+  painted: (node: number) => boolean = () => true,
+): { stems: Stem[]; bends: Bend[] } {
   const { tree, positions } = drawn;
   const { unit } = frameOf(drawn);
   const angle = positions.angle!;
@@ -118,11 +123,11 @@ function branchesOf(drawn: Scene, chosen: (node: number) => boolean): { stems: S
     high[up] = Math.max(high[up], angle[i]);
     const inner = positions.along[up] * unit;
     const outer = positions.along[i] * unit;
-    if (Math.abs(outer - inner) >= QUARTER) stems.push({ angle: angle[i], inner, outer });
+    if (painted(i) && Math.abs(outer - inner) >= QUARTER) stems.push({ angle: angle[i], inner, outer });
   }
   const bends: Bend[] = [];
   for (let p = 0; p < tree.nodeCount; p++) {
-    if (!(low[p] <= high[p])) continue;
+    if (!(low[p] <= high[p]) || !painted(p)) continue;
     const radius = positions.along[p] * unit;
     const from = Math.min(low[p], angle[p]);
     const to = Math.max(high[p], angle[p]);
@@ -171,10 +176,15 @@ function rasterOfStrokes(strokes: ReturnType<typeof strokesOf>, clip: Box): Rast
  * - `missing`: số pixel của đáp án không có nét vẽ nào trong vòng hai pixel;
  * - `extra`: số pixel đã vẽ không có nhánh nào của đáp án trong vòng một pixel.
  */
-function compare(drawn: Scene, strokes: ReturnType<typeof strokesOf>, chosen: (node: number) => boolean) {
+function compare(
+  drawn: Scene,
+  strokes: ReturnType<typeof strokesOf>,
+  chosen: (node: number) => boolean,
+  painted?: (node: number) => boolean,
+) {
   const frame = frameOf(drawn);
   const near = grown(frame.viewport, 2);
-  const wanted = rasterOf(frame, branchesOf(drawn, chosen), near);
+  const wanted = rasterOf(frame, branchesOf(drawn, chosen, painted), near);
   const got = rasterOfStrokes(strokes, near);
   return {
     wanted: wanted.pixels.size,
@@ -304,8 +314,9 @@ function fanTree(groups: number[]): Tree {
 
 describe("drawTree, radial layout seen from the side", () => {
   // Khung nhìn 100 × 120 pixel nằm bên phải tâm cây, cách tâm 100 pixel: tâm ở (-100, 60). Node trong ở bán
-  // kính 150 pixel, tip ở bán kính 300 pixel. Khung nhìn chắn một góc ±0,54 radian quanh hướng 0, tức là chứa
-  // tip 0–3 và tip 37–39 trong 40 tip xếp đều quanh vòng tròn.
+  // kính 150 pixel, tip ở bán kính 300 pixel, 40 tip xếp đều quanh vòng tròn. Khung nhìn chắn một góc ±0,54
+  // radian quanh hướng 0, tức là chứa hướng của tip 0–3 và tip 37–39. Thân của tip 3 và tip 37 bắt đầu ở bán
+  // kính 150, khi đó đã ra khỏi mép dưới và mép trên của khung nhìn (y = 128 và y = -8), nên không được vẽ.
   const side = { view: { scaleX: 600, scaleY: 600, offsetX: -400, offsetY: -240 }, width: 100, height: 120 };
   const step = FULL_TURN / 40;
   const tipsOf = (recorder: Recorder) =>
@@ -322,9 +333,9 @@ describe("drawTree, radial layout seen from the side", () => {
       [150, 0, close(29 * step)],
       [150, close(30 * step), close(39 * step)],
     ]);
-    // Chỉ thân của các tip có góc nằm trong hình quạt được vẽ; thân của hai node trong nằm ngoài.
-    expect(tipsOf(recorder)).toEqual([0, 1, 2, 3, 37, 38, 39]);
-    expect(stats.branchesDrawn).toBe(9);
+    // Chỉ thân của các tip chạm vào khung nhìn được vẽ; thân của hai node trong hướng ra chỗ khác.
+    expect(tipsOf(recorder)).toEqual([0, 1, 2, 38, 39]);
+    expect(stats.branchesDrawn).toBe(7);
   });
 
   it("draws an arc that leaves the view on one side and comes back on the other", () => {
@@ -332,21 +343,89 @@ describe("drawTree, radial layout seen from the side", () => {
     const { recorder, stats } = draw(scene(fanTree([40]), "radial", 100, side));
 
     expect(arcsOf(recorder)).toEqual([[150, 0, close(39 * step)]]);
-    expect(tipsOf(recorder)).toEqual([0, 1, 2, 3, 37, 38, 39]);
-    expect(stats.branchesDrawn).toBe(8);
+    expect(tipsOf(recorder)).toEqual([0, 1, 2, 38, 39]);
+    expect(stats.branchesDrawn).toBe(6);
   });
 
   it("draws nothing for a part of the tree that the view cannot touch", () => {
-    // Khung nhìn dời sang trái tâm cây: chỉ còn các tip quanh hướng π (tip 17–23).
+    // Khung nhìn dời sang trái tâm cây (tâm ở (200, 60)): chỉ còn các tip quanh hướng π, tip 18–22.
     const left = { ...side, view: { ...side.view, offsetX: -100 } };
     const { recorder } = draw(scene(fanTree([10, 30]), "radial", 100, left));
     const tips = recorder.lines.map((line) => Math.round(turnFrom(Math.atan2(line.y1 - 60, line.x1 - 200), 0) / step));
 
     // Cung của nhóm đầu (tip 0–9, góc 0 tới 1,41) nằm trọn ngoài hình quạt.
     expect(arcsOf(recorder)).toEqual([[150, close(10 * step), close(39 * step)]]);
-    expect(tips).toEqual([17, 18, 19, 20, 21, 22, 23]);
+    expect(tips).toEqual([18, 19, 20, 21, 22]);
+  });
+
+  it("drops an arc whose bounding box misses the viewport although its angles are in view", () => {
+    // Tâm cây nằm trong khung nhìn, sát góc trên bên trái: hình quạt là cả vòng tròn, nhưng khung nhìn chỉ thấy
+    // góc phần tư dưới bên phải của cây. Nhóm đầu (tip 0–9, góc 0 tới 1,41) nằm trong góc phần tư đó; nhóm sau
+    // (tip 10–39, góc 1,57 tới 6,13) có cung đi qua bên trái và phía trên tâm.
+    const corner = { view: { scaleX: 600, scaleY: 600, offsetX: -295, offsetY: -295 }, width: 200, height: 200 };
+    const quarter = draw(scene(fanTree([10, 30]), "radial", 100, corner));
+    // Cung của nhóm sau bắt đầu ở (5, 155), đúng trên mép trái của khung nhìn, nên vẫn được vẽ.
+    expect(arcsOf(quarter.recorder)).toEqual([
+      [150, 0, close(9 * step)],
+      [150, close(10 * step), close(39 * step)],
+    ]);
+
+    // Nhóm giữa giữ tip 22–38 (góc 3,46 tới 5,97): cung của nó đi từ (-138, -41) qua đỉnh vòng tròn tới
+    // (148, -41), nằm trọn phía trên khung nhìn. Nhóm cuối chỉ có một tip nên không có cung.
+    const upper = draw(scene(fanTree([22, 17, 1]), "radial", 100, corner));
+    expect(arcsOf(upper.recorder)).toEqual([[150, 0, close(21 * step)]]);
+  });
+
+  // Node trong ở bán kính 130 pixel; khung nhìn cách tâm cây 100 pixel về một phía. Cung của nhóm giữa có hai đầu
+  // mút nằm ngoài khung nhìn, nhưng phần giữa của nó võng vào trong 30 pixel. Hai nhóm còn lại nằm trọn ngoài.
+  it.each([
+    ["below", [4, 13, 23], 50, -100, 100, 50],
+    ["above", [24, 13, 3], 50, 150, 100, 50],
+    ["to the left of", [14, 13, 13], 150, 50, 50, 100],
+  ])(
+    "keeps an arc that bulges into a view %s the centre while both its ends are outside",
+    (_where, groups, centerX, centerY, width, height) => {
+      const view = { scaleX: 520, scaleY: 520, offsetX: centerX - 260, offsetY: centerY - 260 };
+      const { recorder } = draw(scene(fanTree(groups), "radial", 100, { view, width, height }));
+      const first = groups[0];
+      const last = groups[0] + groups[1] - 1;
+
+      expect(arcsOf(recorder)).toEqual([[130, close(first * step), close(last * step)]]);
+    },
+  );
+
+  it("does not let an arc nearer to the centre than the viewport hide one that just reaches it", () => {
+    // Gốc → A (bán kính 50) → (tip, B, tip); B (bán kính 100,5) → ba tip. Khung nhìn nằm bên trái tâm, điểm gần
+    // tâm nhất của nó cách tâm 100 pixel: cung của A không tới được khung nhìn, cung của B lọt vào nửa pixel.
+    const numDate = [2000, 2000 + 50 / 15, 2020, 2000 + 100.5 / 15, 2020, 2020, 2020, 2020];
+    const tree = parseTree({
+      nodeCount: 8,
+      tipCount: 5,
+      name: ["root", "A", "a0", "B", "b0", "b1", "b2", "a1"],
+      parent: [-1, 0, 1, 1, 3, 3, 3, 1],
+      div: [0, 0, 0, 0, 0, 0, 0, 0],
+      numDate,
+      numDateLower: numDate,
+      numDateUpper: numDate,
+      tipNode: [2, 4, 5, 6, 7],
+    });
+    const left = { ...side, view: { ...side.view, offsetX: -100 } };
+    const { recorder } = draw(scene(tree, "radial", 100, left));
+
+    expect(arcsOf(recorder)).toEqual([[100.5, close(FULL_TURN / 5), close((3 * FULL_TURN) / 5)]]);
   });
 });
+
+/** Cả loạt điểm nằm ngoài cùng một cạnh của khung nhìn, cách cạnh đó hơn ba pixel: nét đi qua chúng không hiện ra. */
+function beside(xs: number[], ys: number[], drawn: Scene): boolean {
+  const slack = 3;
+  return (
+    Math.max(...xs) < -slack ||
+    Math.min(...xs) > drawn.width + slack ||
+    Math.max(...ys) < -slack ||
+    Math.min(...ys) > drawn.height + slack
+  );
+}
 
 /**
  * Cây bậc thang: gốc → G → (P, một tip); P → (một tip, C); C → hai tip. Cung của C nằm trọn trong khoảng góc mà
@@ -408,19 +487,23 @@ describe("drawTree, radial layout, level of detail on a tree much larger than th
     expect(result.shifted).toBeLessThan(result.wanted * 0.03);
   });
 
-  it("draws only the part of the tree near the viewport when the centre is off screen", () => {
-    // Phóng 8 lần, tâm cây nằm cách mép trái 300 pixel: khung nhìn chỉ thấy một dải của cây quanh hướng 0.
-    const zoomed = scene(tree, "radial", size, { view: { scaleX: 1200, scaleY: 1200, offsetX: -900, offsetY: -525 } });
-    const { recorder, stats } = draw(zoomed);
+  /**
+   * Vẽ cây với tâm ở (centerX, centerY) và bán kính `radius` pixel, rồi kiểm tra những điều phải đúng ở mọi khung
+   * nhìn chỉ thấy một phần của cây. Trả về số nét đã vẽ và tổng số nhánh của cây.
+   */
+  function drawPartly(centerX: number, centerY: number, radius: number): { drawn: number; total: number } {
+    const partial = scene(tree, "radial", size, {
+      view: { scaleX: 2 * radius, scaleY: 2 * radius, offsetX: centerX - radius, offsetY: centerY - radius },
+    });
+    const { recorder, stats } = draw(partial);
     const strokes = strokesOf(recorder);
-    const all = branchesOf(zoomed, everything);
-    const result = compare(zoomed, strokes, everything);
-    const frame = frameOf(zoomed);
-    const sector = visibleSector(frame.centerX, frame.centerY, zoomed.width, zoomed.height);
+    const all = branchesOf(partial, everything);
+    const result = compare(partial, strokes, everything);
+    const frame = frameOf(partial);
+    const sector = visibleSector(frame.centerX, frame.centerY, partial.width, partial.height);
 
-    // 233 nét cho 8.983 nhánh của cây; phần cây lọt vào khung nhìn vẫn đủ (hơn 3.000 pixel).
-    expect(stats.branchesDrawn).toBeLessThan((all.stems.length + all.bends.length) / 20);
-    expect(result.wanted).toBeGreaterThan(2000);
+    // Phần cây lọt vào khung nhìn không nhỏ và được vẽ đủ.
+    expect(result.wanted).toBeGreaterThan(1000);
     expect(result.missing).toBe(0);
     expect(result.extra).toBe(0);
     expect(result.shifted).toBeLessThan(result.wanted * 0.03);
@@ -440,6 +523,81 @@ describe("drawTree, radial layout, level of detail on a tree much larger than th
       expect(arc.radius).toBeLessThanOrEqual(sector.farthest + 1);
       expect(turn <= sector.sweep || turn + (arc.to - arc.from) >= FULL_TURN).toBe(true);
     }
+
+    // Không thân nhánh nào có cả hai đầu cùng nằm ngoài một cạnh của khung nhìn, và không cung nào nằm trọn
+    // ngoài một cạnh.
+    const stray = strokes.lines.filter((line) => beside([line.x0, line.x1], [line.y0, line.y1], partial));
+    const strayArcs = strokes.arcs.filter((arc) => {
+      const steps = Math.max(8, Math.ceil((arc.to - arc.from) * arc.radius));
+      const at = Array.from({ length: steps + 1 }, (_, n) => arc.from + ((arc.to - arc.from) * n) / steps);
+      return beside(
+        at.map((angle) => arc.x + arc.radius * Math.cos(angle)),
+        at.map((angle) => arc.y + arc.radius * Math.sin(angle)),
+        partial,
+      );
+    });
+    expect(stray.length).toBe(0);
+    expect(strayArcs.length).toBe(0);
+    return { drawn: stats.branchesDrawn, total: all.stems.length + all.bends.length };
+  }
+
+  // Phóng 8 lần (bán kính cây 600 pixel) trên canvas 151 × 151 pixel, với tâm cây ở năm chỗ khác nhau: khung
+  // nhìn chỉ thấy một mảnh của cây, mỗi lần theo một hướng.
+  it.each([
+    ["300 pixels left of the viewport", -300, 75],
+    ["300 pixels right of the viewport", 451, 75],
+    ["300 pixels above the viewport", 75, -300],
+    ["300 pixels below the viewport", 75, 451],
+    ["inside the viewport, near its left edge", 10, 75],
+  ])("draws only what the viewport can show when the centre is %s", (_where, centerX, centerY) => {
+    const { drawn, total } = drawPartly(centerX, centerY, 600);
+
+    // 100 tới 280 nét cho 8.983 nhánh của cây.
+    expect(drawn).toBeLessThan(total / 20);
+  });
+
+  // Cây vừa canvas theo một chiều (bán kính 70 pixel) và bị đẩy lệch 40 pixel, nên tràn ra đúng một cạnh.
+  it.each([
+    ["left", 30, 75],
+    ["right", 121, 75],
+    ["top", 75, 30],
+    ["bottom", 75, 121],
+  ])("leaves out the branches beyond the %s edge when the tree only overflows there", (edge, centerX, centerY) => {
+    const { drawn } = drawPartly(centerX, centerY, 70);
+    // Cùng tỉ lệ, trong một canvas chứa trọn cây.
+    const whole = draw(scene(tree, "radial", 140));
+
+    // Một phần tư diện tích của cây nằm ngoài canvas, nhưng chỉ nhánh nằm trọn bên ngoài mới bị bỏ: còn 3.434
+    // tới 3.714 nét tuỳ cạnh, so với 3.991 nét khi cả cây nằm trong canvas.
+    expect(drawn, edge).toBeLessThan(whole.stats.branchesDrawn * 0.95);
+  });
+
+  it("draws the branches of every colour completely, each in its own colour", () => {
+    // Mã màu gán theo từng cụm 40 node liền nhau trong cây (gần giống các clade), gồm cả mã -1 (không có giá trị).
+    // Một nửa số tip bị lọc đi, để lượt nhánh mờ cũng có mặt.
+    const colors = ["red", "green", "blue", "gold"];
+    const nodeCodes = Int32Array.from({ length: tree.nodeCount }, (_, node) => (Math.floor(node / 40) % 5) - 1);
+    const tipVisible = Uint8Array.from({ length: tree.tipCount }, (_, tip) => (tip % 600 < 300 ? 1 : 0));
+    const coloured = scene(tree, "radial", size, { nodeCodes, colors, tipVisible });
+    const { recorder, stats } = draw(coloured);
+    const visible = (node: number) => coloured.nodeVisible[node] === 1;
+
+    let total = 0;
+    for (let code = -1; code < colors.length; code++) {
+      const style = code < 0 ? "branch" : colors[code];
+      const strokes = strokesOf(recorder, style);
+      const result = compare(coloured, strokes, visible, (node) => nodeCodes[node] === code);
+      total += strokes.lines.length + strokes.arcs.length;
+      expect(result.wanted, style).toBeGreaterThan(400);
+      expect(result.missing, style).toBe(0);
+      expect(result.extra, style).toBe(0);
+    }
+    const muted = strokesOf(recorder, "muted");
+    expect(compare(coloured, muted, (node) => !visible(node)).missing).toBe(0);
+    expect(stats.branchesDrawn).toBe(total + muted.lines.length + muted.arcs.length);
+    // Nhánh mờ được vẽ trước, rồi tới từng màu theo thứ tự mã.
+    const order = [...new Set(recorder.lines.map((line) => line.style))];
+    expect(order).toEqual(["muted", "branch", "red", "green", "blue", "gold"]);
   });
 
   it("keeps the branches of the visible tips apart from the muted ones", () => {
