@@ -290,4 +290,35 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 - [ ] N2: publish xoá thư mục `.tmp-*` còn sót của lần chạy hỏng. Kiểm chứng: test
 - [ ] N3: IQ-TREE nhận seed cố định từ cấu hình lineage để hai lần build cùng đầu vào cho cùng cây. Kiểm chứng: test `-m tools` so hai cây
 
-**Mốc M3 (viewer)** sẽ được chia thành task cỡ S sau khi D3 xong, dựa trên 8 lát cắt trong `specs/SPEC-viewer.md`; mỗi lát dự kiến tách thành 2 đến 4 task.
+---
+
+## Phase 6: `viewer` (mốc M3)
+
+Đặc tả: `specs/SPEC-viewer.md`. Dependency frontend đã được đồng ý ngày 2026-10-12 (Node 24 portable ở `do-dac/tools/node24`, không đụng Node của máy). Lệnh chạy trong `frontend/`: `npm run test` (vitest), `npm run lint`, `npm run build`, `npm run e2e` (Playwright).
+
+- [x] T6.1 Khung Vite + React + TypeScript; lint, format, vitest chạy được; trang danh sách dataset đọc `GET /api/datasets`. Kiểm chứng: `npm run test`, `npm run lint`, `npm run build`
+- [x] T6.2 Lõi dữ liệu cây ngoài React: đọc `tree.json` thành typed array, kiểm tra tính hợp lệ (cha đứng trước con, độ dài mảng khớp). Kiểm chứng: vitest trên một cây nhỏ viết tay và một cây ngẫu nhiên 5.000 tip; file thật của DENV1 được test đầu-cuối đọc
+- [x] T6.3 Bố cục chữ nhật (trục thời gian và trục độ phân kỳ) trong hệ toạ độ [0, 1] × [0, 1]; phép biến đổi sang pixel (vừa khít, phóng quanh con trỏ, kéo, giới hạn). Kiểm chứng: vitest so với kết quả tính tay
+- [x] T6.4 Web Worker tải manifest, cây, cột; trả typed array bằng transfer; cột tải lỗi thì báo và cho thử lại. Kiểm chứng: vitest cho phần thuần (tên file trong manifest, đối chiếu số node, cột); Playwright cho luồng thật và cho trường hợp một cột tải lỗi
+- [x] T6.5 Vẽ Canvas: nhánh và tip, gộp tip trùng pixel; phóng to, thu nhỏ, kéo; trục vẽ trên canvas. Kiểm chứng: Playwright mở DENV1, có khung hình, số tip khớp manifest (tiêu chí V2)
+- [x] T6.6 Tô màu theo cột (tối đa tám màu, phần còn lại gộp thành "giá trị khác") và chú giải. Kiểm chứng: vitest cho việc gán màu; bảng màu qua `validate_palette.js` của quy trình dataviz
+- [x] T6.7 Lọc theo khoảng ngày và theo giá trị cột; tìm mẫu theo tên hoặc accession. Kiểm chứng: vitest cho mặt nạ lọc và hàm tìm; Playwright so số mẫu còn hiện với số tính từ file cột
+- [x] T6.8 Lưới không gian tìm tip dưới con trỏ; tooltip; bấm mở bảng chi tiết mẫu. Kiểm chứng: Playwright rê chuột và bấm 100 tip ngẫu nhiên, ra đúng mẫu cả 100 lần (tiêu chí 3c)
+- [x] T6.9 Bố cục toả tròn. Kiểm chứng: vitest; Playwright đổi bố cục và trục, không mất tip nào
+- [x] T6.10 Song ngữ Việt, Anh; đổi ngôn ngữ không tải lại dữ liệu (tiêu chí V3). Kiểm chứng: Playwright đếm request sau khi đổi ngôn ngữ (0)
+- [ ] T6.11 Đo tiêu chí 3, 3b, V1 trên dataset 35 nghìn và 100 nghìn tip; ghi vào `do-dac/results/`
+- [ ] T6.12 Service `web` (nginx) phục vụ frontend đã build và thư mục publish, chuyển `/api` sang `api`
+
+**Kết quả kiểm chứng của T6.1–T6.10 (2026-10-13):** `npm run test` → 97 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 9 passed trên bản build, với dataset DENV1 thật (1.964 tip).
+
+**Đã biết, chưa giải thích được:** một lần chạy `npm run e2e` (khi còn chạy trên dev server) có 1 test thất bại (lọc theo chú giải); chạy lại 112 lượt test liên tiếp không tái hiện, log của API không có request nào lỗi, và đầu ra của lần hỏng không được giữ lại. Từ nay đầu ra của test đầu-cuối luôn được ghi ra file.
+
+## Checkpoint E (hết mốc M3)
+- [ ] Tiêu chí 3, 3b, 3c, V1, V2, V3 có số đo
+- [ ] Ảnh chụp màn hình viewer với dataset DENV1 thật
+
+## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
+- Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
+- Định dạng cột giữ JSON; xét lại sau khi có số đo ở T6.11.
+- Tài khoản do admin tạo (CLI); có bảng `audit_log` đơn giản.
+- Mẫu nộp hiện ngay với nhãn "tạm" sau khi qua kiểm tra chất lượng; admin có nút ẩn. Mỗi lần nộp một chuỗi.

@@ -72,7 +72,21 @@ Trong Git Bash, lệnh có đường dẫn kiểu `/data/...` phải đặt `MSY
 
 `init` chạy migration rồi nạp dữ liệu địa danh (`python -m app.cli init-db`); nó cũng tự chạy mỗi lần khởi động và chạy lại bao nhiêu lần cũng được. Test dùng database riêng `vietstrain_test`, được tạo lại ở đầu mỗi phiên test.
 
-Lệnh nhập dữ liệu và lệnh frontend được thêm vào đây khi lát cắt tương ứng hoàn thành.
+### Frontend
+
+Chạy trong `frontend/`, bằng Node 24 portable (không dùng Node của máy). Trong Git Bash: `export PATH="/d/nextstrain/do-dac/tools/node24:$PATH"`; trong PowerShell: `$env:PATH = "D:\nextstrain\do-dac\tools\node24;$env:PATH"`.
+
+```
+Cài:            npm install
+Chạy khi phát triển: npm run dev        (http://127.0.0.1:5173, chuyển /api và /builds sang backend ở cổng 8000)
+Test logic:     npm run test            (vitest)
+Kiểm tra kiểu:  npm run typecheck
+Lint và format: npm run lint            (eslint và prettier --check)
+Build:          npm run build
+Test đầu-cuối:  npm run e2e             (Playwright; cần backend đang chạy và dataset dengue-denv1 đã có build)
+```
+
+Test đầu-cuối tự build frontend rồi phục vụ bản build ở cổng 4173 (cổng này phải đang trống), nên nó thử đúng thứ sẽ được triển khai. Khi một lần chạy thất bại, đọc lỗi và thư mục `test-results/` trước khi chạy lại: lần chạy sau xoá chúng. Chromium của Playwright 1.60.0 đã có trên máy từ giai đoạn đo đạc; phiên bản `@playwright/test` được ghim đúng 1.60.0 để không phải tải trình duyệt khác.
 
 ## Project Structure
 

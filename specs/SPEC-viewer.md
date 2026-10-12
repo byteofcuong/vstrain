@@ -1,6 +1,6 @@
 # Spec: module `viewer` (mốc M3)
 
-Trạng thái: **bản nháp chờ duyệt**. Chưa có dòng mã frontend nào; module này bắt đầu sau khi bạn duyệt và đồng ý danh sách dependency ở cuối file.
+Trạng thái: **đang triển khai** (dependency được đồng ý ngày 2026-10-12; các câu hỏi mở đang dùng phương án đề xuất, ghi ở cuối `tasks/todo.md`). Những chỗ triển khai khác bản nháp được ghi ở mục "Thay đổi so với bản nháp".
 
 ## Objective
 
@@ -37,7 +37,17 @@ Không (để sau hoặc không làm): bản đồ (module `map`), panel entropy
 - **Web Worker** tải và parse JSON, tính bố cục, trả typed array về main thread bằng transfer (không sao chép).
 - **Canvas 2D** vẽ nhánh và tip; khi nhiều tip rơi vào cùng một pixel thì chỉ vẽ một (phát triển từ prototype B, `do-dac/prototype/B-canvas/`).
 - **Tìm tip dưới con trỏ** bằng lưới không gian dựng lại sau mỗi lần bố cục, không duyệt cả cây.
-- **DOM chỉ cho thứ ít phần tử**: trục, chú giải, tooltip, bảng chi tiết.
+- **DOM chỉ cho thứ ít phần tử**: chú giải, tooltip, bảng chi tiết.
+
+## Thay đổi so với bản nháp
+
+- **Trục vẽ trên Canvas, không phải DOM.** Mốc của trục đổi theo từng khung hình khi phóng to; vẽ chung với cây thì không có lần render nào của React trong lúc phóng. Nhãn trục vì thế không đọc được bằng trình đọc màn hình; khoảng ngày của dataset có ở hai ô chọn ngày.
+- **Phóng to không tính lại bố cục.** Vị trí node nằm trong hệ toạ độ [0, 1] × [0, 1]; phóng và kéo chỉ đổi phép biến đổi sang pixel. Lưới tìm tip cũng nằm trong hệ toạ độ này nên chỉ dựng lại khi đổi bố cục hoặc trục.
+- **Tô màu tối đa tám giá trị.** Cột có nhiều hơn tám giá trị (quốc gia) thì tám giá trị nhiều mẫu nhất có màu riêng, phần còn lại chung một màu xám; bảng màu đã qua kiểm tra tách biệt cho người mù màu. Màu gắn với giá trị và không đổi khi lọc.
+- **Tên node trong không được giữ ở trình duyệt**, chỉ giữ mã nội bộ của tip.
+- **Không dùng thư viện router.** Hai trang phân biệt bằng phần `#` của URL.
+- **Cửa nhìn cho test:** `window.__vietstrain` (chỉ đọc: số khung hình, số tip đã vẽ, toạ độ của một tip) để test đầu-cuối và harness đo hiệu năng dùng.
+- **Ngoài danh sách dependency đã nêu** có thêm `@types/react` và `@types/react-dom` (khai báo kiểu của hai gói đã được đồng ý, chỉ dùng lúc biên dịch).
 
 ## Tiêu chí nghiệm thu
 
