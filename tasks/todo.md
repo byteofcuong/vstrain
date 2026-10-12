@@ -319,6 +319,7 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 | 3b: lọc theo ngày, đổi cột màu ở 35 nghìn tip | main thread bận ≤ 100 ms, không task trên 50 ms | bận nhiều nhất 67,7 ms; task dài nhất 44,1 ms | có |
 | V1: dataset 100 nghìn tip mở được | có khung hình, không lỗi | khung hình đầu 464 ms; 0 lỗi; 14 thao tác chạy xong ở cả 5 lần | có |
 
+- Các số trên đo bản build do `vite preview` phục vụ (không nén). Qua service `web` (nginx, nén gzip lúc phát), khung hình đầu là 418 ms ở 35 nghìn tip và 804 ms ở 100 nghìn tip; tiêu chí 3 và 3b vẫn đạt.
 - Ngoài phạm vi tiêu chí 3b: lần đầu đổi sang bố cục toả tròn trong một phiên có một task 51–77 ms ở 35 nghìn tip.
 - Bộ vẽ được tối ưu trong lúc đo (`33d6f18`, `fa8e40a`, `a575ac2`): chỉ vẽ nét thêm pixel mới, tip nhỏ vẽ thành ô 2 × 2 pixel, bố cục toả tròn bỏ nhánh ngoài khung nhìn, mỗi lượt màu chỉ duyệt node của màu đó. Khi kéo cây liên tục ở 35 nghìn tip, main thread cần 12–25 ms cho một khung hình (trước: 21–37 ms); ở 100 nghìn tip 22–38 ms (trước: 44–94 ms).
 - Kiểm chứng sau các thay đổi này: `npm run test` → 142 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 9 passed. Mutation check trên `draw.ts`: 59 chỗ sửa, 57 bị test bắt; 2 chỗ còn lại không đổi hình vẽ.
