@@ -22,6 +22,7 @@ class Lineage:
     # Đo trên 21.909 genome: trong một serotype, genome khác reference nhiều nhất khoảng 19% (genotype rừng
     # của DENV2); genome của serotype khác thì khác khoảng 31%. Ngưỡng nằm giữa hai mức đó.
     max_divergence: float = 0.25
+    tree_seed: int = 1  # seed của IQ-TREE; không có thì hai lần build cùng đầu vào cho hai cây khác nhau
 
     @property
     def directory(self) -> Path:

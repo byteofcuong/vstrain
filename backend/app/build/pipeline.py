@@ -38,33 +38,37 @@ def tip_names(auspice: dict[str, Any]) -> set[str]:
     return names
 
 
+def tree_command(lineage: Lineage) -> list[str]:
+    """Lệnh IQ-TREE dựng cây từ `aligned.fasta` trong thư mục làm việc, ghi ra `tree.treefile`."""
+    return [
+        "iqtree",
+        "--threads-max",  # IQ-TREE không nhận dạng `--threads-max=8`
+        str(settings.tool_threads),
+        "-s",
+        "aligned.fasta",
+        "-m",
+        "GTR",
+        # Các đối số mặc định của `augur tree` cho IQ-TREE (augur/tree.py, DEFAULT_ARGS).
+        "--ninit",
+        "2",
+        "-n",
+        "2",
+        "--epsilon",
+        "0.05",
+        "-T",
+        "AUTO",
+        # `augur tree` để IQ-TREE tự bốc seed; ở đây seed cố định để một build lặp lại được.
+        "--seed",
+        str(lineage.tree_seed),
+        "--redo",
+        "--prefix",
+        "tree",
+    ]
+
+
 def run_tree_steps(context: JobContext, lineage: Lineage) -> Path:
     """Từ `aligned.fasta`, `metadata.tsv`, `clades.tsv` trong thư mục làm việc tới `auspice.json`."""
-    context.run_tool(
-        "tree",
-        [
-            "iqtree",
-            "--threads-max",  # IQ-TREE không nhận dạng `--threads-max=8`
-            str(settings.tool_threads),
-            "-s",
-            "aligned.fasta",
-            "-m",
-            "GTR",
-            # Các đối số mặc định của `augur tree` cho IQ-TREE (augur/tree.py, DEFAULT_ARGS).
-            "--ninit",
-            "2",
-            "-n",
-            "2",
-            "--epsilon",
-            "0.05",
-            "-T",
-            "AUTO",
-            "--redo",
-            "--prefix",
-            "tree",
-        ],
-        timeout=4 * _HOUR,
-    )
+    context.run_tool("tree", tree_command(lineage), timeout=4 * _HOUR)
     context.run_tool(
         "refine",
         [

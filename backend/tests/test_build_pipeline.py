@@ -7,11 +7,12 @@ import pytest
 from sqlalchemy import func, select
 
 from app.build.align import align_pending
-from app.build.pipeline import build_dataset, republish_build, tip_names
+from app.build.pipeline import build_dataset, republish_build, tip_names, tree_command
 from app.config import settings
 from app.geo.seed import seed_geo
 from app.jobs import queue
 from app.jobs.steps import JobContext
+from app.jobs.tools import run_tool
 from app.models import Build, BuildSample, DatasetDef, JobStep, Sample, SampleAlignment, SampleSequence
 from app.pathogens import DENGUE
 from app.samples.importer import import_genbank
@@ -170,3 +171,27 @@ def test_a_published_build_can_be_published_again_as_a_job(session, tmp_path, mo
 def test_publishing_an_unknown_build_fails_cleanly(session, tmp_path, build_id):
     with pytest.raises(LookupError, match="No build"):
         republish_build(new_context(session, tmp_path, "publish_build", {"build_id": build_id}))
+
+
+def test_the_tree_command_carries_the_seed_of_the_lineage():
+    command = tree_command(DENV1)
+
+    assert command[command.index("--seed") + 1] == str(DENV1.tree_seed)
+
+
+@pytest.mark.tools
+def test_iqtree_runs_with_the_fixed_seed(tmp_path, monkeypatch):
+    import random
+
+    monkeypatch.setattr(settings, "tool_threads", 2)
+    rng = random.Random(7)
+    root = [rng.choice("ACGT") for _ in range(600)]
+    with (tmp_path / "aligned.fasta").open("w", encoding="ascii", newline="\n") as handle:
+        for number in range(8):
+            sequence = [rng.choice("ACGT") if rng.random() < 0.05 else base for base in root]
+            handle.write(f">S{number:07d}\n{''.join(sequence)}\n")
+
+    run_tool(tree_command(DENV1), cwd=tmp_path, log_path=tmp_path / "tree.log", timeout=120)
+
+    assert re.search(rf"^Seed:\s+{DENV1.tree_seed}\b", (tmp_path / "tree.log").read_text(), flags=re.MULTILINE)
+    assert (tmp_path / "tree.treefile").is_file()
