@@ -40,7 +40,7 @@ Mỗi module có đặc tả riêng ở `specs/SPEC-<module id>.md`, viết ngay
 | Backend | Python ≥ 3.11, FastAPI, SQLAlchemy 2, Alembic, psycopg 3 | API chạy trên `python:3.12-slim`; worker chạy trong image dẫn xuất từ `nextstrain/base:build-20260930T105229Z` (Python 3.11) |
 | Cơ sở dữ liệu | PostgreSQL 16 | Kiêm hàng đợi job (`FOR UPDATE SKIP LOCKED`) |
 | Công cụ sinh học | Augur 34.1.4, Nextclade 3.24, IQ-TREE 3.0.1, TreeTime 0.12.1 | Đúng phiên bản đã đo |
-| Frontend | React 19, TypeScript, Vite, Zustand, MapLibre GL | Từ module `viewer` |
+| Frontend | React 19, TypeScript, Vite, Zustand | Cây vẽ bằng Canvas, bản đồ vẽ bằng SVG; không dùng thư viện bản đồ (ADR-007) |
 | Triển khai | Docker Compose trên một máy; nginx 1.28 là cổng vào (`http://127.0.0.1:8080`) | Chưa có HTTPS, chưa lên server |
 
 Lý do của từng lựa chọn lớn được ghi thành ADR trong `docs/decisions/`.
@@ -85,6 +85,7 @@ Lint và format: npm run lint            (eslint và prettier --check)
 Build:          npm run build
 Test đầu-cuối:  npm run e2e             (Playwright; cần backend đang chạy và dataset dengue-denv1 đã có build)
 Test qua nginx: npm run e2e:web         (cùng bộ test, cộng kiểm tra của nginx; cần `npm run build` và service `web` đang chạy)
+Dựng bản đồ:    npm run build:map       (ghi lại src/map/vn-map.json; chạy khi file đường biên hoặc file seed địa danh đổi)
 ```
 
 Test đầu-cuối tự build frontend rồi phục vụ bản build ở cổng 4173 (cổng này phải đang trống), nên nó thử đúng thứ sẽ được triển khai. Khi một lần chạy thất bại, đọc lỗi và thư mục `test-results/` trước khi chạy lại: lần chạy sau xoá chúng. Chromium của Playwright 1.60.0 đã có trên máy từ giai đoạn đo đạc; phiên bản `@playwright/test` được ghim đúng 1.60.0 để không phải tải trình duyệt khác.
@@ -105,7 +106,9 @@ deploy/               → docker-compose.yml, Dockerfile, nginx.conf (service `w
 backend/app/          → mã backend, mỗi module một gói con (geo/, samples/, ...)
 backend/migrations/   → migration Alembic
 backend/tests/        → pytest
-frontend/             → React (từ module viewer)
+frontend/             → React: src/tree (cây), src/map (bản đồ), src/components, e2e
+frontend/map-data/    → hai file đường biên và nguồn, giấy phép của chúng (NGUON.md)
+frontend/scripts/     → script dựng file hình học của bản đồ
 data/                 → dữ liệu cục bộ và file build; không đưa vào git
 ```
 

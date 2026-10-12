@@ -349,6 +349,42 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 **Dọn dẹp:** hai dataset tổng hợp (`synth-35000`, `synth-100000`) đã xoá khỏi DB và thư mục publish, danh sách dataset chỉ còn dengue. File nguồn vẫn ở `data/tmp/synth/`; mốc M7 cần đo lại thì tạo lại bằng lệnh ghi ở đầu `do-dac/scripts/w5-viewer/xuat_dataset_tong_hop.py`.
 
+---
+
+## Phase 7: `map` (mốc M4)
+
+Đặc tả: `specs/SPEC-map.md`; quyết định: ADR-007. Nguồn đường biên được đồng ý ngày 2026-10-13 (HDX cho bộ 34, geoBoundaries cho bộ 63); không cài thêm gói nào.
+
+- [x] T7.1 Bộ dựng hình học (`npm run build:map`): khớp tên với mã của `admin_unit`, gộp 63 tỉnh thành 6 vùng và 3 miền, rút gọn lớp HDX, chiếu và ghi `src/map/vn-map.json` (138 KB, 25 KB khi nén). Kiểm chứng: 50 test đơn vị; mutation check trên `generate.ts`: 34 chỗ sửa, cả 34 bị bắt (`507af94`)
+- [x] T7.2 Xếp mẫu vào địa bàn ở bốn lớp, đếm, độ phủ, cấp mở đầu, bộ lọc theo địa bàn (thuần logic). Kiểm chứng: vitest
+- [x] T7.3 Bảng bản đồ SVG: thang màu năm lớp (qua `validate_palette.js --ordinal`), chú giải, dòng tóm tắt, danh sách địa bàn, tooltip, bàn phím; nối vào bộ lọc chung của cây. Kiểm chứng: Playwright
+- [x] T7.4 Đo tiêu chí B7 và chụp ảnh. Số liệu ở `do-dac/results/W5-viewer-webapp/viewer_denv1_2000_qua_nginx_co_ban_do.json`, ảnh `06`–`08` trong `anh/`
+
+## Checkpoint F (hết mốc M4)
+
+| Tiêu chí | Ngưỡng | Kết quả | Nguồn |
+|---|---|---|---|
+| B1 | đủ địa bàn mỗi cấp, mã khớp `admin_unit` | 3 miền, 6 vùng, 63 tỉnh, 34 đơn vị; 106 mã và tên khớp bảng xuất từ DB | `vn-map.test.ts`; test `(criterion B1)` |
+| B2 | số mẫu khớp file publish ở mọi cấp | khớp ở cả bốn lớp, từng địa bàn và số "chưa xếp được"; build DENV1: 925 trong 1.489 mẫu Việt Nam theo miền, 209 theo vùng và theo tỉnh | test `(criterion B2)` |
+| B3 | bản đồ là bộ lọc dùng chung | bấm một miền: dòng đếm, số tip cây vẽ, chú giải và bản đồ cùng đổi và khớp; lọc theo genotype thì số trên bản đồ đổi theo | test `(criterion B3)` |
+| B4 | bộ 34 cộng mẫu của các tỉnh gộp vào | đúng với cả 34 đơn vị | `placement.test.ts`; test `(criterion B4)` |
+| B5 | hình học đúng | hình gộp có đúng diện tích các tỉnh thành phần; hình trên lưới lệch nhiều nhất 1,05%; bộ 34 (HDX) so với 63 tỉnh gộp lại (geoBoundaries) lệch dưới 10% ở 33 đơn vị, nhiều nhất 15% | `vn-map.test.ts` |
+| B6 | Hoàng Sa, Trường Sa có mặt | thuộc Đà Nẵng và Khánh Hòa ở cả bốn lớp, có nhãn | `vn-map.test.ts`; test `(criterion B6)` |
+| B7 | không làm chậm cây | hình học là file riêng, không nằm trong bundle chính (bundle chính tăng 14 KB); khung hình đầu của DENV1 qua nginx 184 ms khi có bản đồ, 179 ms trước đó (các lần chạy lẻ dao động 172–189 ms) | kích thước build; `do_viewer.mjs` |
+| B8 | dùng được bằng bàn phím | địa bàn có mẫu focus được, đọc tên và số mẫu, Enter và phím cách bật tắt bộ lọc; địa bàn trống không nằm trong thứ tự Tab | test `(criterion B8)` |
+
+**Kiểm chứng lúc đóng checkpoint (2026-10-13):** `npm run test` → 226 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 27 passed; `npm run e2e:web` → 32 passed (27 test của viewer và bản đồ qua nginx, 5 test của cấu hình nginx). Mutation check cho phần bản đồ chạy trong trình duyệt: 43 chỗ sửa thử, cả 43 bị bắt (22 bởi test đơn vị, 21 qua nginx).
+
+**Lỗi tìm ra trong lúc làm, đã sửa:**
+- **Bản đồ chọn cấp mở đầu trước khi các cột địa bàn về.** Khi máy bận, nó mở ở cấp tỉnh rồi tự nhảy sang cấp miền, làm mất lựa chọn người xem vừa bấm. Lỗi chỉ lộ ra khi chạy cả bộ test song song. Nay bản đồ chờ đủ cột rồi mới vẽ; chạy cả bộ đầu-cuối 4 lần song song, 104 lượt đều qua.
+- **Cột địa bàn tải lỗi thì bản đồ lặng lẽ hiện số 0.** Nay nó báo lỗi và cho thử lại.
+
+**Điều cần biết:**
+- Dữ liệu công khai mỏng ở cấp tỉnh: build DENV1 chỉ có 2 tỉnh có mẫu (Khánh Hòa 205, Hà Nội 4). Bản đồ vì thế mở ở cấp miền. Mẫu nộp qua mốc M5 sẽ mang mã tỉnh.
+- Hai lớp tỉnh đến từ hai nguồn, nên đường bờ biển lệch nhau chút ít khi đổi giữa bộ 63 và bộ 34.
+- Mã tỉnh của Tổng cục Thống kê cho 34 đơn vị đã có trong file hình học, chưa đưa vào bảng `admin_unit`.
+- Chưa làm: phóng to và kéo bản đồ; nhớ việc ẩn bản đồ giữa các lần mở trang; vùng của 34 đơn vị mới theo cách chia sau sáp nhập.
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.
