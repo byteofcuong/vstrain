@@ -68,17 +68,17 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 **Mô tả:** Từ địa danh gốc (division, location) và ngày lấy mẫu, trả về mã đơn vị, mã vùng và trạng thái.
 
 **Nghiệm thu:**
-- [ ] Ví dụ thật: "Nha Trang" → Khánh Hòa; "South" → miền Nam (cấp vùng); location "Hanoi" thắng division "Red River Delta"
-- [ ] Theo ngày: "Binh Dinh" lấy mẫu năm 2010 → `vn63:binh-dinh`; lấy mẫu sau 1/7/2025 → đơn vị kế thừa `vn34:gia-lai`
-- [ ] Trống → `missing`; có chữ nhưng không khớp → `unresolved`, giữ nguyên văn bản gốc
+- [x] Ví dụ thật: "Nha Trang" → Khánh Hòa; "South" → miền Nam (cấp vùng); location "Hanoi" thắng division "Red River Delta"
+- [x] Theo ngày: "Binh Dinh" lấy mẫu năm 2010 → `vn63:binh-dinh`; lấy mẫu từ 1/7/2025, hoặc không rõ ngày → đơn vị kế thừa `vn34:gia-lai`
+- [x] Trống → `missing`; có chữ nhưng không khớp → `unresolved`, giữ nguyên văn bản gốc
 
 **Kiểm chứng:** `DC run --rm api pytest tests/test_geo_resolve.py`
 **Phụ thuộc:** T2.3. **Cỡ:** M.
 **File:** `backend/app/geo/resolve.py`, `backend/tests/test_geo_resolve.py`
 
 ## Checkpoint B
-- [ ] Tiêu chí 4c: chạy 331 cách viết của 63 tỉnh, ≥ 95% ra đúng tỉnh; ghi kết quả vào `do-dac/results/`
-- [ ] ADR-002 (địa danh) được viết
+- [x] Tiêu chí 4c: chạy 331 cách viết của 63 tỉnh, ≥ 95% ra đúng tỉnh; ghi kết quả vào `do-dac/results/` → 320/331 (96,7%) chỉ nhờ chuẩn hoá, 331/331 khi có bảng tên thay thế đầy đủ (`do-dac/results/W1-dia-danh-webapp/`)
+- [x] ADR-002 (địa danh) được viết
 
 ---
 

@@ -30,10 +30,10 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 - [x] T2.1 `place_key()`: chuẩn hoá tên địa danh
 - [x] T2.2 Bảng `admin_unit`, `place_alias` và khung migration
 - [x] T2.3 Seed 63 tỉnh, 34 đơn vị, vùng và tên thay thế
-- [ ] T2.4 `resolve_place()`: gán đơn vị theo tên và ngày lấy mẫu
+- [x] T2.4 `resolve_place()`: gán đơn vị theo tên và ngày lấy mẫu
 
 ### Checkpoint B
-- [ ] Tiêu chí 4c: ≥ 95% trong 331 cách viết ra đúng tỉnh
+- [x] Tiêu chí 4c: ≥ 95% trong 331 cách viết ra đúng tỉnh (320/331 chỉ nhờ chuẩn hoá)
 
 ### Phase 3: `samples`
 - [ ] T3.1 Bảng `sample`, `sample_sequence`; phân tích ngày không đầy đủ
