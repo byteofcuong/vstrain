@@ -1,0 +1,332 @@
+province	kind	spelling
+An Giang	co_dau	An Giang
+An Giang	khong_dau	An Giang
+An Giang	viet_lien	Angiang
+An Giang	chu_thuong	an giang
+An Giang	hau_to_province	An Giang Province
+Bà Rịa - Vũng Tàu	co_dau	Bà Rịa - Vũng Tàu
+Bà Rịa - Vũng Tàu	khong_dau	Ba Ria - Vung Tau
+Bà Rịa - Vũng Tàu	viet_lien	Bariavungtau
+Bà Rịa - Vũng Tàu	chu_thuong	ba ria - vung tau
+Bà Rịa - Vũng Tàu	hau_to_province	Ba Ria - Vung Tau Province
+Bà Rịa - Vũng Tàu	cach_viet_khac	Ba Ria-Vung Tau
+Bà Rịa - Vũng Tàu	cach_viet_khac	Vung Tau
+Bà Rịa - Vũng Tàu	cach_viet_khac	BRVT
+Bạc Liêu	co_dau	Bạc Liêu
+Bạc Liêu	khong_dau	Bac Lieu
+Bạc Liêu	viet_lien	Baclieu
+Bạc Liêu	chu_thuong	bac lieu
+Bạc Liêu	hau_to_province	Bac Lieu Province
+Bắc Giang	co_dau	Bắc Giang
+Bắc Giang	khong_dau	Bac Giang
+Bắc Giang	viet_lien	Bacgiang
+Bắc Giang	chu_thuong	bac giang
+Bắc Giang	hau_to_province	Bac Giang Province
+Bắc Kạn	co_dau	Bắc Kạn
+Bắc Kạn	khong_dau	Bac Kan
+Bắc Kạn	viet_lien	Backan
+Bắc Kạn	chu_thuong	bac kan
+Bắc Kạn	hau_to_province	Bac Kan Province
+Bắc Kạn	cach_viet_khac	Bac Can
+Bắc Ninh	co_dau	Bắc Ninh
+Bắc Ninh	khong_dau	Bac Ninh
+Bắc Ninh	viet_lien	Bacninh
+Bắc Ninh	chu_thuong	bac ninh
+Bắc Ninh	hau_to_province	Bac Ninh Province
+Bến Tre	co_dau	Bến Tre
+Bến Tre	khong_dau	Ben Tre
+Bến Tre	viet_lien	Bentre
+Bến Tre	chu_thuong	ben tre
+Bến Tre	hau_to_province	Ben Tre Province
+Bình Dương	co_dau	Bình Dương
+Bình Dương	khong_dau	Binh Duong
+Bình Dương	viet_lien	Binhduong
+Bình Dương	chu_thuong	binh duong
+Bình Dương	hau_to_province	Binh Duong Province
+Bình Định	co_dau	Bình Định
+Bình Định	khong_dau	Binh Dinh
+Bình Định	viet_lien	Binhdinh
+Bình Định	chu_thuong	binh dinh
+Bình Định	hau_to_province	Binh Dinh Province
+Bình Phước	co_dau	Bình Phước
+Bình Phước	khong_dau	Binh Phuoc
+Bình Phước	viet_lien	Binhphuoc
+Bình Phước	chu_thuong	binh phuoc
+Bình Phước	hau_to_province	Binh Phuoc Province
+Bình Thuận	co_dau	Bình Thuận
+Bình Thuận	khong_dau	Binh Thuan
+Bình Thuận	viet_lien	Binhthuan
+Bình Thuận	chu_thuong	binh thuan
+Bình Thuận	hau_to_province	Binh Thuan Province
+Cà Mau	co_dau	Cà Mau
+Cà Mau	khong_dau	Ca Mau
+Cà Mau	viet_lien	Camau
+Cà Mau	chu_thuong	ca mau
+Cà Mau	hau_to_province	Ca Mau Province
+Cao Bằng	co_dau	Cao Bằng
+Cao Bằng	khong_dau	Cao Bang
+Cao Bằng	viet_lien	Caobang
+Cao Bằng	chu_thuong	cao bang
+Cao Bằng	hau_to_province	Cao Bang Province
+Cần Thơ	co_dau	Cần Thơ
+Cần Thơ	khong_dau	Can Tho
+Cần Thơ	viet_lien	Cantho
+Cần Thơ	chu_thuong	can tho
+Cần Thơ	hau_to_province	Can Tho Province
+Đà Nẵng	co_dau	Đà Nẵng
+Đà Nẵng	khong_dau	Da Nang
+Đà Nẵng	viet_lien	Danang
+Đà Nẵng	chu_thuong	da nang
+Đà Nẵng	hau_to_province	Da Nang Province
+Đắk Lắk	co_dau	Đắk Lắk
+Đắk Lắk	khong_dau	Dak Lak
+Đắk Lắk	viet_lien	Daklak
+Đắk Lắk	chu_thuong	dak lak
+Đắk Lắk	hau_to_province	Dak Lak Province
+Đắk Lắk	cach_viet_khac	Dac Lac
+Đắk Nông	co_dau	Đắk Nông
+Đắk Nông	khong_dau	Dak Nong
+Đắk Nông	viet_lien	Daknong
+Đắk Nông	chu_thuong	dak nong
+Đắk Nông	hau_to_province	Dak Nong Province
+Đắk Nông	cach_viet_khac	Dac Nong
+Điện Biên	co_dau	Điện Biên
+Điện Biên	khong_dau	Dien Bien
+Điện Biên	viet_lien	Dienbien
+Điện Biên	chu_thuong	dien bien
+Điện Biên	hau_to_province	Dien Bien Province
+Đồng Nai	co_dau	Đồng Nai
+Đồng Nai	khong_dau	Dong Nai
+Đồng Nai	viet_lien	Dongnai
+Đồng Nai	chu_thuong	dong nai
+Đồng Nai	hau_to_province	Dong Nai Province
+Đồng Tháp	co_dau	Đồng Tháp
+Đồng Tháp	khong_dau	Dong Thap
+Đồng Tháp	viet_lien	Dongthap
+Đồng Tháp	chu_thuong	dong thap
+Đồng Tháp	hau_to_province	Dong Thap Province
+Gia Lai	co_dau	Gia Lai
+Gia Lai	khong_dau	Gia Lai
+Gia Lai	viet_lien	Gialai
+Gia Lai	chu_thuong	gia lai
+Gia Lai	hau_to_province	Gia Lai Province
+Hà Giang	co_dau	Hà Giang
+Hà Giang	khong_dau	Ha Giang
+Hà Giang	viet_lien	Hagiang
+Hà Giang	chu_thuong	ha giang
+Hà Giang	hau_to_province	Ha Giang Province
+Hà Nam	co_dau	Hà Nam
+Hà Nam	khong_dau	Ha Nam
+Hà Nam	viet_lien	Hanam
+Hà Nam	chu_thuong	ha nam
+Hà Nam	hau_to_province	Ha Nam Province
+Hà Nội	co_dau	Hà Nội
+Hà Nội	khong_dau	Ha Noi
+Hà Nội	viet_lien	Hanoi
+Hà Nội	chu_thuong	ha noi
+Hà Nội	hau_to_province	Ha Noi Province
+Hà Nội	cach_viet_khac	Hanoi
+Hà Nội	cach_viet_khac	TP. Hà Nội
+Hà Tĩnh	co_dau	Hà Tĩnh
+Hà Tĩnh	khong_dau	Ha Tinh
+Hà Tĩnh	viet_lien	Hatinh
+Hà Tĩnh	chu_thuong	ha tinh
+Hà Tĩnh	hau_to_province	Ha Tinh Province
+Hải Dương	co_dau	Hải Dương
+Hải Dương	khong_dau	Hai Duong
+Hải Dương	viet_lien	Haiduong
+Hải Dương	chu_thuong	hai duong
+Hải Dương	hau_to_province	Hai Duong Province
+Hải Phòng	co_dau	Hải Phòng
+Hải Phòng	khong_dau	Hai Phong
+Hải Phòng	viet_lien	Haiphong
+Hải Phòng	chu_thuong	hai phong
+Hải Phòng	hau_to_province	Hai Phong Province
+Hậu Giang	co_dau	Hậu Giang
+Hậu Giang	khong_dau	Hau Giang
+Hậu Giang	viet_lien	Haugiang
+Hậu Giang	chu_thuong	hau giang
+Hậu Giang	hau_to_province	Hau Giang Province
+Hòa Bình	co_dau	Hòa Bình
+Hòa Bình	khong_dau	Hoa Binh
+Hòa Bình	viet_lien	Hoabinh
+Hòa Bình	chu_thuong	hoa binh
+Hòa Bình	hau_to_province	Hoa Binh Province
+Hưng Yên	co_dau	Hưng Yên
+Hưng Yên	khong_dau	Hung Yen
+Hưng Yên	viet_lien	Hungyen
+Hưng Yên	chu_thuong	hung yen
+Hưng Yên	hau_to_province	Hung Yen Province
+Khánh Hòa	co_dau	Khánh Hòa
+Khánh Hòa	khong_dau	Khanh Hoa
+Khánh Hòa	viet_lien	Khanhhoa
+Khánh Hòa	chu_thuong	khanh hoa
+Khánh Hòa	hau_to_province	Khanh Hoa Province
+Kiên Giang	co_dau	Kiên Giang
+Kiên Giang	khong_dau	Kien Giang
+Kiên Giang	viet_lien	Kiengiang
+Kiên Giang	chu_thuong	kien giang
+Kiên Giang	hau_to_province	Kien Giang Province
+Kon Tum	co_dau	Kon Tum
+Kon Tum	khong_dau	Kon Tum
+Kon Tum	viet_lien	Kontum
+Kon Tum	chu_thuong	kon tum
+Kon Tum	hau_to_province	Kon Tum Province
+Lai Châu	co_dau	Lai Châu
+Lai Châu	khong_dau	Lai Chau
+Lai Châu	viet_lien	Laichau
+Lai Châu	chu_thuong	lai chau
+Lai Châu	hau_to_province	Lai Chau Province
+Lạng Sơn	co_dau	Lạng Sơn
+Lạng Sơn	khong_dau	Lang Son
+Lạng Sơn	viet_lien	Langson
+Lạng Sơn	chu_thuong	lang son
+Lạng Sơn	hau_to_province	Lang Son Province
+Lào Cai	co_dau	Lào Cai
+Lào Cai	khong_dau	Lao Cai
+Lào Cai	viet_lien	Laocai
+Lào Cai	chu_thuong	lao cai
+Lào Cai	hau_to_province	Lao Cai Province
+Lâm Đồng	co_dau	Lâm Đồng
+Lâm Đồng	khong_dau	Lam Dong
+Lâm Đồng	viet_lien	Lamdong
+Lâm Đồng	chu_thuong	lam dong
+Lâm Đồng	hau_to_province	Lam Dong Province
+Long An	co_dau	Long An
+Long An	khong_dau	Long An
+Long An	viet_lien	Longan
+Long An	chu_thuong	long an
+Long An	hau_to_province	Long An Province
+Nam Định	co_dau	Nam Định
+Nam Định	khong_dau	Nam Dinh
+Nam Định	viet_lien	Namdinh
+Nam Định	chu_thuong	nam dinh
+Nam Định	hau_to_province	Nam Dinh Province
+Nghệ An	co_dau	Nghệ An
+Nghệ An	khong_dau	Nghe An
+Nghệ An	viet_lien	Nghean
+Nghệ An	chu_thuong	nghe an
+Nghệ An	hau_to_province	Nghe An Province
+Ninh Bình	co_dau	Ninh Bình
+Ninh Bình	khong_dau	Ninh Binh
+Ninh Bình	viet_lien	Ninhbinh
+Ninh Bình	chu_thuong	ninh binh
+Ninh Bình	hau_to_province	Ninh Binh Province
+Ninh Thuận	co_dau	Ninh Thuận
+Ninh Thuận	khong_dau	Ninh Thuan
+Ninh Thuận	viet_lien	Ninhthuan
+Ninh Thuận	chu_thuong	ninh thuan
+Ninh Thuận	hau_to_province	Ninh Thuan Province
+Phú Thọ	co_dau	Phú Thọ
+Phú Thọ	khong_dau	Phu Tho
+Phú Thọ	viet_lien	Phutho
+Phú Thọ	chu_thuong	phu tho
+Phú Thọ	hau_to_province	Phu Tho Province
+Phú Yên	co_dau	Phú Yên
+Phú Yên	khong_dau	Phu Yen
+Phú Yên	viet_lien	Phuyen
+Phú Yên	chu_thuong	phu yen
+Phú Yên	hau_to_province	Phu Yen Province
+Quảng Bình	co_dau	Quảng Bình
+Quảng Bình	khong_dau	Quang Binh
+Quảng Bình	viet_lien	Quangbinh
+Quảng Bình	chu_thuong	quang binh
+Quảng Bình	hau_to_province	Quang Binh Province
+Quảng Nam	co_dau	Quảng Nam
+Quảng Nam	khong_dau	Quang Nam
+Quảng Nam	viet_lien	Quangnam
+Quảng Nam	chu_thuong	quang nam
+Quảng Nam	hau_to_province	Quang Nam Province
+Quảng Ngãi	co_dau	Quảng Ngãi
+Quảng Ngãi	khong_dau	Quang Ngai
+Quảng Ngãi	viet_lien	Quangngai
+Quảng Ngãi	chu_thuong	quang ngai
+Quảng Ngãi	hau_to_province	Quang Ngai Province
+Quảng Ninh	co_dau	Quảng Ninh
+Quảng Ninh	khong_dau	Quang Ninh
+Quảng Ninh	viet_lien	Quangninh
+Quảng Ninh	chu_thuong	quang ninh
+Quảng Ninh	hau_to_province	Quang Ninh Province
+Quảng Trị	co_dau	Quảng Trị
+Quảng Trị	khong_dau	Quang Tri
+Quảng Trị	viet_lien	Quangtri
+Quảng Trị	chu_thuong	quang tri
+Quảng Trị	hau_to_province	Quang Tri Province
+Sóc Trăng	co_dau	Sóc Trăng
+Sóc Trăng	khong_dau	Soc Trang
+Sóc Trăng	viet_lien	Soctrang
+Sóc Trăng	chu_thuong	soc trang
+Sóc Trăng	hau_to_province	Soc Trang Province
+Sơn La	co_dau	Sơn La
+Sơn La	khong_dau	Son La
+Sơn La	viet_lien	Sonla
+Sơn La	chu_thuong	son la
+Sơn La	hau_to_province	Son La Province
+Tây Ninh	co_dau	Tây Ninh
+Tây Ninh	khong_dau	Tay Ninh
+Tây Ninh	viet_lien	Tayninh
+Tây Ninh	chu_thuong	tay ninh
+Tây Ninh	hau_to_province	Tay Ninh Province
+Thái Bình	co_dau	Thái Bình
+Thái Bình	khong_dau	Thai Binh
+Thái Bình	viet_lien	Thaibinh
+Thái Bình	chu_thuong	thai binh
+Thái Bình	hau_to_province	Thai Binh Province
+Thái Nguyên	co_dau	Thái Nguyên
+Thái Nguyên	khong_dau	Thai Nguyen
+Thái Nguyên	viet_lien	Thainguyen
+Thái Nguyên	chu_thuong	thai nguyen
+Thái Nguyên	hau_to_province	Thai Nguyen Province
+Thanh Hóa	co_dau	Thanh Hóa
+Thanh Hóa	khong_dau	Thanh Hoa
+Thanh Hóa	viet_lien	Thanhhoa
+Thanh Hóa	chu_thuong	thanh hoa
+Thanh Hóa	hau_to_province	Thanh Hoa Province
+Huế	co_dau	Huế
+Huế	khong_dau	Hue
+Huế	viet_lien	Hue
+Huế	chu_thuong	hue
+Huế	hau_to_province	Hue Province
+Huế	cach_viet_khac	Thừa Thiên Huế
+Huế	cach_viet_khac	Thua Thien Hue
+Huế	cach_viet_khac	Thua Thien - Hue
+Tiền Giang	co_dau	Tiền Giang
+Tiền Giang	khong_dau	Tien Giang
+Tiền Giang	viet_lien	Tiengiang
+Tiền Giang	chu_thuong	tien giang
+Tiền Giang	hau_to_province	Tien Giang Province
+Hồ Chí Minh	co_dau	Hồ Chí Minh
+Hồ Chí Minh	khong_dau	Ho Chi Minh
+Hồ Chí Minh	viet_lien	Hochiminh
+Hồ Chí Minh	chu_thuong	ho chi minh
+Hồ Chí Minh	hau_to_province	Ho Chi Minh Province
+Hồ Chí Minh	cach_viet_khac	Ho Chi Minh City
+Hồ Chí Minh	cach_viet_khac	TP.HCM
+Hồ Chí Minh	cach_viet_khac	TP. Hồ Chí Minh
+Hồ Chí Minh	cach_viet_khac	Saigon
+Hồ Chí Minh	cach_viet_khac	Sai Gon
+Trà Vinh	co_dau	Trà Vinh
+Trà Vinh	khong_dau	Tra Vinh
+Trà Vinh	viet_lien	Travinh
+Trà Vinh	chu_thuong	tra vinh
+Trà Vinh	hau_to_province	Tra Vinh Province
+Tuyên Quang	co_dau	Tuyên Quang
+Tuyên Quang	khong_dau	Tuyen Quang
+Tuyên Quang	viet_lien	Tuyenquang
+Tuyên Quang	chu_thuong	tuyen quang
+Tuyên Quang	hau_to_province	Tuyen Quang Province
+Vĩnh Long	co_dau	Vĩnh Long
+Vĩnh Long	khong_dau	Vinh Long
+Vĩnh Long	viet_lien	Vinhlong
+Vĩnh Long	chu_thuong	vinh long
+Vĩnh Long	hau_to_province	Vinh Long Province
+Vĩnh Phúc	co_dau	Vĩnh Phúc
+Vĩnh Phúc	khong_dau	Vinh Phuc
+Vĩnh Phúc	viet_lien	Vinhphuc
+Vĩnh Phúc	chu_thuong	vinh phuc
+Vĩnh Phúc	hau_to_province	Vinh Phuc Province
+Yên Bái	co_dau	Yên Bái
+Yên Bái	khong_dau	Yen Bai
+Yên Bái	viet_lien	Yenbai
+Yên Bái	chu_thuong	yen bai
+Yên Bái	hau_to_province	Yen Bai Province
