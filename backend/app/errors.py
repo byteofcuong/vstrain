@@ -28,7 +28,9 @@ def invalid_parameter(field: str, message: str) -> ApiError:
     return ApiError(422, "VALIDATION_ERROR", INVALID_PARAMETERS, [{"field": field, "message": message}])
 
 
-def _response(status_code: int, code: str, message: str, details: list[dict[str, str]] | None = None) -> JSONResponse:
+def error_response(
+    status_code: int, code: str, message: str, details: list[dict[str, str]] | None = None
+) -> JSONResponse:
     error: dict[str, object] = {"code": code, "message": message}
     if details:
         error["details"] = details
@@ -38,14 +40,14 @@ def _response(status_code: int, code: str, message: str, details: list[dict[str,
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def api_error(_request: Request, error: ApiError) -> JSONResponse:
-        return _response(error.status_code, error.code, error.message, error.details)
+        return error_response(error.status_code, error.code, error.message, error.details)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_request: Request, error: RequestValidationError) -> JSONResponse:
         details = [{"field": str(item["loc"][-1]), "message": item["msg"]} for item in error.errors()]
-        return _response(422, "VALIDATION_ERROR", INVALID_PARAMETERS, details)
+        return error_response(422, "VALIDATION_ERROR", INVALID_PARAMETERS, details)
 
     @app.exception_handler(HTTPException)
     async def http_error(_request: Request, error: HTTPException) -> JSONResponse:
         # Lỗi do framework sinh ra (đường dẫn không tồn tại, sai phương thức) cũng theo cùng một dạng.
-        return _response(error.status_code, HTTPStatus(error.status_code).name, str(error.detail))
+        return error_response(error.status_code, HTTPStatus(error.status_code).name, str(error.detail))

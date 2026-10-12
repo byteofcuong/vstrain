@@ -263,3 +263,57 @@ class JobStep(Base):
     finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     metrics: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))  # thời gian, CPU, bộ nhớ
     log_tail: Mapped[str | None] = mapped_column(Text)
+
+
+class UserRole(StrEnum):
+    SUBMITTER = "submitter"  # nộp mẫu và xem mẫu của mình
+    ADMIN = "admin"  # thêm quyền chạy build, xem job, sửa địa danh
+
+
+class AppUser(Base):
+    """Một tài khoản. Khách không có dòng nào ở đây: mọi dữ liệu đã publish đều xem được mà không cần đăng nhập."""
+
+    __tablename__ = "app_user"
+    __table_args__ = (
+        CheckConstraint("role IN ('submitter', 'admin')", name="role_known"),
+        # Email là khoá đăng nhập; lưu chữ thường để hai cách viết hoa không thành hai tài khoản.
+        CheckConstraint("email = lower(email)", name="email_is_lowercase"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True)
+    display_name: Mapped[str] = mapped_column(String(100))
+    password_hash: Mapped[str] = mapped_column(Text)  # chuỗi tự mô tả của `accounts.passwords`, không bao giờ rời DB
+    role: Mapped[str] = mapped_column(String(20))
+    is_locked: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))  # do admin khoá
+    # Đăng nhập sai liên tiếp: đếm từ `failed_since`; đủ số lần trong cửa sổ thì khoá tới `locked_until`.
+    failed_logins: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    failed_since: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_until: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserSession(Base):
+    """Một phiên đăng nhập. DB chỉ giữ SHA-256 của token; token thật chỉ nằm trong cookie của trình duyệt."""
+
+    __tablename__ = "user_session"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuditLog(Base):
+    """Nhật ký hành động: ai làm gì, lúc nào. Chỉ thêm, không sửa; không bao giờ chứa mật khẩu hay token."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    # Người làm; tài khoản bị xoá thì dòng nhật ký vẫn còn.
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"), index=True)
+    action: Mapped[str] = mapped_column(String(60))  # ví dụ 'login', 'sample_submitted'
+    subject: Mapped[str | None] = mapped_column(String(100))  # thứ bị tác động, ví dụ 'sample:S0000123'
+    detail: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))

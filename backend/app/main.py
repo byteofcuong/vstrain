@@ -1,18 +1,39 @@
-from fastapi import FastAPI, Response, status
+from collections.abc import Awaitable, Callable
+
+from fastapi import FastAPI, Request, Response, status
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.accounts.api import admin_router
+from app.accounts.api import router as auth_router
 from app.build.api import files_router
 from app.build.api import router as datasets_router
 from app.db import SessionDep
-from app.errors import install_error_handlers
+from app.errors import error_response, install_error_handlers
 from app.samples.api import router as samples_router
 
 app = FastAPI(title="VietStrain API", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
 install_error_handlers(app)
+app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(samples_router)
 app.include_router(datasets_router)
 app.include_router(files_router)
+
+
+_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+@app.middleware("http")
+async def require_browser_header(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    """Mọi request ghi phải mang header `X-Requested-With`, thứ frontend tự gắn.
+
+    Trình duyệt chỉ cho một trang khác gắn header tự đặt sau khi hỏi server (preflight của CORS), mà API này không
+    cho phép origin nào khác. Nhờ vậy một form hay script ở trang khác không mượn được cookie phiên để ghi.
+    """
+    if request.method not in _SAFE_METHODS and not request.headers.get("x-requested-with"):
+        return error_response(403, "CSRF_HEADER_REQUIRED", "Write requests must carry the X-Requested-With header")
+    return await call_next(request)
 
 
 @app.get("/api/health")
