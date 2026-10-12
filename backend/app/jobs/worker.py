@@ -6,6 +6,7 @@ import os
 import signal
 import socket
 import threading
+import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
@@ -13,6 +14,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.jobs import queue
+from app.jobs.cleanup import purge_work_dirs
 from app.jobs.steps import Handler, JobContext
 
 log = logging.getLogger(__name__)
@@ -30,6 +32,8 @@ class Worker:
         work_root: Path,
         heartbeat_seconds: float | None = 15,
         stale_after: dt.timedelta = dt.timedelta(seconds=90),
+        work_retention: dt.timedelta | None = None,
+        cleanup_seconds: float = 3600,
     ) -> None:
         self.session_factory = session_factory
         self.handlers = handlers
@@ -37,6 +41,9 @@ class Worker:
         self.work_root = work_root
         self.heartbeat_seconds = heartbeat_seconds
         self.stale_after = stale_after
+        self.work_retention = work_retention  # `None`: không bao giờ xoá thư mục làm việc
+        self.cleanup_seconds = cleanup_seconds
+        self._next_cleanup = 0.0
 
     def run_one(self) -> bool:
         """Lấy và chạy một job; trả `False` khi hàng đợi trống."""
@@ -79,7 +86,21 @@ class Worker:
                 log.exception("Worker loop error; trying again")
                 worked = False
             if not worked:
+                self._cleanup_when_due()
                 stop.wait(poll_seconds)
+
+    def _cleanup_when_due(self) -> None:
+        """Lúc rảnh, mỗi `cleanup_seconds` một lần, xoá thư mục làm việc của job đã kết thúc quá lâu."""
+        if self.work_retention is None or time.monotonic() < self._next_cleanup:
+            return
+        self._next_cleanup = time.monotonic() + self.cleanup_seconds
+        try:
+            with self.session_factory() as session:
+                removed = purge_work_dirs(session, self.work_root, self.work_retention)
+            if removed:
+                log.info("Removed %s old work directories", removed)
+        except Exception:
+            log.exception("Cleaning up work directories failed")
 
     @contextmanager
     def _heartbeat(self, job_id: int) -> Iterator[None]:
@@ -119,7 +140,11 @@ def main() -> None:
         signal.signal(signal_number, lambda *_: stop.set())
 
     worker = Worker(
-        SessionLocal, HANDLERS, name=f"{socket.gethostname()}:{os.getpid()}", work_root=Path(settings.work_dir)
+        SessionLocal,
+        HANDLERS,
+        name=f"{socket.gethostname()}:{os.getpid()}",
+        work_root=Path(settings.work_dir),
+        work_retention=dt.timedelta(days=settings.work_retention_days),
     )
     log.info("Worker %s waiting for jobs: %s", worker.name, ", ".join(sorted(HANDLERS)))
     worker.run_forever(stop=stop)
