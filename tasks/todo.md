@@ -204,8 +204,8 @@ Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên 
 **Mô tả:** Job nền gióng mọi mẫu có serotype và đủ dài mà chưa có kết quả.
 
 **Nghiệm thu:**
-- [ ] Job `align_pending` chia lô, mỗi lô là một bước; chạy lại thì chỉ làm phần còn thiếu
-- [ ] Số mẫu `aligned` và `failed` theo lineage cùng thời gian chạy được ghi vào `do-dac/results/`
+- [x] Job `align_pending` chia lô, mỗi lô là một bước; chạy lại thì chỉ làm phần còn thiếu
+- [x] Số mẫu `aligned` và `failed` theo lineage cùng thời gian chạy được ghi vào `do-dac/results/` → 21.909 genome trong một job 34 giây (Nextclade chạy 17 giây); 21.892 gióng được, 17 không; DENV1 có 7.988 genome đủ điều kiện, 1.621 của Việt Nam (`do-dac/results/W3-giong-mau-webapp/`)
 
 **Kiểm chứng:** `DC run --rm api python -m app.cli enqueue align_pending` rồi xem `job`, `job_step`
 **Phụ thuộc:** T5.1. **Cỡ:** S.

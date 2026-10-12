@@ -187,3 +187,37 @@ def test_align_pending_rejects_an_unknown_lineage(session, tmp_path):
 
     with pytest.raises(ValueError, match="Unknown lineage"):
         align_pending(context)
+
+
+@pytest.mark.tools
+def test_failed_alignments_are_left_alone_unless_a_retry_is_requested(session, context):
+    # Mẫu DENV2 bị gán nhầm serotype: gióng theo reference DENV1 sẽ thất bại vì quá khác.
+    mislabelled = session.scalars(select(Sample).filter_by(accession="PP564622")).one()
+    mislabelled.meta = {**mislabelled.meta, "serotype_genbank": "denv1"}
+    session.flush()
+    context.job.params = {"lineage": "denv1"}
+
+    first = align_pending(context)
+    again = align_pending(context)
+    context.job.params = {"lineage": "denv1", "retry_failed": True}
+    retried = align_pending(context)
+
+    assert first == {"denv1": {"aligned": 32, "failed": 1}}
+    assert again == {"denv1": {"aligned": 0, "failed": 0}}
+    assert retried == {"denv1": {"aligned": 0, "failed": 1}}
+
+
+@pytest.mark.parametrize(
+    ("percent_different", "status"),
+    [(7, "aligned"), (19, "aligned"), (31, "failed")],
+)
+def test_divergence_threshold_keeps_sylvatic_genotypes_and_rejects_other_serotypes(percent_different, status):
+    # Số quan sát trên 21.909 genome: trong một serotype tối đa khoảng 19% (genotype rừng của DENV2),
+    # khác serotype khoảng 31%.
+    from app.build.align import _alignment
+
+    length = DENV1.reference_length
+    aligned = "A" * length
+    stats = {"totalSubstitutions": str(length * percent_different // 100), "coverage": "1.0", "errors": ""}
+
+    assert _alignment(DENV1, aligned, stats)["status"] == status

@@ -15,4 +15,4 @@ Tham số gióng hàng của Nextclade (`app/pathogens/__init__.py`) lấy từ 
 
 - Repo `nextstrain/dengue` không có file LICENSE ở thư mục gốc. Các file trên là dữ liệu cấu hình nhỏ; chuỗi reference là bản ghi công khai của GenBank. Nếu công bố mã nguồn dự án này thì cần kiểm tra lại điều kiện sử dụng.
 - Dataset Nextclade của dengue dùng một reference khác ("reconstructed root sequence"), khác RefSeq vài trăm vị trí nhưng cùng hệ toạ độ. Hệ thống này gióng theo RefSeq để mọi bước (gióng, suy diễn tổ tiên, dịch mã) dùng chung một reference, như pipeline đã đo ở P1.
-- Ngưỡng `max_divergence` = 15% được đặt từ quan sát trên bộ thử: genome DENV1 khác NC_001477.1 khoảng 7%, genome DENV2 khác khoảng 31%. Chưa kiểm trên toàn bộ dữ liệu.
+- Ngưỡng `max_divergence` = 25% được đặt từ số đo trên 21.909 genome đã nhập (`do-dac/results/W3-giong-mau-webapp/`): phần lớn genome khác reference 6–8%; genotype rừng của DENV2 (2VI) khác 17,6–18,6%; chín chuỗi bằng sáng chế không có ngày và nước khác 21–25%; genome bị gán nhầm serotype khác khoảng 31%. Ngưỡng 15% ban đầu đã loại nhầm 39 genome DENV2 thể rừng.

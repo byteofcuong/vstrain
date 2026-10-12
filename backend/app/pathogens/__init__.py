@@ -19,8 +19,9 @@ class Lineage:
     key: str
     title: str
     min_valid_nt: int = 10_000  # số A, C, G, T tối thiểu sau khi gióng để một genome được vào build
-    # Trong một serotype dengue, genome khác reference khoảng 7%; khác serotype thì khoảng 30%.
-    max_divergence: float = 0.15
+    # Đo trên 21.909 genome: trong một serotype, genome khác reference nhiều nhất khoảng 19% (genotype rừng
+    # của DENV2); genome của serotype khác thì khác khoảng 31%. Ngưỡng nằm giữa hai mức đó.
+    max_divergence: float = 0.25
 
     @property
     def directory(self) -> Path:

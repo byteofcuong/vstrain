@@ -135,8 +135,11 @@ def align_batch(
     return {"aligned": aligned_count, "failed": len(rows) - aligned_count}
 
 
-def _pending(context: JobContext, lineage: Lineage) -> list[int]:
+def _pending(context: JobContext, lineage: Lineage, *, retry_failed: bool) -> list[int]:
     """Genome đủ dài của lineage mà chưa có kết quả gióng, hoặc chuỗi đã đổi từ lần gióng trước."""
+    stale = or_(SampleAlignment.sample_id.is_(None), SampleAlignment.sequence_sha256 != SampleSequence.sha256)
+    if retry_failed:
+        stale = or_(stale, SampleAlignment.status == "failed")
     return list(
         context.session.scalars(
             select(Sample.id)
@@ -146,7 +149,7 @@ def _pending(context: JobContext, lineage: Lineage) -> list[int]:
                 Sample.pathogen == lineage.pathogen,
                 Sample.meta["serotype_genbank"].astext == lineage.key,
                 SampleSequence.length >= lineage.min_valid_nt,
-                or_(SampleAlignment.sample_id.is_(None), SampleAlignment.sequence_sha256 != SampleSequence.sha256),
+                stale,
             )
             .order_by(Sample.id)
         )
@@ -156,7 +159,8 @@ def _pending(context: JobContext, lineage: Lineage) -> list[int]:
 def align_pending(context: JobContext) -> dict[str, dict[str, int]]:
     """Job gióng mọi genome còn thiếu kết quả; chạy lại thì chỉ làm phần còn thiếu.
 
-    Tham số: `lineage` (mặc định là mọi lineage) và `batch_size` (mặc định 1000); mỗi lô là một bước của job.
+    Tham số: `lineage` (mặc định là mọi lineage), `batch_size` (mặc định 1000; mỗi lô là một bước của job) và
+    `retry_failed` (gióng lại cả những mẫu đã thất bại, dùng sau khi đổi cấu hình).
     """
     requested = context.params.get("lineage")
     if requested is not None and requested not in DENGUE:
@@ -168,7 +172,7 @@ def align_pending(context: JobContext) -> dict[str, dict[str, int]]:
     version: str | None = None
     totals: dict[str, dict[str, int]] = {}
     for lineage in [DENGUE[requested]] if requested else DENGUE.values():
-        pending = _pending(context, lineage)
+        pending = _pending(context, lineage, retry_failed=context.params.get("retry_failed") is True)
         counts = {"aligned": 0, "failed": 0}
         for number, start in enumerate(range(0, len(pending), batch_size), start=1):
             version = version or nextclade_version(context)
