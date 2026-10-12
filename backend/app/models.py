@@ -9,6 +9,7 @@ from sqlalchemy import (
     Computed,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Identity,
     Integer,
@@ -133,6 +134,35 @@ class SampleSequence(Base):
     sequence: Mapped[str] = mapped_column(Text)
     length: Mapped[int] = mapped_column(Integer)
     sha256: Mapped[str] = mapped_column(String(64))  # để biết chuỗi có đổi không mà không phải so cả chuỗi
+
+
+class SampleAlignment(Base):
+    """Kết quả gióng một mẫu theo reference của lineage, làm một lần lúc nạp mẫu.
+
+    Nextstrain gióng lại toàn bộ ở mỗi lần build (`augur align`, tăng nhanh hơn tuyến tính). Ở đây build chỉ
+    ghép các chuỗi đã gióng sẵn.
+    """
+
+    __tablename__ = "sample_alignment"
+    __table_args__ = (
+        CheckConstraint("status IN ('aligned', 'failed')", name="status_known"),
+        CheckConstraint("(status = 'aligned') = (aligned_sequence IS NOT NULL)", name="aligned_has_sequence"),
+    )
+
+    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), primary_key=True)
+    lineage: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(20))
+    aligned_sequence: Mapped[str | None] = mapped_column(Text)  # dài đúng bằng reference, phần chèn đã bị bỏ
+    valid_nt: Mapped[int | None] = mapped_column(Integer)  # số A, C, G, T; quyết định mẫu có vào build không
+    coverage: Mapped[float | None] = mapped_column(Float)
+    substitutions: Mapped[int | None] = mapped_column(Integer)
+    deletions: Mapped[int | None] = mapped_column(Integer)
+    insertions: Mapped[int | None] = mapped_column(Integer)
+    missing: Mapped[int | None] = mapped_column(Integer)
+    error: Mapped[str | None] = mapped_column(Text)
+    sequence_sha256: Mapped[str] = mapped_column(String(64))  # chuỗi thô lúc gióng; khác đi thì phải gióng lại
+    tool: Mapped[str] = mapped_column(String(60))
+    aligned_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class JobStatus(StrEnum):

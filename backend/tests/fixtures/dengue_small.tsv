@@ -1,0 +1,35 @@
+accession	strain	date	region	country	division	location	host	serotype_genbank
+OZ494864	1-02-24-3099_P2	2024-06-05	Africa	Nigeria	Ondo State		Homo sapiens	denv1
+MW265697	NC-2013-03-13/072273	2013-03-13	Oceania	New Caledonia	New Caledonia		Homo sapiens	denv1
+MK858130	FT_DNS1_459_S25_R3_	2016-10-25	Asia	India			Homo sapiens	denv1
+OR029867	DENV1_D19464	2019-08-06	Asia	China			Homo sapiens	denv1
+MT261955	IP387	2017-12-12	Africa	Burkina Faso	Centre BF	Ouagadougou	Homo sapiens	denv1
+PP563948	23GZ22074_D1_A	2023-11-08	Asia	China	Guangdong	Guangzhou	Homo sapiens	denv1
+MN886894	GZ8H/2019071/2014/I	2014-11-30	Asia	China			Homo sapiens	denv1
+ON123589	FPP04270/PIU-PER/2021	2021-07-13	South America	Peru				denv1
+PP563881	23GZ19806_D1_A	2023-09-30	Asia	China	Guangdong	Guangzhou	Homo sapiens	denv1
+MT261953	IP242	2017-10-09	Africa	Burkina Faso	Centre BF	Ouagadougou	Homo sapiens	denv1
+OR029943	DENV1_D19821	2019-08-14	Asia	China			Homo sapiens	denv1
+PX480299	D21-0358	2021-02-09	Asia	Philippines			Homo sapiens	denv1
+OR029897	DENV1_D19759	2019-08-11	Asia	China			Homo sapiens	denv1
+OR936762	DENV1/NIHPAK-29/2023	2023-09-12	Asia	Pakistan			Homo sapiens	denv1
+MN933655	2014XN28577	2014-08-21	Asia	China			Homo sapiens	denv1
+PX480247	D18-0192	2018-01-14	Asia	Philippines			Homo sapiens	denv1
+PP563897	23GZ20111_D1_A	2023-10-07	Asia	China	Guangdong	Guangzhou	Homo sapiens	denv1
+PX454588	DENV1-LBMA-MA655-MLI-2023	2023-11-11	Africa	Mali			Homo sapiens	denv1
+OR476967	DEN-AFP-SV17-0816	2017-11-10	Asia	Philippines			Homo sapiens	denv1
+MW315183	New Caledonia-2017-AVS-NC-060	2017-03-30	Oceania	New Caledonia	New Caledonia		Homo sapiens	denv1
+MN018328	D14117	2014-08-19	Asia	China	Guangdong Province		Homo sapiens	denv1
+OR936766	DENV1/NIHPAK-23/2023	2023-09-11	Asia	Pakistan			Homo sapiens	denv1
+MN923098	19XN01614	2019-01-20	Asia	China			Homo sapiens	denv1
+PQ155047	DENV-1/USA/FL-BPHL-0057/2024	2024-05-11	North America	USA	Florida		Homo sapiens	denv1
+PP269778	DENV1/Viet_Nam/2017-05-22/Yale-DN02082	2017-05-22	Asia	Vietnam			Homo sapiens	denv1
+PP269706	DENV1/Viet_Nam/2022-06-06/Yale-DN02294	2022-06-06	Asia	Vietnam			Homo sapiens	denv1
+OQ426616	DEN-P-1307-1	2018-12-17	Asia	Vietnam	Nha Trang		Homo sapiens	denv1
+PP269467	DENV1/Viet_Nam/2012-03-28/Yale-DN01127	2012-03-28	Asia	Vietnam			Homo sapiens	denv1
+PP269600	DENV1/Viet_Nam/2013-07-24/Yale-DN01645	2013-07-24	Asia	Vietnam			Homo sapiens	denv1
+PP269639	DENV1/Viet_Nam/2012-12-19/Yale-DN01819	2012-12-19	Asia	Vietnam			Homo sapiens	denv1
+MN912130	385-44DX3-172-P0-C1	2017-07-06	Asia	Vietnam			Culicidae	denv1
+MN912242	579-44DX3-197-P15-C6	2017-08-16	Asia	Vietnam			Culicidae	denv1
+PP564622	23GZ20467_D2_A	2023-10-01	Asia	China	Guangdong	Guangzhou	Homo sapiens	denv2
+MT804526	17XN27728duobao	2017-07-11	Asia	China	(Guangzhou)		Homo sapiens	denv1

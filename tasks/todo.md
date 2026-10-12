@@ -191,10 +191,10 @@ Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên 
 **Mô tả:** Mỗi mẫu được gióng theo reference đúng một lần và kết quả được lưu lại; build về sau chỉ ghép các chuỗi đã gióng.
 
 **Nghiệm thu:**
-- [ ] Cấu hình dengue có bốn lineage (`denv1` tới `denv4`), mỗi lineage có reference, annotation và định nghĩa clade; nguồn ghi trong `NGUON.md`
-- [ ] `align_batch` chạy Nextclade trên một lô mẫu; file FASTA đưa cho công cụ chỉ chứa mã nội bộ; chuỗi đã gióng dài đúng bằng reference và được lưu cùng số nucleotide hợp lệ
-- [ ] Mẫu không gióng được (khác serotype, quá ngắn) được ghi `failed` kèm lý do và không làm hỏng lô
-- [ ] Mẫu tên "Hà_Nội/01/2024" đi qua bước này
+- [x] Cấu hình dengue có bốn lineage (`denv1` tới `denv4`), mỗi lineage có reference, annotation và định nghĩa clade; nguồn ghi trong `NGUON.md`
+- [x] `align_batch` chạy Nextclade trên một lô mẫu; file FASTA đưa cho công cụ chỉ chứa mã nội bộ; chuỗi đã gióng dài đúng bằng reference và được lưu cùng số nucleotide hợp lệ
+- [x] Mẫu không gióng được được ghi `failed` kèm lý do và không làm hỏng lô. Nextclade vẫn gióng được genome khác serotype (khoảng 31% vị trí khác reference), nên có thêm ngưỡng phân kỳ 15%; đoạn gene ngắn vẫn gióng được nhưng có ít nucleotide hợp lệ nên không vào build
+- [x] Mẫu tên "Hà_Nội/01/2024" đi qua bước này
 
 **Kiểm chứng:** `DC run --rm worker pytest -m tools tests/test_align.py`
 **Phụ thuộc:** T4.3, T3.1. **Cỡ:** M.

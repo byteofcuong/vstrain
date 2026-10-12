@@ -51,7 +51,7 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 - [x] T4.3 Worker và image worker; job chạy thử có ghi bước và lỗi
 
 ### Phase 5: `build`
-- [ ] T5.1 Cấu hình pathogen dengue; gióng và QC từng mẫu bằng Nextclade
+- [x] T5.1 Cấu hình pathogen dengue; gióng và QC từng mẫu bằng Nextclade
 - [ ] T5.2 Gióng và QC toàn bộ genome đã nhập
 - [ ] T5.3 `dataset_def`, `build`; chọn mẫu cho một dataset
 - [ ] T5.4 Các bước dựng cây với mã nội bộ, chạy được trên bộ nhỏ
