@@ -1,0 +1,4 @@
+pytest==8.4.2
+# TestClient của Starlette >= 1.x dùng httpx2 (httpx bị báo deprecated).
+httpx2==2.13.1
+ruff==0.17.0

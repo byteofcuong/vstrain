@@ -10,19 +10,19 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 **Mô tả:** Dựng đường đi ngắn nhất qua toàn hệ thống: container DB và API khởi động được, API nối được DB, có khung test và lint.
 
 **Nghiệm thu:**
-- [ ] `GET /api/health` trả 200 với `{"status": "ok", "db": "ok"}` khi DB chạy
-- [ ] Khi không nối được DB, trả 503 với `{"status": "degraded", "db": "down"}`
+- [x] `GET /api/health` trả 200 với `{"status": "ok", "db": "ok"}` khi DB chạy
+- [x] Khi không nối được DB, trả 503 với `{"status": "degraded", "db": "down"}`
 
 **Kiểm chứng:**
-- [ ] `DC run --rm api pytest`
-- [ ] `DC run --rm api ruff check .` và `ruff format --check .`
-- [ ] `DC up -d --build` rồi `curl -s http://127.0.0.1:8000/api/health`
+- [x] `DC run --rm api pytest`
+- [x] `DC run --rm api ruff check .` và `ruff format --check .`
+- [x] `DC up -d --build` rồi `curl -s http://127.0.0.1:8000/api/health`
 
 **Phụ thuộc:** không. **Cỡ:** M (toàn file cấu hình).
 **File:** `deploy/docker-compose.yml`, `deploy/api.Dockerfile`, `backend/requirements*.txt`, `backend/pyproject.toml`, `backend/app/{config,db,main}.py`, `backend/tests/test_health.py`
 
 ## Checkpoint A
-- [ ] Test qua, lint qua, health trả 200 khi chạy thật
+- [x] Test qua, lint qua, health trả 200 khi chạy thật
 
 ---
 

@@ -1,0 +1,17 @@
+[project]
+name = "vietstrain-backend"
+version = "0.1.0"
+description = "Backend của webapp giám sát bộ gen cho Việt Nam"
+# 3.11 vì worker chạy trong image nextstrain/base (Python 3.11); API chạy 3.12.
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -p no:cacheprovider"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

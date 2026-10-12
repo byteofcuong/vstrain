@@ -21,10 +21,10 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 ## Task List
 
 ### Phase 1: `platform`
-- [ ] T1.1 Walking skeleton: Compose, `/api/health`, pytest và ruff chạy được
+- [x] T1.1 Walking skeleton: Compose, `/api/health`, pytest và ruff chạy được
 
 ### Checkpoint A
-- [ ] Test qua, lint qua, `curl` health trả 200
+- [x] Test qua, lint qua, `curl` health trả 200
 
 ### Phase 2: `geo`
 - [ ] T2.1 `place_key()`: chuẩn hoá tên địa danh
