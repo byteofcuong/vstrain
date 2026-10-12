@@ -24,7 +24,8 @@ const THEME: Theme = {
   font: '12px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
 };
 
-const RECT_PADDING: Padding = { top: 16, right: 28, bottom: AXIS_BAND + 12, left: 16 };
+// Lề trên chừa chỗ cho hàng nút phóng to ở góc trên bên trái, nơi nhánh của gốc cây đi qua.
+const RECT_PADDING: Padding = { top: 52, right: 28, bottom: AXIS_BAND + 12, left: 16 };
 const RADIAL_PADDING: Padding = { top: 28, right: 28, bottom: 28, left: 28 };
 /** Bán kính (pixel) quanh con trỏ trong đó một tip được coi là "dưới con trỏ". */
 const HIT_RADIUS = 8;
