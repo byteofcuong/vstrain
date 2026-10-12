@@ -38,12 +38,12 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 ### Phase 3: `samples`
 - [x] T3.1 Bảng `sample`, `sample_sequence`; phân tích ngày không đầy đủ
 - [x] T3.2 Lệnh nhập GenBank, chạy lại không nhân đôi
-- [ ] T3.3 Nhập 59.551 bản ghi dengue thật; báo cáo địa danh Việt Nam
-- [ ] T3.4 API tra cứu mẫu theo tỉnh, khoảng ngày, có phân trang
+- [x] T3.3 Nhập 59.551 bản ghi dengue thật; báo cáo địa danh Việt Nam
+- [x] T3.4 API tra cứu mẫu theo tỉnh, khoảng ngày, có phân trang
 
 ### Checkpoint C (hết mốc M1)
-- [ ] Tiêu chí 4 và 4b đạt trên dữ liệu thật
-- [ ] Câu "mẫu của tỉnh X trong khoảng ngày" trả lời được bằng một request
+- [x] Tiêu chí 4 và 4b đạt trên dữ liệu thật (782 và 2.306 trên 4.305 bản ghi)
+- [x] Câu "mẫu của tỉnh X trong khoảng ngày" trả lời được bằng một request
 
 ### Phase 4: `job-queue`
 - [ ] T4.1 Bảng `job`, `job_step`; `enqueue()` và `claim()` không lấy trùng

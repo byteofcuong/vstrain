@@ -58,7 +58,11 @@ Lint:           docker compose -f deploy/docker-compose.yml run --rm api ruff ch
 Format (kiểm):  docker compose -f deploy/docker-compose.yml run --rm api ruff format --check .
 Health:         curl -s http://127.0.0.1:8000/api/health
 Khởi tạo DB:    docker compose -f deploy/docker-compose.yml run --rm init
+Nhập GenBank:   docker compose -f deploy/docker-compose.yml run --rm api python -m app.cli import-genbank --metadata /data/genbank-dengue/metadata_all.tsv --sequences /data/genbank-dengue/sequences_all.fasta
+Báo cáo địa danh: docker compose -f deploy/docker-compose.yml run --rm api python -m app.cli geo-report
 ```
+
+Trong Git Bash, lệnh có đường dẫn kiểu `/data/...` phải đặt `MSYS_NO_PATHCONV=1` ở trước, nếu không Git Bash đổi nó thành đường dẫn Windows. PowerShell không cần.
 
 `init` chạy migration rồi nạp dữ liệu địa danh (`python -m app.cli init-db`); nó cũng tự chạy mỗi lần khởi động và chạy lại bao nhiêu lần cũng được. Test dùng database riêng `vietstrain_test`, được tạo lại ở đầu mỗi phiên test.
 
@@ -98,6 +102,14 @@ def place_key(raw: str) -> str:
 - SQL đi qua SQLAlchemy; thay đổi schema đi qua migration.
 - Gọi công cụ ngoài bằng danh sách đối số, không bao giờ qua shell.
 - Tên test mô tả hành vi: `test_place_key_ignores_diacritics_and_spacing`.
+
+## API conventions
+
+- JSON và tham số truy vấn dùng camelCase (`dateFrom`, `internalId`); mã Python dùng snake_case, chuyển đổi nằm ở lớp `ApiModel`.
+- Mọi lỗi có một dạng: `{"error": {"code": "SAMPLE_NOT_FOUND", "message": "...", "details": [{"field": "...", "message": "..."}]}}`. `code` dành cho máy, giao diện dịch theo mã này; `details` chỉ có ở lỗi 422.
+- Endpoint danh sách luôn phân trang: `{"items": [...], "total": n, "limit": l, "offset": o}`, `limit` tối đa 500.
+- Thay đổi về sau chỉ thêm trường, không đổi nghĩa hay kiểu của trường đã có.
+- Tài liệu tự sinh: `http://127.0.0.1:8000/api/docs`.
 
 ## Testing Strategy
 

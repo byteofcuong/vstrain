@@ -112,28 +112,28 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 **Mô tả:** Nhập 59.551 bản ghi dengue; đo tỉ lệ gán địa danh cho 4.305 bản ghi Việt Nam.
 
 **Nghiệm thu:**
-- [ ] 59.551 bản ghi trong DB, trong đó 4.305 của Việt Nam
-- [ ] Tiêu chí 4: ≥ 781 bản ghi gán được tỉnh; tiêu chí 4b: 2.306 gán được tỉnh hoặc vùng; không còn bản ghi `unresolved`
+- [x] 59.551 bản ghi trong DB, trong đó 4.305 của Việt Nam
+- [x] Tiêu chí 4: ≥ 781 bản ghi gán được tỉnh; tiêu chí 4b: 2.306 gán được tỉnh hoặc vùng; không còn bản ghi `unresolved` → 782 (18,2%) ra tỉnh, 2.306 (53,6%) ra tỉnh hoặc vùng, 0 `unresolved`
 
 **Kiểm chứng:** `DC run --rm api python -m app.cli geo-report`; kết quả lưu ở `do-dac/results/`
 **Phụ thuộc:** T3.2. **Cỡ:** S.
-**File:** `backend/app/cli.py` (lệnh `geo-report`), file kết quả
+**File:** `backend/app/samples/report.py`, `backend/app/cli.py` (lệnh `geo-report`), kết quả ở `do-dac/results/W2-nhap-mau-webapp/`
 
 ### T3.4 API tra cứu mẫu
 **Mô tả:** Endpoint trả danh sách mẫu theo bộ lọc, điều mà Nextstrain không làm được ở phía server.
 
 **Nghiệm thu:**
-- [ ] `GET /api/samples?unit=<mã>&date_from=&date_to=&limit=&offset=` trả đúng mẫu và tổng số; lọc theo đơn vị bộ 34 gồm cả mẫu của các tỉnh cũ đã sáp nhập vào nó
-- [ ] `GET /api/samples/{internal_id}` trả một mẫu; mã không tồn tại → 404
-- [ ] `limit` có trần (≤ 500); tham số sai → 422
+- [x] `GET /api/samples?unit=<mã>&dateFrom=&dateTo=&limit=&offset=` trả đúng mẫu và tổng số; lọc theo đơn vị bộ 34 gồm cả mẫu của các tỉnh cũ đã sáp nhập vào nó
+- [x] `GET /api/samples/{internal_id}` trả một mẫu; mã không tồn tại → 404
+- [x] `limit` có trần (≤ 500); tham số sai → 422
 
 **Kiểm chứng:** `DC run --rm api pytest tests/test_samples_api.py`; một lệnh `curl` trên dữ liệu thật
 **Phụ thuộc:** T3.2. **Cỡ:** M.
-**File:** `backend/app/samples/api.py`, `backend/app/main.py`, `backend/tests/test_samples_api.py`
+**File:** `backend/app/samples/{api,queries,schemas}.py`, `backend/app/{errors,apimodel,main}.py`, `backend/tests/test_samples_api.py`
 
 ## Checkpoint C (hết mốc M1)
-- [ ] Tiêu chí 4, 4b, 4c đạt; số liệu ghi trong `do-dac/results/`
-- [ ] Toàn bộ test và lint qua; nhánh `feature/*` được gộp vào `main`
+- [x] Tiêu chí 4, 4b, 4c đạt; số liệu ghi trong `do-dac/results/`
+- [x] Toàn bộ test và lint qua; nhánh `feature/*` được gộp vào `main`
 
 ---
 
