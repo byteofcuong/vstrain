@@ -1,120 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { claimBits, createScratch, drawTree, type Scene, type Surface, type Theme } from "./draw";
-import { nodeMask } from "./filter";
+import { claimBits, createScratch, drawTree } from "./draw";
+import { draw, Recorder, scene, type Line } from "./draw.testkit";
 import { randomTree, smallTree } from "./fixtures";
-import { computePositions, type Layout } from "./layout";
-import { parseTree, type Tree } from "./parse";
-
-const THEME: Theme = {
-  branch: "branch",
-  branchMuted: "muted",
-  missing: "missing",
-  highlight: "highlight",
-  background: "background",
-  guide: "guide",
-  guideText: "guide-text",
-  font: "12px sans-serif",
-};
-
-interface Line {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-  style: string;
-}
-
-interface Arc {
-  radius: number;
-  from: number;
-  to: number;
-  style: string;
-  /** Cung được vẽ nét (nhánh) hay được tô (tip). */
-  kind: "stroke" | "fill";
-}
-
-interface Rect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  style: string;
-}
-
-/** Thay cho Canvas: ghi lại các đoạn thẳng, cung và hình chữ nhật được vẽ, kèm màu lúc `stroke` hoặc `fill`. */
-class Recorder implements Surface {
-  fillStyle: string | CanvasGradient | CanvasPattern = "";
-  strokeStyle: string | CanvasGradient | CanvasPattern = "";
-  lineWidth = 1;
-  lineCap: CanvasLineCap = "butt";
-  font = "";
-  textAlign: CanvasTextAlign = "start";
-  textBaseline: CanvasTextBaseline = "alphabetic";
-
-  lines: Line[] = [];
-  arcs: Arc[] = [];
-  rects: Rect[] = [];
-  private pendingLines: Omit<Line, "style">[] = [];
-  private pendingArcs: Omit<Arc, "style" | "kind">[] = [];
-  private at: [number, number] = [0, 0];
-
-  beginPath(): void {
-    this.pendingLines = [];
-    this.pendingArcs = [];
-  }
-  moveTo(x: number, y: number): void {
-    this.at = [x, y];
-  }
-  lineTo(x: number, y: number): void {
-    this.pendingLines.push({ x0: this.at[0], y0: this.at[1], x1: x, y1: y });
-    this.at = [x, y];
-  }
-  arc(_x: number, _y: number, radius: number, from: number, to: number): void {
-    this.pendingArcs.push({ radius, from, to });
-  }
-  stroke(): void {
-    const style = String(this.strokeStyle);
-    this.lines.push(...this.pendingLines.map((line) => ({ ...line, style })));
-    this.arcs.push(...this.pendingArcs.map((arc) => ({ ...arc, style, kind: "stroke" as const })));
-  }
-  fill(): void {
-    const style = String(this.fillStyle);
-    this.arcs.push(...this.pendingArcs.map((arc) => ({ ...arc, style, kind: "fill" as const })));
-  }
-  fillRect(x: number, y: number, width: number, height: number): void {
-    this.rects.push({ x, y, width, height, style: String(this.fillStyle) });
-  }
-  fillText(): void {}
-}
-
-function scene(tree: Tree, layout: Layout, size: number, overrides: Partial<Scene> = {}): Scene {
-  const tipVisible = overrides.tipVisible ?? new Uint8Array(tree.tipCount).fill(1);
-  return {
-    tree,
-    positions: computePositions(tree, layout, "time"),
-    // Cây phủ đúng hình vuông [0, size] × [0, size]; canvas rộng hơn một pixel để mép cuối nằm trong.
-    view: { scaleX: size, scaleY: size, offsetX: 0, offsetY: 0 },
-    width: size + 1,
-    height: size + 1,
-    tipVisible,
-    nodeVisible: nodeMask(tree, tipVisible),
-    tipCodes: null,
-    nodeCodes: null,
-    colors: [],
-    theme: THEME,
-    hoverTip: -1,
-    selectedTip: -1,
-    guides: null,
-    ...overrides,
-  };
-}
-
-function draw(sceneToDraw: Scene) {
-  const recorder = new Recorder();
-  const stats = drawTree(recorder, sceneToDraw, createScratch());
-  return { recorder, stats };
-}
+import { computePositions } from "./layout";
+import { parseTree } from "./parse";
 
 const close = (value: number) => Math.round(value * 1000) / 1000;
 const horizontal = (lines: Line[]) => lines.filter((line) => line.y0 === line.y1);
@@ -293,33 +183,23 @@ describe("drawTree, level of detail on a tree much larger than the canvas", () =
   const drawn = draw(scene(tree, "rect", size));
   const positions = computePositions(tree, "rect", "time");
 
-  it("draws far fewer segments than the tree has branches", () => {
-    // 5.998 thân nhánh và 2.999 đoạn nối, trên một canvas 151 × 151 pixel.
-    expect(drawn.stats.branchesDrawn).toBeLessThan(tree.nodeCount / 2);
-    expect(drawn.stats.branchesDrawn).toBe(drawn.recorder.lines.length);
-  });
-
-  it("still covers every pixel that the stems of the whole tree cover", () => {
+  /** Thân nhánh của các node được chọn, tính thẳng từ vị trí, bỏ đoạn ngắn hơn một phần tư pixel. */
+  const stemsOf = (chosen: (node: number) => boolean): [number, number, number][] => {
     const all: [number, number, number][] = [];
     for (let i = 1; i < tree.nodeCount; i++) {
+      if (!chosen(i)) continue;
       const x0 = positions.x[tree.parent[i]] * size;
       const x1 = positions.x[i] * size;
       if (Math.abs(x1 - x0) >= 0.25) all.push([Math.min(x0, x1), Math.max(x0, x1), positions.y[i] * size]);
     }
-    const kept = horizontal(drawn.recorder.lines).map((line): [number, number, number] => [
-      Math.min(line.x0, line.x1),
-      Math.max(line.x0, line.x1),
-      line.y0,
-    ]);
-
-    expect(kept.length).toBeLessThan(all.length / 2);
-    expect(pixels(kept)).toEqual(pixels(all));
-  });
-
-  it("still covers every pixel that the connectors of the whole tree cover", () => {
+    return all;
+  };
+  /** Đoạn nối của từng node trong, phủ các con được chọn của nó. */
+  const connectorsOf = (chosen: (node: number) => boolean): [number, number, number][] => {
     const low = new Float64Array(tree.nodeCount).fill(Infinity);
     const high = new Float64Array(tree.nodeCount).fill(-Infinity);
     for (let i = 1; i < tree.nodeCount; i++) {
+      if (!chosen(i)) continue;
       const up = tree.parent[i];
       low[up] = Math.min(low[up], positions.y[i]);
       high[up] = Math.max(high[up], positions.y[i]);
@@ -331,13 +211,58 @@ describe("drawTree, level of detail on a tree much larger than the canvas", () =
       const to = Math.max(high[p], positions.y[p]) * size;
       if (to - from >= 0.25) all.push([from, to, positions.x[p] * size]);
     }
-    const kept = vertical(drawn.recorder.lines).map((line): [number, number, number] => [
+    return all;
+  };
+  const keptStems = (lines: Line[]) =>
+    horizontal(lines).map((line): [number, number, number] => [
+      Math.min(line.x0, line.x1),
+      Math.max(line.x0, line.x1),
+      line.y0,
+    ]);
+  const keptConnectors = (lines: Line[]) =>
+    vertical(lines).map((line): [number, number, number] => [
       Math.min(line.y0, line.y1),
       Math.max(line.y0, line.y1),
       line.x0,
     ]);
+  const everything = () => true;
 
+  it("draws far fewer segments than the tree has branches", () => {
+    // 5.998 thân nhánh và 2.999 đoạn nối, trên một canvas 151 × 151 pixel.
+    expect(drawn.stats.branchesDrawn).toBeLessThan(tree.nodeCount / 2);
+    expect(drawn.stats.branchesDrawn).toBe(drawn.recorder.lines.length);
+  });
+
+  it("still covers every pixel that the stems of the whole tree cover", () => {
+    const all = stemsOf(everything);
+    const kept = keptStems(drawn.recorder.lines);
+
+    expect(kept.length).toBeLessThan(all.length / 2);
     expect(pixels(kept)).toEqual(pixels(all));
+  });
+
+  it("still covers every pixel that the connectors of the whole tree cover", () => {
+    expect(pixels(keptConnectors(drawn.recorder.lines))).toEqual(pixels(connectorsOf(everything)));
+  });
+
+  it("keeps the branches of the visible tips apart from the muted ones", () => {
+    // Chỉ một tip qua bộ lọc: đường từ gốc tới tip đó phải được vẽ đủ, dù các nhánh mờ đã phủ kín các hàng và
+    // cột mà nó đi qua.
+    const tipVisible = new Uint8Array(tree.tipCount);
+    tipVisible[1234] = 1;
+    const filtered = scene(tree, "rect", size, { tipVisible });
+    const { recorder } = draw(filtered);
+
+    for (const [style, visible] of [
+      ["branch", 1],
+      ["muted", 0],
+    ] as const) {
+      const chosen = (node: number) => filtered.nodeVisible[node] === visible;
+      const lines = recorder.lines.filter((line) => line.style === style);
+      expect(pixels(keptStems(lines)), `${style} stems`).toEqual(pixels(stemsOf(chosen)));
+      expect(pixels(keptConnectors(lines)), `${style} connectors`).toEqual(pixels(connectorsOf(chosen)));
+    }
+    expect(stemsOf((node) => filtered.nodeVisible[node] === 1).length).toBeGreaterThan(5);
   });
 
   it("marks exactly the 2 by 2 pixel cells that hold a tip, in the colour of the first tip of each cell", () => {
@@ -391,5 +316,29 @@ describe("drawTree, radial layout", () => {
     // 6 thân (b3 trùng vị trí với B nên không có) và 2 cung.
     expect(recorder.lines).toHaveLength(6);
     expect(stats.branchesDrawn).toBe(8);
+  });
+});
+
+describe("drawTree, with the buffers of an earlier frame", () => {
+  const tree = parseTree(randomTree(3000, 21));
+
+  it("draws the same frame again, whatever was drawn in between", () => {
+    for (const [layout, other] of [
+      ["rect", "radial"],
+      ["radial", "rect"],
+    ] as const) {
+      const scratch = createScratch();
+      const first = new Recorder();
+      drawTree(first, scene(tree, layout, 150), scratch);
+      // Một khung hình ở bố cục khác và kích thước khác chen vào giữa, dùng chung bộ đệm.
+      drawTree(new Recorder(), scene(tree, other, 90), scratch);
+      const second = new Recorder();
+      drawTree(second, scene(tree, layout, 150), scratch);
+
+      expect(first.lines.length, layout).toBeGreaterThan(1000);
+      expect(second.lines, layout).toEqual(first.lines);
+      expect(second.arcs, layout).toEqual(first.arcs);
+      expect(second.rects, layout).toEqual(first.rects);
+    }
   });
 });

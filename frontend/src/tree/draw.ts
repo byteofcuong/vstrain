@@ -206,6 +206,51 @@ function beginCoverage(scratch: Scratch, rows: number, columns: number): number 
   return scratch.pass;
 }
 
+/** Phần của mặt phẳng cực (quanh tâm cây) mà khung nhìn chạm tới. */
+export interface Sector {
+  /** Khoảng cách nhỏ nhất và lớn nhất từ tâm tới một điểm của khung nhìn (pixel). */
+  nearest: number;
+  farthest: number;
+  /** Góc bắt đầu và độ mở (radian) của hình quạt chứa khung nhìn; độ mở 2π khi tâm nằm trong khung nhìn. */
+  from: number;
+  sweep: number;
+}
+
+/** Hình quạt nhỏ nhất quanh tâm (centerX, centerY) chứa khung nhìn [0, width] × [0, height]. */
+export function visibleSector(centerX: number, centerY: number, width: number, height: number): Sector {
+  const farthest = Math.max(
+    Math.hypot(centerX, centerY),
+    Math.hypot(width - centerX, centerY),
+    Math.hypot(centerX, height - centerY),
+    Math.hypot(width - centerX, height - centerY),
+  );
+  const outsideX = centerX < 0 ? -centerX : centerX > width ? centerX - width : 0;
+  const outsideY = centerY < 0 ? -centerY : centerY > height ? centerY - height : 0;
+  if (outsideX === 0 && outsideY === 0) return { nearest: 0, farthest, from: 0, sweep: FULL_TURN };
+
+  // Tâm nằm ngoài: khung nhìn chắn một góc nhỏ hơn nửa vòng, giữa hai góc xa nhau nhất trong bốn góc của nó,
+  // tính lệch so với hướng từ tâm tới giữa khung nhìn.
+  const toward = Math.atan2(height / 2 - centerY, width / 2 - centerX);
+  let least = Infinity;
+  let most = -Infinity;
+  for (const cornerX of [0, width]) {
+    for (const cornerY of [0, height]) {
+      let offset = Math.atan2(cornerY - centerY, cornerX - centerX) - toward;
+      if (offset > Math.PI) offset -= FULL_TURN;
+      else if (offset < -Math.PI) offset += FULL_TURN;
+      if (offset < least) least = offset;
+      if (offset > most) most = offset;
+    }
+  }
+  return { nearest: Math.hypot(outsideX, outsideY), farthest, from: toward + least, sweep: most - least };
+}
+
+/** Đưa hiệu của hai góc về khoảng [0, 2π). */
+function turnFrom(angle: number, from: number): number {
+  const offset = angle - from;
+  return offset - Math.floor(offset / FULL_TURN) * FULL_TURN;
+}
+
 /**
  * Đưa vào path các nhánh có trạng thái `visible` (và, nếu `code` khác `null`, có mã màu đó): thân nhánh của từng
  * node rồi tới đoạn nối của từng node trong. Thân nhánh mang màu của node con, đoạn nối mang màu của node cha.
@@ -279,24 +324,44 @@ function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 
   const centerX = offsetX + 0.5 * scaleX;
   const centerY = offsetY + 0.5 * scaleY;
   const unit = 0.5 * scaleX;
+  // Chỉ phần của cây nằm trong hình quạt chứa khung nhìn mới cần xét. Trong hình quạt đó, mặt phẳng được chia
+  // thành ô cực: mỗi "tia" rộng một pixel ở chỗ xa tâm nhất mà một nhánh có thể hiện ra (mép xa của khung nhìn,
+  // hoặc vòng ngoài cùng của cây nếu nó gần hơn), mỗi "vòng" dày một pixel. Một thân nhánh chiếm vài vòng trên
+  // một tia, một đoạn nối chiếm vài tia trên một vòng; như ở bố cục chữ nhật, đoạn nào không phủ thêm ô nào
+  // thì bỏ.
+  const sector = visibleSector(centerX, centerY, width, height);
+  const { nearest, farthest, from: sectorFrom, sweep } = sector;
+  const perRay = 1 / Math.max(1, Math.min(farthest, unit));
+  const rays = Math.ceil(sweep / perRay) + 1;
+  const rings = Math.ceil(farthest - nearest) + 1;
+  const rayWords = (rings + 31) >> 5;
+  const ringWords = (rays + 31) >> 5;
+  const pass = beginCoverage(scratch, rays, rings);
+  const { rowBits: rayBits, rowPass: rayPass, columnBits: ringBits, columnPass: ringPass } = scratch;
 
   // Thân nhánh: đoạn dọc theo bán kính, từ vòng tròn của cha ra tới node, ở góc của node.
   for (let i = 1; i < nodeCount; i++) {
     if (nodeVisible[i] !== visible) continue;
     if (coloured && nodeCodes[i] !== code) continue;
+    const turn = turnFrom(angle[i], sectorFrom);
+    if (turn > sweep) continue;
+    const inner = along[parent[i]] * unit;
+    const outer = along[i] * unit;
+    const near = inner < outer ? inner : outer;
+    const far = inner < outer ? outer : inner;
+    if (far < nearest || near > farthest || far - near < TINY) continue;
+    const ray = clampIndex(turn / perRay, rays);
+    const base = ray * rayWords;
+    if (rayPass[ray] !== pass) {
+      rayBits.fill(0, base, base + rayWords);
+      rayPass[ray] = pass;
+    }
+    if (!claimBits(rayBits, base, clampIndex(near - nearest, rings), clampIndex(far - nearest, rings))) continue;
     const x1 = offsetX + x[i] * scaleX;
     const y1 = offsetY + y[i] * scaleY;
     // Điểm đầu nằm trên cùng tia với node, ở bán kính của cha; không cần tính sin, cos.
     const ratio = along[i] > 0 ? along[parent[i]] / along[i] : 0;
-    const x0 = centerX + (x1 - centerX) * ratio;
-    const y0 = centerY + (y1 - centerY) * ratio;
-    if ((x0 < 0 && x1 < 0) || (x0 > width && x1 > width) || (y0 < 0 && y1 < 0) || (y0 > height && y1 > height)) {
-      continue;
-    }
-    const dx = x1 - x0;
-    const dy = y1 - y0;
-    if (dx < TINY && dx > -TINY && dy < TINY && dy > -TINY) continue;
-    ctx.moveTo(x0, y0);
+    ctx.moveTo(centerX + (x1 - centerX) * ratio, centerY + (y1 - centerY) * ratio);
     ctx.lineTo(x1, y1);
     count++;
   }
@@ -306,13 +371,35 @@ function traceBranches(ctx: Surface, scene: Scene, scratch: Scratch, visible: 0 
     if (!(low[p] <= high[p])) continue;
     if (coloured && nodeCodes[p] !== code) continue;
     const radius = along[p] * unit;
+    if (radius < nearest - 1 || radius > farthest + 1) continue;
     const from = low[p] < angle[p] ? low[p] : angle[p];
     const to = high[p] > angle[p] ? high[p] : angle[p];
-    if ((to - from) * radius < TINY) continue;
-    // Vòng tròn của cung nằm hẳn ngoài khung nhìn thì bỏ; cung nằm ngoài nhưng vòng tròn cắt khung nhìn vẫn
-    // được vẽ, chấp nhận thừa để phép kiểm tra rẻ.
-    if (centerX + radius < 0 || centerX - radius > width || centerY + radius < 0 || centerY - radius > height) {
+    const span = to - from;
+    if (span * radius < TINY) continue;
+    // Phần của cung nằm trong hình quạt: bắt đầu ở trong, hoặc bắt đầu ở ngoài rồi vòng qua mốc 0 để vào.
+    const turn = turnFrom(from, sectorFrom);
+    let first: number;
+    let last: number;
+    if (turn <= sweep) {
+      first = turn;
+      last = turn + span < sweep ? turn + span : sweep;
+    } else if (turn + span >= FULL_TURN) {
+      first = 0;
+      last = turn + span - FULL_TURN < sweep ? turn + span - FULL_TURN : sweep;
+    } else {
       continue;
+    }
+    // Cung vừa bắt đầu trong hình quạt vừa vòng lại vào nó lần nữa (cung gần trọn vòng, hình quạt hẹp) chiếm
+    // hai đoạn tia rời nhau; trường hợp hiếm này luôn được vẽ, không ghi vào bảng.
+    const twice = turn <= sweep && sweep < FULL_TURN && turn + span >= FULL_TURN;
+    if (!twice) {
+      const ring = clampIndex(radius - nearest, rings);
+      const base = ring * ringWords;
+      if (ringPass[ring] !== pass) {
+        ringBits.fill(0, base, base + ringWords);
+        ringPass[ring] = pass;
+      }
+      if (!claimBits(ringBits, base, clampIndex(first / perRay, rays), clampIndex(last / perRay, rays))) continue;
     }
     ctx.moveTo(centerX + radius * Math.cos(from), centerY + radius * Math.sin(from));
     ctx.arc(centerX, centerY, radius, from, to);
