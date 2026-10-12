@@ -44,13 +44,13 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 **Mô tả:** Thêm Alembic, migration đầu tiên tạo hai bảng địa danh, và database riêng cho test.
 
 **Nghiệm thu:**
-- [ ] `alembic upgrade head` tạo `admin_unit` và `place_alias`; `alembic downgrade base` xoá sạch
-- [ ] `admin_unit` có mã, cấp, bộ đơn vị, tên có dấu, tên không dấu, đơn vị cha, đơn vị kế thừa, `valid_from`, `valid_to`
-- [ ] Test chạy trên database `vietstrain_test`, không đụng database chính
+- [x] `alembic upgrade head` tạo `admin_unit` và `place_alias`; `alembic downgrade base` xoá sạch
+- [x] `admin_unit` có mã, cấp, bộ đơn vị, tên tiếng Việt, tên tiếng Anh (với tỉnh là tên không dấu), đơn vị cha, đơn vị kế thừa, `valid_from`, `valid_to`
+- [x] Test chạy trên database `vietstrain_test`, không đụng database chính
 
-**Kiểm chứng:** `DC run --rm api pytest tests/test_geo_schema.py`; `DC run --rm api alembic upgrade head`
+**Kiểm chứng:** `DC run --rm api pytest tests/test_geo_schema.py tests/test_migrations.py`; `DC up -d` (service `migrate` chạy `alembic upgrade head`)
 **Phụ thuộc:** T1.1. **Cỡ:** M.
-**File:** `backend/alembic.ini`, `backend/migrations/*`, `backend/app/models.py`, `backend/tests/conftest.py`, `backend/tests/test_geo_schema.py`
+**File:** `backend/alembic.ini`, `backend/migrations/*`, `backend/app/models.py`, `backend/app/schema.py`, `backend/tests/{conftest,support}.py`, `backend/tests/test_geo_schema.py`, `backend/tests/test_migrations.py`, `deploy/docker-compose.yml`
 
 ### T2.3 Seed đơn vị hành chính và tên thay thế
 **Mô tả:** Nạp 63 tỉnh (hiệu lực tới 30/6/2025), 34 đơn vị (từ 1/7/2025), 3 miền và 6 vùng, cùng các tên thay thế, từ file dữ liệu trong repo.

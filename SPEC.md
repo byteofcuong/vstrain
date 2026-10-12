@@ -57,9 +57,12 @@ Test (một file): docker compose -f deploy/docker-compose.yml run --rm api pyte
 Lint:           docker compose -f deploy/docker-compose.yml run --rm api ruff check .
 Format (kiểm):  docker compose -f deploy/docker-compose.yml run --rm api ruff format --check .
 Health:         curl -s http://127.0.0.1:8000/api/health
+Migration:      docker compose -f deploy/docker-compose.yml run --rm migrate
 ```
 
-Lệnh migration, lệnh nhập dữ liệu và lệnh frontend được thêm vào đây khi lát cắt tương ứng hoàn thành.
+Migration cũng tự chạy mỗi lần khởi động (service `migrate`). Test dùng database riêng `vietstrain_test`, được tạo lại ở đầu mỗi phiên test.
+
+Lệnh nhập dữ liệu và lệnh frontend được thêm vào đây khi lát cắt tương ứng hoàn thành.
 
 ## Project Structure
 

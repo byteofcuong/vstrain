@@ -1,6 +1,19 @@
 # Chạy: docker compose -f deploy/docker-compose.yml up -d --build   (từ thư mục gốc của repo)
 name: vietstrain
 
+# Phần chung của các service chạy mã backend (cùng một image).
+x-backend: &backend
+  image: vietstrain-api
+  build:
+    context: ../backend
+    dockerfile: ../deploy/api.Dockerfile
+  environment:
+    VS_DATABASE_URL: postgresql+psycopg://vietstrain:vietstrain@db:5432/vietstrain
+    VS_DATA_DIR: /data
+  volumes:
+    - ../backend:/srv/backend      # mã nguồn mount thẳng để sửa không cần build lại image
+    - ../data:/data
+
 services:
   db:
     image: postgres:16
@@ -18,19 +31,19 @@ services:
       timeout: 3s
       retries: 20
 
-  api:
-    build:
-      context: ../backend
-      dockerfile: ../deploy/api.Dockerfile
-    environment:
-      VS_DATABASE_URL: postgresql+psycopg://vietstrain:vietstrain@db:5432/vietstrain
-      VS_DATA_DIR: /data
-    volumes:
-      - ../backend:/srv/backend      # mã nguồn mount thẳng để sửa không cần build lại image
-      - ../data:/data
+  # Chạy một lần rồi thoát: đưa schema lên phiên bản mới nhất trước khi API khởi động.
+  migrate:
+    <<: *backend
     depends_on:
       db:
         condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+
+  api:
+    <<: *backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8000:8000"
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -28,7 +28,7 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 
 ### Phase 2: `geo`
 - [x] T2.1 `place_key()`: chuẩn hoá tên địa danh
-- [ ] T2.2 Bảng `admin_unit`, `place_alias` và khung migration
+- [x] T2.2 Bảng `admin_unit`, `place_alias` và khung migration
 - [ ] T2.3 Seed 63 tỉnh, 34 đơn vị, vùng và tên thay thế
 - [ ] T2.4 `resolve_place()`: gán đơn vị theo tên và ngày lấy mẫu
 
