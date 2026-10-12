@@ -137,6 +137,126 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 
 ---
 
-## Phase 4: `job-queue` và Phase 5: `build`
+## Phase 4: `job-queue`
 
-Tiêu đề task ở `tasks/plan.md`. Tiêu chí nghiệm thu chi tiết được viết vào đây khi Checkpoint C xong, vì chúng phụ thuộc cấu trúc bảng `sample` thực tế.
+### T4.1 Bảng `job`, `job_step`; `enqueue()` và `claim()`
+**Mô tả:** Hàng đợi job là một bảng trong PostgreSQL. Worker lấy job bằng `FOR UPDATE SKIP LOCKED` nên nhiều worker không lấy trùng.
+
+**Nghiệm thu:**
+- [ ] `enqueue` tạo job `queued`; `claim` trả job ưu tiên cao nhất, cũ nhất trước, đổi sang `running`, ghi tên worker và giờ bắt đầu
+- [ ] 4 luồng cùng `claim` 20 job trên kết nối thật: mỗi job được lấy đúng một lần
+- [ ] `finish` ghi `succeeded` kèm kết quả; `fail` ghi `failed` kèm lỗi; hàng đợi trống thì `claim` trả `None`
+
+**Kiểm chứng:** `DC run --rm api pytest tests/test_job_queue.py`
+**Phụ thuộc:** T2.2. **Cỡ:** M.
+**File:** `backend/app/models.py`, `backend/migrations/versions/0003_*.py`, `backend/app/jobs/queue.py`, `backend/tests/test_job_queue.py`
+
+### T4.2 `run_tool()`: gọi công cụ ngoài không qua shell
+**Mô tả:** Một chỗ duy nhất được phép chạy tiến trình ngoài. Đây là câu trả lời cho việc Augur ghép lệnh thành chuỗi bash.
+
+**Nghiệm thu:**
+- [ ] Lệnh là danh sách đối số: đối số `; touch x` hay `$(touch x)` được truyền nguyên văn, không file nào được tạo
+- [ ] Chỉ chạy công cụ trong danh sách cho phép; tên khác bị từ chối trước khi chạy
+- [ ] Quá thời gian thì tiến trình và tiến trình con bị dừng (`ToolTimeout`); mã thoát khác 0 thì `ToolFailed` kèm đuôi log
+- [ ] Trả về thời gian chạy, CPU time và đỉnh bộ nhớ; log ghi ra file; tiến trình con không thấy biến môi trường chứa URL database
+
+**Kiểm chứng:** `DC run --rm api pytest tests/test_run_tool.py`
+**Phụ thuộc:** không. **Cỡ:** M.
+**File:** `backend/app/jobs/tools.py`, `backend/tests/test_run_tool.py`
+
+### T4.3 Worker, bước của job, image worker
+**Mô tả:** Tiến trình worker lấy job, chạy handler theo loại job, ghi từng bước vào DB để giao diện thấy tiến độ.
+
+**Nghiệm thu:**
+- [ ] Mỗi bước có một dòng `job_step` (tên, trạng thái, bắt đầu, kết thúc, số đo, đuôi log), đọc được khi job còn đang chạy
+- [ ] Handler ném lỗi thì job thành `failed` và worker chạy tiếp; loại job lạ thì `failed`
+- [ ] Job `running` mà worker ngừng báo nhịp quá 90 giây được đánh dấu `failed`
+- [ ] Service `worker` trong Compose (image dẫn xuất từ `nextstrain/base`, chạy bằng user thường) xử lý job `tool_versions`, kết quả ghi phiên bản augur, nextclade, iqtree
+
+**Kiểm chứng:** `DC run --rm api pytest tests/test_job_steps.py tests/test_worker.py`; `DC up -d --build` rồi `DC run --rm api python -m app.cli enqueue tool_versions` và xem dòng `job`
+**Phụ thuộc:** T4.1, T4.2. **Cỡ:** M.
+**File:** `backend/app/jobs/{steps,worker,handlers}.py`, `deploy/worker.Dockerfile`, `deploy/docker-compose.yml`, `backend/app/cli.py`, 2 file test
+
+## Checkpoint (hết Phase 4)
+- [ ] ADR-003 (mã nội bộ, gọi công cụ bằng danh sách đối số) và ADR-004 (bước pipeline là hàm Python có trạng thái trong DB) được viết
+- [ ] Một job thật chạy trong container worker, từ lúc xếp hàng tới lúc có kết quả
+
+---
+
+## Phase 5: `build`
+
+Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên chạy trong image worker: `DC run --rm worker pytest -m tools`.
+
+### T5.1 Cấu hình pathogen; gióng và QC một lô mẫu bằng Nextclade
+**Mô tả:** Mỗi mẫu được gióng theo reference đúng một lần và kết quả được lưu lại; build về sau chỉ ghép các chuỗi đã gióng.
+
+**Nghiệm thu:**
+- [ ] Cấu hình dengue có bốn lineage (`denv1` tới `denv4`), mỗi lineage có reference, annotation và định nghĩa clade; nguồn ghi trong `NGUON.md`
+- [ ] `align_batch` chạy Nextclade trên một lô mẫu; file FASTA đưa cho công cụ chỉ chứa mã nội bộ; chuỗi đã gióng dài đúng bằng reference và được lưu cùng số nucleotide hợp lệ
+- [ ] Mẫu không gióng được (khác serotype, quá ngắn) được ghi `failed` kèm lý do và không làm hỏng lô
+- [ ] Mẫu tên "Hà_Nội/01/2024" đi qua bước này
+
+**Kiểm chứng:** `DC run --rm worker pytest -m tools tests/test_align.py`
+**Phụ thuộc:** T4.3, T3.1. **Cỡ:** M.
+**File:** `backend/app/pathogens/*`, `backend/app/build/align.py`, `backend/app/models.py`, migration, `backend/tests/test_align.py`
+
+### T5.2 Gióng toàn bộ genome đã nhập
+**Mô tả:** Job nền gióng mọi mẫu có serotype và đủ dài mà chưa có kết quả.
+
+**Nghiệm thu:**
+- [ ] Job `align_pending` chia lô, mỗi lô là một bước; chạy lại thì chỉ làm phần còn thiếu
+- [ ] Số mẫu `aligned` và `failed` theo lineage cùng thời gian chạy được ghi vào `do-dac/results/`
+
+**Kiểm chứng:** `DC run --rm api python -m app.cli enqueue align_pending` rồi xem `job`, `job_step`
+**Phụ thuộc:** T5.1. **Cỡ:** S.
+
+### T5.3 `dataset_def`, `build`; chọn mẫu cho một dataset
+**Mô tả:** Một dataset là một quy tắc chọn mẫu có trần; mỗi lần build ghi lại đúng những mẫu nó dùng.
+
+**Nghiệm thu:**
+- [ ] Chọn mọi mẫu Việt Nam đạt điều kiện của lineage, rồi thêm mẫu bối cảnh thế giới chia đều theo (nước, năm) cho tới trần
+- [ ] Cùng dữ liệu cho cùng tập mẫu; thêm một mẫu mới thì các mẫu bối cảnh đã chọn gần như giữ nguyên
+- [ ] Chỉ nhận mẫu có ít nhất năm lấy mẫu và ít nhất 10.000 nucleotide hợp lệ
+- [ ] Mỗi dataset có nhiều nhất một build hiện hành (ràng buộc trong DB)
+
+**Kiểm chứng:** `DC run --rm api pytest tests/test_build_selection.py`
+**Phụ thuộc:** T5.1. **Cỡ:** M.
+
+### T5.4 Các bước dựng cây, chạy trên bộ nhỏ
+**Mô tả:** Job `build_dataset` chạy các bước `prepare`, `tree`, `refine`, `ancestral`, `translate`, `clades`, `export` bằng `run_tool`.
+
+**Nghiệm thu:**
+- [ ] Build khoảng 30 mẫu chạy hết các bước; mỗi bước có dòng `job_step` kèm thời gian, CPU time, đỉnh bộ nhớ
+- [ ] Không có bước gióng hàng; alignment được ghép từ chuỗi đã lưu
+- [ ] File đưa cho công cụ chỉ có mã nội bộ và ngày lấy mẫu; không có tên hiển thị hay địa danh
+- [ ] Cây Auspice v2 xuất ra dùng được làm cây nền cho Nextclade: đặt thử một mẫu ngoài build thành công
+- [ ] Tiêu chí 5: mẫu tên "Hà_Nội/01/2024" có mặt trong cây. Tiêu chí 5b: tham số chứa `; touch <file>` không tạo file
+
+**Kiểm chứng:** `DC run --rm worker pytest -m tools tests/test_build_pipeline.py`
+**Phụ thuộc:** T5.3. **Cỡ:** L (chia nhỏ khi làm, mỗi phần một commit).
+
+### T5.5 Định dạng cột, publish theo hash, `GET /api/datasets`
+**Mô tả:** Kết quả build được xuất thành hai dạng: Auspice v2 JSON (tương thích) và dạng cột cho viewer; thuộc tính của tip lấy từ DB lúc publish.
+
+**Nghiệm thu:**
+- [ ] `tree.json` là các mảng song song theo thứ tự duyệt trước (cha luôn đứng trước con); số node, quan hệ cha con, độ phân kỳ và ngày khớp với cây Auspice
+- [ ] Mỗi thuộc tính của tip là một file cột mã hoá từ điển, sinh từ DB; sửa địa danh rồi publish lại không cần dựng lại cây
+- [ ] Thư mục publish đặt tên theo hash nội dung; build mới thành hiện hành trong một transaction; build cũ còn nguyên
+- [ ] `GET /api/datasets` và `GET /api/datasets/{slug}` trả dataset cùng build hiện hành và đường dẫn manifest
+
+**Kiểm chứng:** `DC run --rm api pytest tests/test_columnar.py tests/test_datasets_api.py`; `curl` trên build thật
+**Phụ thuộc:** T5.4. **Cỡ:** M.
+
+### T5.6 Build thật cho DENV1; so thời gian với P1
+**Nghiệm thu:**
+- [ ] Build 2.000 mẫu chạy xong, có dòng `build` hiện hành và bộ file publish
+- [ ] Tiêu chí 2: bảng thời gian từng bước so với P1 (771 s, trong đó `align` 72 s), ghi vào `do-dac/results/`
+
+**Kiểm chứng:** truy vấn `job_step`; `curl http://127.0.0.1:8000/api/datasets`
+**Phụ thuộc:** T5.2, T5.5. **Cỡ:** S.
+
+## Checkpoint D (hết mốc M2): dừng lại để bạn xem
+- [ ] Tiêu chí 2, 5 và 5b đạt
+- [ ] ADR-005 (gióng từng mẫu một lần) được viết
+- [ ] Trình bày kết quả, đặc tả module `viewer`, `accounts`, `submission` và các câu hỏi mở
+- [ ] Xin phép cài dependency cho frontend
