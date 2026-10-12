@@ -228,14 +228,15 @@ Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên 
 **Mô tả:** Job `build_dataset` chạy các bước `prepare`, `tree`, `refine`, `ancestral`, `translate`, `clades`, `export` bằng `run_tool`.
 
 **Nghiệm thu:**
-- [ ] Build khoảng 30 mẫu chạy hết các bước; mỗi bước có dòng `job_step` kèm thời gian, CPU time, đỉnh bộ nhớ
-- [ ] Không có bước gióng hàng; alignment được ghép từ chuỗi đã lưu
-- [ ] File đưa cho công cụ chỉ có mã nội bộ và ngày lấy mẫu; không có tên hiển thị hay địa danh
-- [ ] Cây Auspice v2 xuất ra dùng được làm cây nền cho Nextclade: đặt thử một mẫu ngoài build thành công
-- [ ] Tiêu chí 5: mẫu tên "Hà_Nội/01/2024" có mặt trong cây. Tiêu chí 5b: tham số chứa `; touch <file>` không tạo file
+- [x] Build khoảng 30 mẫu chạy hết các bước; mỗi bước có dòng `job_step` kèm thời gian, CPU time, đỉnh bộ nhớ
+- [x] Không có bước gióng hàng; alignment được ghép từ chuỗi đã lưu
+- [x] File đưa cho công cụ chỉ có mã nội bộ và ngày lấy mẫu; không có tên hiển thị hay địa danh
+- [x] Cây Auspice v2 xuất ra dùng được làm cây nền cho Nextclade: đặt thử một mẫu ngoài build thành công
+- [x] Tiêu chí 5: mẫu tên "Hà_Nội/01/2024" có mặt trong cây. Tiêu chí 5b: tham số chứa `; touch <file>` không tạo file
 
 **Kiểm chứng:** `DC run --rm worker pytest -m tools tests/test_build_pipeline.py`
 **Phụ thuộc:** T5.3. **Cỡ:** L (chia nhỏ khi làm, mỗi phần một commit).
+**File:** `backend/app/build/{inputs,pipeline}.py`, `backend/app/pathogens/__init__.py`, `backend/migrations/versions/0006_*.py`, `backend/tests/test_build_{inputs,pipeline}.py`
 
 ### T5.5 Định dạng cột, publish theo hash, `GET /api/datasets`
 **Mô tả:** Kết quả build được xuất thành hai dạng: Auspice v2 JSON (tương thích) và dạng cột cho viewer; thuộc tính của tip lấy từ DB lúc publish.

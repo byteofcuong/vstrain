@@ -65,6 +65,18 @@ class Lineage:
             "--min-length=1000",
         )
 
+    @property
+    def refine_args(self) -> tuple[str, ...]:
+        """Tham số của `augur refine`, giữ đúng cấu hình đã đo ở baseline P1 (theo zika-tutorial của Nextstrain)."""
+        return (
+            "--timetree",
+            "--coalescent=opt",
+            "--date-confidence",
+            "--date-inference=marginal",
+            "--clock-filter-iqd=4",
+            "--seed=1",
+        )
+
 
 DENGUE: dict[str, Lineage] = {
     f"denv{number}": Lineage(pathogen="dengue", key=f"denv{number}", title=f"Dengue virus {number}")

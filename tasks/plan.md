@@ -54,7 +54,7 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 - [x] T5.1 Cấu hình pathogen dengue; gióng và QC từng mẫu bằng Nextclade
 - [x] T5.2 Gióng và QC toàn bộ genome đã nhập
 - [x] T5.3 `dataset_def`, `build`; chọn mẫu cho một dataset
-- [ ] T5.4 Các bước dựng cây với mã nội bộ, chạy được trên bộ nhỏ
+- [x] T5.4 Các bước dựng cây với mã nội bộ, chạy được trên bộ nhỏ
 - [ ] T5.5 Định dạng cột, publish theo hash, `GET /api/datasets`
 - [ ] T5.6 Build thật cho DENV1; so thời gian từng bước với P1
 
