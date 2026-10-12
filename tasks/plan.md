@@ -47,7 +47,7 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 
 ### Phase 4: `job-queue`
 - [x] T4.1 Bảng `job`, `job_step`; `enqueue()` và `claim()` không lấy trùng
-- [ ] T4.2 `run_tool()`: gọi công cụ ngoài không qua shell, có timeout
+- [x] T4.2 `run_tool()`: gọi công cụ ngoài không qua shell, có timeout
 - [ ] T4.3 Worker và image worker; job chạy thử có ghi bước và lỗi
 
 ### Phase 5: `build`

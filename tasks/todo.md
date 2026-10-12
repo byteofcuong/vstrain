@@ -155,10 +155,10 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 **Mô tả:** Một chỗ duy nhất được phép chạy tiến trình ngoài. Đây là câu trả lời cho việc Augur ghép lệnh thành chuỗi bash.
 
 **Nghiệm thu:**
-- [ ] Lệnh là danh sách đối số: đối số `; touch x` hay `$(touch x)` được truyền nguyên văn, không file nào được tạo
-- [ ] Chỉ chạy công cụ trong danh sách cho phép; tên khác bị từ chối trước khi chạy
-- [ ] Quá thời gian thì tiến trình và tiến trình con bị dừng (`ToolTimeout`); mã thoát khác 0 thì `ToolFailed` kèm đuôi log
-- [ ] Trả về thời gian chạy, CPU time và đỉnh bộ nhớ; log ghi ra file; tiến trình con không thấy biến môi trường chứa URL database
+- [x] Lệnh là danh sách đối số: đối số `; touch x` hay `$(touch x)` được truyền nguyên văn, không file nào được tạo
+- [x] Chỉ chạy công cụ trong danh sách cho phép; tên khác bị từ chối trước khi chạy
+- [x] Quá thời gian thì tiến trình và tiến trình con bị dừng (`ToolTimeout`); mã thoát khác 0 thì `ToolFailed` kèm đuôi log
+- [x] Trả về thời gian chạy, CPU time và đỉnh bộ nhớ; log ghi ra file; tiến trình con không thấy biến môi trường chứa URL database
 
 **Kiểm chứng:** `DC run --rm api pytest tests/test_run_tool.py`
 **Phụ thuộc:** không. **Cỡ:** M.
