@@ -88,9 +88,9 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 **Mô tả:** Lưu mỗi mẫu thành một bản ghi có mã nội bộ; ngày lấy mẫu không đầy đủ được lưu thành khoảng.
 
 **Nghiệm thu:**
-- [ ] `parse_collection_date("2019-XX-XX")` → (2019-01-01, 2019-12-31); "2019-03-XX" → cả tháng 3; "2019-03-15" → một ngày; "XXXX-XX-XX" hoặc rỗng → không có ngày
-- [ ] Mỗi mẫu có `internal_id` dạng `S0000123`, duy nhất, chỉ gồm chữ ASCII và số
-- [ ] Địa danh gốc được lưu nguyên văn bên cạnh mã đã chuẩn hoá
+- [x] `parse_collection_date("2019-XX-XX")` → (2019-01-01, 2019-12-31); "2019-03-XX" → cả tháng 3; "2019-03-15" → một ngày; "XXXX-XX-XX" hoặc rỗng → không có ngày
+- [x] Mỗi mẫu có `internal_id` dạng `S0000123`, duy nhất, chỉ gồm chữ ASCII và số
+- [x] Địa danh gốc được lưu nguyên văn bên cạnh mã đã chuẩn hoá
 
 **Kiểm chứng:** `DC run --rm api pytest tests/test_dates.py tests/test_samples_schema.py`
 **Phụ thuộc:** T2.2. **Cỡ:** M.

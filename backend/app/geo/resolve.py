@@ -17,6 +17,7 @@ class GeoStatus(StrEnum):
     REGION = "region"  # chỉ ra được vùng hoặc miền
     MISSING = "missing"  # địa danh gốc để trống
     UNRESOLVED = "unresolved"  # có chữ nhưng không khớp tên nào
+    FOREIGN = "foreign"  # mẫu ngoài Việt Nam, không gán đơn vị; bộ phân giải không trả về giá trị này
 
 
 @dataclass(frozen=True)
