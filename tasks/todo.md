@@ -253,14 +253,41 @@ Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên 
 
 ### T5.6 Build thật cho DENV1; so thời gian với P1
 **Nghiệm thu:**
-- [ ] Build 2.000 mẫu chạy xong, có dòng `build` hiện hành và bộ file publish
-- [ ] Tiêu chí 2: bảng thời gian từng bước so với P1 (771 s, trong đó `align` 72 s), ghi vào `do-dac/results/`
+- [x] Build 2.000 mẫu chạy xong, có dòng `build` hiện hành và bộ file publish → job 4, 682 s, 1.964 tip, publish ở `dengue-denv1/b000001/p-40c9b4f4f6f1`
+- [x] Tiêu chí 2: bảng thời gian từng bước so với P1 (771 s, trong đó `align` 72 s), ghi vào `do-dac/results/` → trên đúng tập mẫu của P1: 755 s so với 771 s; bước gióng mất đi 77 s, nhưng `refine` chậm hơn 75 s trong lần chạy đó (`do-dac/results/W4-build-webapp/`, `TIEN-DO.md` mục 15)
 
 **Kiểm chứng:** truy vấn `job_step`; `curl http://127.0.0.1:8000/api/datasets`
 **Phụ thuộc:** T5.2, T5.5. **Cỡ:** S.
 
+### T5.7 Sửa lỗi theo review độc lập (hàng đợi job, gọi công cụ, đầu vào build)
+**Nghiệm thu:**
+- [x] Worker không chết khi ghi kết quả lỗi hoặc gặp lỗi ngoài handler; job đã bị đánh dấu thất bại không bị ghi đè thành thành công
+- [x] Byte NUL trong log và thông báo lỗi không làm hỏng việc ghi DB; job quá thời gian giữ được đuôi log
+- [x] Job có tham số lạ bị từ chối; chuỗi có ký tự không phải nucleotide không tới công cụ; `/builds/` chỉ phát đúng dạng đường dẫn của bản publish
+
+**Kiểm chứng:** 14 test mới thất bại trên mã cũ; `DC run --rm worker pytest` → 267 passed; `DC run --rm api pytest` → 255 passed, 12 skipped (commit `810197d`)
+
 ## Checkpoint D (hết mốc M2): dừng lại để bạn xem
-- [ ] Tiêu chí 2, 5 và 5b đạt
-- [ ] ADR-005 (gióng từng mẫu một lần) được viết
+- [x] Tiêu chí 5 và 5b đạt
+- [ ] Tiêu chí 2: đạt phần "không có bước gióng"; phần "build nhanh hơn" chưa kết luận được (xem D1)
+- [x] ADR-005 (gióng từng mẫu một lần) được viết
 - [ ] Trình bày kết quả, đặc tả module `viewer`, `accounts`, `submission` và các câu hỏi mở
 - [ ] Xin phép cài dependency cho frontend
+
+---
+
+## Việc còn lại trước mốc M3
+
+Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong một nhóm thì dừng chờ.
+
+**Nhóm đóng Checkpoint D**
+- [ ] D1 (tuỳ chọn, khoảng 25 phút máy chạy): chạy lại `refine` 2 lần trên tập mẫu của P1 để biết 75 s chênh là nhiễu hay do alignment. Kiểm chứng: 3 số `refine` trong `do-dac/results/W4-build-webapp/`
+- [ ] D2: commit ba bản đặc tả nháp trong `specs/`; gộp `feature/build` vào `main`. Kiểm chứng: `git log --oneline -1 main`
+- [ ] D3 (việc của bạn): duyệt `specs/SPEC-viewer.md`, `SPEC-accounts.md`, `SPEC-submission.md`; trả lời các câu hỏi mở; đồng ý hay không với dependency frontend
+
+**Nhóm dọn nợ kỹ thuật backend** (từ review, chưa sửa; mỗi mục cỡ S)
+- [ ] N1: dọn thư mục làm việc của job đã xong quá N ngày. Kiểm chứng: test tạo thư mục cũ, chạy dọn, thư mục mất
+- [ ] N2: publish xoá thư mục `.tmp-*` còn sót của lần chạy hỏng. Kiểm chứng: test
+- [ ] N3: IQ-TREE nhận seed cố định từ cấu hình lineage để hai lần build cùng đầu vào cho cùng cây. Kiểm chứng: test `-m tools` so hai cây
+
+**Mốc M3 (viewer)** sẽ được chia thành task cỡ S sau khi D3 xong, dựa trên 8 lát cắt trong `specs/SPEC-viewer.md`; mỗi lát dự kiến tách thành 2 đến 4 task.
