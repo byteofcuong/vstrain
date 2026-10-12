@@ -1,0 +1,12 @@
+# Dữ liệu nạp vào và file build sinh ra: không đưa vào git
+/data/
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+# Node
+node_modules/
+dist/
+# Môi trường cục bộ
+.env
