@@ -152,3 +152,11 @@ def test_default_datasets_are_created_once_and_later_edits_are_kept(session):
     assert slugs == ["dengue-denv1", "dengue-denv2", "dengue-denv3", "dengue-denv4"]
     assert (denv1.lineage, denv1.home_country, denv1.max_samples) == ("denv1", "Vietnam", 3000)
     assert (created_first, created_again) == (4, 0)
+
+
+@pytest.mark.parametrize("slug", ["../secrets", "Dengue-DENV1", "dengue denv1", "dengue/denv1", "-dengue", ""])
+def test_a_dataset_slug_must_be_safe_to_use_as_a_folder_name(session, slug):
+    session.add(DatasetDef(slug=slug, title="x", pathogen="dengue", lineage="denv1", max_samples=10))
+
+    with pytest.raises(IntegrityError):
+        session.flush()

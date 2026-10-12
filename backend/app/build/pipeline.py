@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import delete, func, select
 
 from app.build.inputs import start_build, write_inputs
+from app.build.publish import publish_build, store_tree
 from app.config import settings
 from app.jobs.steps import JobContext
 from app.models import Build, BuildSample, DatasetDef, Sample
@@ -161,7 +162,7 @@ def build_dataset(context: JobContext) -> dict[str, Any]:
 
     auspice_path = run_tree_steps(context, lineage)
 
-    with context.step("finish") as step:
+    with context.step("publish") as step:
         tips = tip_names(json.loads(auspice_path.read_text(encoding="utf-8")))
         # `augur refine --clock-filter-iqd` loại mẫu lệch đồng hồ phân tử; build chỉ giữ mẫu thật sự có trong cây.
         dropped = session.scalars(
@@ -179,7 +180,21 @@ def build_dataset(context: JobContext) -> dict[str, Any]:
         build = session.get(Build, build_id)
         build.sample_count = len(tips)
         build.finished_at = func.now()
-        session.commit()
+        session.flush()
+        # Thư mục làm việc của job là đồ dùng một lần; cây được chép sang chỗ bền vững rồi mới publish.
+        store_tree(dataset, build, auspice_path)
+        path = publish_build(session, build)
         step.metrics.update({"tips": len(tips), "dropped": len(dropped)})
 
-    return {"build_id": build_id, "selected": selected, "tips": len(tips), "dropped": list(dropped)}
+    return {"build_id": build_id, "selected": selected, "tips": len(tips), "dropped": list(dropped), "path": path}
+
+
+def republish_build(context: JobContext) -> dict[str, Any]:
+    """Job publish lại một build đã dựng (tham số `build_id`), sau khi sửa địa danh hay tên mẫu trong DB."""
+    build_id = context.params.get("build_id")
+    build = context.session.get(Build, build_id) if isinstance(build_id, int) else None
+    if build is None:
+        raise LookupError(f"No build with id {build_id!r}")
+    with context.step("publish"):
+        path = publish_build(context.session, build)
+    return {"build_id": build.id, "path": path}

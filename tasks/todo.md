@@ -242,13 +242,14 @@ Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên 
 **Mô tả:** Kết quả build được xuất thành hai dạng: Auspice v2 JSON (tương thích) và dạng cột cho viewer; thuộc tính của tip lấy từ DB lúc publish.
 
 **Nghiệm thu:**
-- [ ] `tree.json` là các mảng song song theo thứ tự duyệt trước (cha luôn đứng trước con); số node, quan hệ cha con, độ phân kỳ và ngày khớp với cây Auspice
-- [ ] Mỗi thuộc tính của tip là một file cột mã hoá từ điển, sinh từ DB; sửa địa danh rồi publish lại không cần dựng lại cây
-- [ ] Thư mục publish đặt tên theo hash nội dung; build mới thành hiện hành trong một transaction; build cũ còn nguyên
-- [ ] `GET /api/datasets` và `GET /api/datasets/{slug}` trả dataset cùng build hiện hành và đường dẫn manifest
+- [x] `tree.json` là các mảng song song theo thứ tự duyệt trước (cha luôn đứng trước con); số node, quan hệ cha con, độ phân kỳ và ngày khớp với cây Auspice
+- [x] Mỗi thuộc tính của tip là một file cột mã hoá từ điển, sinh từ DB; sửa địa danh rồi publish lại không cần dựng lại cây
+- [x] Thư mục publish đặt tên theo hash nội dung; build mới thành hiện hành trong một transaction; build cũ còn nguyên
+- [x] `GET /api/datasets` và `GET /api/datasets/{slug}` trả dataset cùng build hiện hành và đường dẫn manifest
 
-**Kiểm chứng:** `DC run --rm api pytest tests/test_columnar.py tests/test_datasets_api.py`; `curl` trên build thật
+**Kiểm chứng:** `DC run --rm api pytest tests/test_columnar.py tests/test_publish.py tests/test_datasets_api.py`; `curl` trên build thật (ở T5.6)
 **Phụ thuộc:** T5.4. **Cỡ:** M.
+**File:** `backend/app/build/{columnar,publish,api}.py`, `backend/app/build/pipeline.py` (bước `publish`, job `publish_build`), `backend/migrations/versions/0007_*.py`, 3 file test
 
 ### T5.6 Build thật cho DENV1; so thời gian với P1
 **Nghiệm thu:**

@@ -175,6 +175,8 @@ class DatasetDef(Base):
     """
 
     __tablename__ = "dataset_def"
+    # Slug được dùng làm tên thư mục khi publish.
+    __table_args__ = (CheckConstraint("slug ~ '^[a-z0-9][a-z0-9-]*$'", name="slug_is_path_safe"),)
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     slug: Mapped[str] = mapped_column(String(60), unique=True)  # tên trong URL, ví dụ 'dengue-denv1'
@@ -205,7 +207,8 @@ class Build(Base):
     content_hash: Mapped[str | None] = mapped_column(String(64))
     path: Mapped[str | None] = mapped_column(String(300))  # thư mục đã publish, tương đối so với thư mục builds
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # cây dựng xong
+    published_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # lần publish gần nhất
 
 
 class BuildSample(Base):

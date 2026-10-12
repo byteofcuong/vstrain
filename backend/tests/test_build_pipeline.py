@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.build.align import align_pending
-from app.build.pipeline import build_dataset, tip_names
+from app.build.pipeline import build_dataset, republish_build, tip_names
 from app.config import settings
 from app.geo.seed import seed_geo
 from app.jobs import queue
@@ -15,6 +15,7 @@ from app.jobs.steps import JobContext
 from app.models import Build, BuildSample, DatasetDef, JobStep, Sample, SampleAlignment, SampleSequence
 from app.pathogens import DENGUE
 from app.samples.importer import import_genbank
+from tests.support import add_sample, make_build
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DENV1 = DENGUE["denv1"]
@@ -48,6 +49,7 @@ def test_a_build_for_an_unknown_dataset_fails_without_running_anything(session, 
 @pytest.mark.tools
 def test_a_small_dataset_is_built_from_stored_alignments_step_by_step(session, tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "tool_threads", 2)
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path / "data"))
     seed_geo(session)
     import_genbank(session, FIXTURES / "dengue_small.tsv", FIXTURES / "dengue_small.fasta")
     align_pending(new_context(session, tmp_path / "align", "align_pending", {"lineage": "denv1"}))
@@ -89,7 +91,7 @@ def test_a_small_dataset_is_built_from_stored_alignments_step_by_step(session, t
         "translate",
         "clades",
         "export",
-        "finish",
+        "publish",
     ]
     assert {step.status for step in steps} == {"succeeded"}
     for step in steps[2:8]:
@@ -103,6 +105,12 @@ def test_a_small_dataset_is_built_from_stored_alignments_step_by_step(session, t
     assert named.internal_id in tips
     assert (build.sample_count, build.finished_at is not None) == (len(tips), True)
     assert result["build_id"] == build.id
+
+    # Build được publish và thành bản hiện hành; manifest mô tả đúng cây vừa dựng.
+    manifest = json.loads((tmp_path / "data" / "builds" / build.path / "manifest.json").read_text())
+    assert (build.is_current, result["path"]) == (True, build.path)
+    assert manifest["counts"]["tips"] == len(tips)
+    assert manifest["dataset"]["title"] == "DENV1; touch pwned"
 
     # Công cụ không thấy tên hiển thị, accession hay tiêu đề dataset, và không lệnh nào bị chèn.
     for path in work.rglob("*"):
@@ -140,3 +148,25 @@ def test_a_small_dataset_is_built_from_stored_alignments_step_by_step(session, t
         (placed,) = list(csv.DictReader(handle, delimiter="\t"))
     assert (placed["seqName"], placed["errors"]) == (outside.internal_id, "")
     assert placed["clade"].startswith("DENV1/")
+
+
+def test_a_published_build_can_be_published_again_as_a_job(session, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path))
+    seed_geo(session)
+    dataset = DatasetDef(slug="dengue-denv1", title="DENV1", pathogen="dengue", lineage="denv1", max_samples=10)
+    session.add(dataset)
+    session.flush()
+    sample = add_sample(session, country="Thailand")
+    build = make_build(session, dataset, [sample], tmp_path / "builds", tmp_path)
+
+    result = republish_build(new_context(session, tmp_path / "job", "publish_build", {"build_id": build.id}))
+
+    session.expire_all()
+    assert result == {"build_id": build.id, "path": build.path}
+    assert (tmp_path / "builds" / build.path / "tree.json").is_file()
+
+
+@pytest.mark.parametrize("build_id", [999_999, "1; touch pwned", None])
+def test_publishing_an_unknown_build_fails_cleanly(session, tmp_path, build_id):
+    with pytest.raises(LookupError, match="No build"):
+        republish_build(new_context(session, tmp_path, "publish_build", {"build_id": build_id}))

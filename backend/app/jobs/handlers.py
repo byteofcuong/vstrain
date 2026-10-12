@@ -3,7 +3,7 @@
 from typing import Any
 
 from app.build.align import align_pending
-from app.build.pipeline import build_dataset
+from app.build.pipeline import build_dataset, republish_build
 from app.jobs.steps import Handler, JobContext
 
 _VERSION_COMMANDS = {
@@ -25,5 +25,6 @@ def tool_versions(context: JobContext) -> dict[str, Any]:
 HANDLERS: dict[str, Handler] = {
     "align_pending": align_pending,
     "build_dataset": build_dataset,
+    "publish_build": republish_build,
     "tool_versions": tool_versions,
 }
