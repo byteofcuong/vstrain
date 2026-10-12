@@ -9,6 +9,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app import schema
+from app.build.datasets import seed_datasets
 from app.db import SessionLocal
 from app.geo.seed import seed_geo
 from app.jobs import queue
@@ -24,9 +25,12 @@ def run_seed_geo(_args: argparse.Namespace) -> None:
 
 
 def init_db(args: argparse.Namespace) -> None:
-    """Đưa schema lên phiên bản mới nhất rồi nạp dữ liệu địa danh; chạy lại nhiều lần vẫn an toàn."""
+    """Đưa schema lên phiên bản mới nhất, nạp dữ liệu địa danh và dataset mặc định; chạy lại nhiều lần vẫn an toàn."""
     schema.upgrade()
     run_seed_geo(args)
+    with SessionLocal.begin() as session:
+        created = seed_datasets(session)
+    print(f"Đã tạo {created} dataset mặc định.")
 
 
 def run_import_genbank(args: argparse.Namespace) -> None:

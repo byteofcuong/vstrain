@@ -214,13 +214,15 @@ Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên 
 **Mô tả:** Một dataset là một quy tắc chọn mẫu có trần; mỗi lần build ghi lại đúng những mẫu nó dùng.
 
 **Nghiệm thu:**
-- [ ] Chọn mọi mẫu Việt Nam đạt điều kiện của lineage, rồi thêm mẫu bối cảnh thế giới chia đều theo (nước, năm) cho tới trần
-- [ ] Cùng dữ liệu cho cùng tập mẫu; thêm một mẫu mới thì các mẫu bối cảnh đã chọn gần như giữ nguyên
-- [ ] Chỉ nhận mẫu có ít nhất năm lấy mẫu và ít nhất 10.000 nucleotide hợp lệ
-- [ ] Mỗi dataset có nhiều nhất một build hiện hành (ràng buộc trong DB)
+- [x] Chọn mẫu Việt Nam đạt điều kiện của lineage trước (tối đa 75% trần, để luôn còn chỗ cho bối cảnh), rồi thêm mẫu bối cảnh thế giới chia đều theo (nước, năm) cho tới trần
+- [x] Cùng dữ liệu cho cùng tập mẫu; thêm một mẫu mới thì các mẫu bối cảnh đã chọn gần như giữ nguyên
+- [x] Chỉ nhận mẫu có ít nhất năm lấy mẫu và ít nhất 10.000 nucleotide hợp lệ
+- [x] Mỗi dataset có nhiều nhất một build hiện hành (ràng buộc trong DB)
 
 **Kiểm chứng:** `DC run --rm api pytest tests/test_build_selection.py`
 **Phụ thuộc:** T5.1. **Cỡ:** M.
+**File:** `backend/app/build/{selection,datasets}.py`, `backend/app/models.py`, `backend/migrations/versions/0005_*.py`, `backend/tests/test_build_selection.py`
+**Trên dữ liệu thật:** `dengue-denv1` với trần 2.000 chọn 1.500 mẫu Việt Nam (trong 1.578 mẫu đủ điều kiện) và 500 mẫu bối cảnh từ 91 nước, mất 0,09 giây.
 
 ### T5.4 Các bước dựng cây, chạy trên bộ nhỏ
 **Mô tả:** Job `build_dataset` chạy các bước `prepare`, `tree`, `refine`, `ancestral`, `translate`, `clades`, `export` bằng `run_tool`.

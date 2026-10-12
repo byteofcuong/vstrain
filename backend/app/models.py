@@ -5,6 +5,7 @@ from enum import StrEnum
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Computed,
     Date,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Identity,
+    Index,
     Integer,
     MetaData,
     String,
@@ -163,6 +165,58 @@ class SampleAlignment(Base):
     sequence_sha256: Mapped[str] = mapped_column(String(64))  # chuỗi thô lúc gióng; khác đi thì phải gióng lại
     tool: Mapped[str] = mapped_column(String(60))
     aligned_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DatasetDef(Base):
+    """Một dataset: quy tắc chọn mẫu có trần. Mỗi lần dựng cây theo quy tắc này là một `Build`.
+
+    Trần số mẫu là cách giữ thời gian build trong tầm kiểm soát: `augur refine` chạy một luồng và chiếm
+    65-74% thời gian, nên thay vì một cây thật lớn, hệ thống dựng nhiều dataset vừa phải và chạy song song.
+    """
+
+    __tablename__ = "dataset_def"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    slug: Mapped[str] = mapped_column(String(60), unique=True)  # tên trong URL, ví dụ 'dengue-denv1'
+    title: Mapped[str] = mapped_column(String(200))
+    pathogen: Mapped[str] = mapped_column(String(40))
+    lineage: Mapped[str] = mapped_column(String(40))
+    max_samples: Mapped[int] = mapped_column(Integer)
+    home_country: Mapped[str] = mapped_column(String(100), server_default="Vietnam")
+    # Phần tối thiểu dành cho mẫu bối cảnh thế giới, để cây vẫn cho thấy mẫu trong nước nằm ở đâu.
+    min_context_share: Mapped[float] = mapped_column(Float, server_default=text("0.25"))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Build(Base):
+    """Một lần dựng cây của một dataset. Mỗi dataset có nhiều nhất một build hiện hành."""
+
+    __tablename__ = "build"
+    __table_args__ = (
+        CheckConstraint("status IN ('running', 'succeeded', 'failed')", name="status_known"),
+        Index("uq_build_current_per_dataset", "dataset_id", unique=True, postgresql_where=text("is_current")),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    dataset_id: Mapped[int] = mapped_column(ForeignKey("dataset_def.id", ondelete="CASCADE"), index=True)
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(20))
+    is_current: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    sample_count: Mapped[int | None] = mapped_column(Integer)
+    content_hash: Mapped[str | None] = mapped_column(String(64))
+    path: Mapped[str | None] = mapped_column(String(300))  # thư mục đã publish, tương đối so với thư mục builds
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BuildSample(Base):
+    """Mẫu nào nằm trong build nào, và vì sao được chọn."""
+
+    __tablename__ = "build_sample"
+
+    build_id: Mapped[int] = mapped_column(ForeignKey("build.id", ondelete="CASCADE"), primary_key=True)
+    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id"), primary_key=True, index=True)
+    role: Mapped[str] = mapped_column(String(20))  # 'home' | 'context'
 
 
 class JobStatus(StrEnum):

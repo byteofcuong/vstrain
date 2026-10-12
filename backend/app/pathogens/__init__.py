@@ -65,3 +65,10 @@ DENGUE: dict[str, Lineage] = {
     f"denv{number}": Lineage(pathogen="dengue", key=f"denv{number}", title=f"Dengue virus {number}")
     for number in (1, 2, 3, 4)
 }
+
+
+def get_lineage(pathogen: str, key: str) -> Lineage:
+    """Cấu hình của một lineage; `KeyError` nếu không có trong repo."""
+    if pathogen != "dengue":
+        raise KeyError(pathogen)
+    return DENGUE[key]
