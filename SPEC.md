@@ -57,10 +57,10 @@ Test (một file): docker compose -f deploy/docker-compose.yml run --rm api pyte
 Lint:           docker compose -f deploy/docker-compose.yml run --rm api ruff check .
 Format (kiểm):  docker compose -f deploy/docker-compose.yml run --rm api ruff format --check .
 Health:         curl -s http://127.0.0.1:8000/api/health
-Migration:      docker compose -f deploy/docker-compose.yml run --rm migrate
+Khởi tạo DB:    docker compose -f deploy/docker-compose.yml run --rm init
 ```
 
-Migration cũng tự chạy mỗi lần khởi động (service `migrate`). Test dùng database riêng `vietstrain_test`, được tạo lại ở đầu mỗi phiên test.
+`init` chạy migration rồi nạp dữ liệu địa danh (`python -m app.cli init-db`); nó cũng tự chạy mỗi lần khởi động và chạy lại bao nhiêu lần cũng được. Test dùng database riêng `vietstrain_test`, được tạo lại ở đầu mỗi phiên test.
 
 Lệnh nhập dữ liệu và lệnh frontend được thêm vào đây khi lát cắt tương ứng hoàn thành.
 
@@ -160,3 +160,4 @@ Trần của tiêu chí 4 và 4b do chính dữ liệu quyết định: 1.999 b�
 3. (`accounts`) Ai được tạo tài khoản: chỉ admin, hay cho tự đăng ký?
 4. (`submission`) Mẫu nộp qua web hiện công khai ngay khi đạt QC, hay cần admin duyệt?
 5. (`geo`, `map`) Nguồn mã tỉnh chính thức và nguồn đường biên có giấy phép mở.
+6. (`geo`) Vùng của 34 đơn vị mới: cách chia sáu vùng đã đổi sau sáp nhập, cần nguồn chính thức. Hiện đơn vị bộ 34 chưa được gán vùng.

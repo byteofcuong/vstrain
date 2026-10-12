@@ -29,7 +29,7 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 ### Phase 2: `geo`
 - [x] T2.1 `place_key()`: chuẩn hoá tên địa danh
 - [x] T2.2 Bảng `admin_unit`, `place_alias` và khung migration
-- [ ] T2.3 Seed 63 tỉnh, 34 đơn vị, vùng và tên thay thế
+- [x] T2.3 Seed 63 tỉnh, 34 đơn vị, vùng và tên thay thế
 - [ ] T2.4 `resolve_place()`: gán đơn vị theo tên và ngày lấy mẫu
 
 ### Checkpoint B
@@ -74,7 +74,7 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 | Gióng 59 nghìn chuỗi mất lâu | Trung bình | Chỉ gióng genome ≥ 10.000 nt; chạy nền, có thể chạy tiếp khi gián đoạn |
 | RAM 13 GB không đủ cho build lớn | Trung bình | Trần số mẫu mỗi dataset; P1 đo đỉnh 3,4 GB ở 5000 chuỗi |
 | Nguồn đường biên tỉnh không có giấy phép phù hợp | Trung bình | Kiểm tra giấy phép trước khi dùng; phương án lùi là bản đồ điểm theo tâm tỉnh |
-| Bảng 63 → 34 sai ở một dòng | Thấp | Đối chiếu với văn bản gốc Nghị quyết 202/2025/QH15 trước khi trích |
+| Bảng 63 → 34 sai ở một dòng | Thấp | Đã đối chiếu với toàn văn Nghị quyết 202/2025/QH15 (xem `backend/app/geo/data/NGUON.md`); nên mở văn bản gốc kiểm lại một lần trước khi trích |
 
 ## Open Questions
 

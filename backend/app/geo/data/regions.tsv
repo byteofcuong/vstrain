@@ -1,0 +1,10 @@
+code	level	name_vi	name_en	parent	aliases
+vnm:north	macro_region	Miền Bắc	Northern Vietnam		North|Northern|North Vietnam|Bắc Bộ|Phía Bắc
+vnm:central	macro_region	Miền Trung	Central Vietnam		Central|Trung Bộ
+vnm:south	macro_region	Miền Nam	Southern Vietnam		South|Southern|South Vietnam|Nam Bộ|Phía Nam
+vnr:red-river-delta	region	Đồng bằng sông Hồng	Red River Delta	vnm:north	ĐBSH|Hong River Delta
+vnr:northern-midlands-and-mountains	region	Trung du và miền núi phía Bắc	Northern Midlands and Mountains	vnm:north	Northern Midlands and Mountain Areas
+vnr:north-central-and-central-coast	region	Bắc Trung Bộ và Duyên hải miền Trung	North Central and Central Coast	vnm:central	North Central Coast|South Central Coast|Bắc Trung Bộ|Duyên hải Nam Trung Bộ|Nam Trung Bộ|Duyên hải miền Trung
+vnr:central-highlands	region	Tây Nguyên	Central Highlands	vnm:central
+vnr:southeast	region	Đông Nam Bộ	Southeast	vnm:south	Southeast Region|South East|Southeastern
+vnr:mekong-delta	region	Đồng bằng sông Cửu Long	Mekong Delta	vnm:south	Mekong River Delta|Cuu Long River Delta|ĐBSCL|Tây Nam Bộ|Miền Tây|Southwest

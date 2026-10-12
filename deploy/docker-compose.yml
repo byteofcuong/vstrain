@@ -31,18 +31,18 @@ services:
       timeout: 3s
       retries: 20
 
-  # Chạy một lần rồi thoát: đưa schema lên phiên bản mới nhất trước khi API khởi động.
-  migrate:
+  # Chạy một lần rồi thoát, trước khi API khởi động: migration và dữ liệu địa danh.
+  init:
     <<: *backend
     depends_on:
       db:
         condition: service_healthy
-    command: ["alembic", "upgrade", "head"]
+    command: ["python", "-m", "app.cli", "init-db"]
 
   api:
     <<: *backend
     depends_on:
-      migrate:
+      init:
         condition: service_completed_successfully
     ports:
       - "127.0.0.1:8000:8000"

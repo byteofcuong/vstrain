@@ -1,0 +1,64 @@
+name_vi	region	successor	variants
+An Giang	vnr:mekong-delta	An Giang	
+Bà Rịa - Vũng Tàu	vnr:southeast	Hồ Chí Minh	Ba Ria-Vung Tau|Vung Tau|BRVT
+Bạc Liêu	vnr:mekong-delta	Cà Mau	
+Bắc Giang	vnr:northern-midlands-and-mountains	Bắc Ninh	
+Bắc Kạn	vnr:northern-midlands-and-mountains	Thái Nguyên	Bac Can
+Bắc Ninh	vnr:red-river-delta	Bắc Ninh	
+Bến Tre	vnr:mekong-delta	Vĩnh Long	
+Bình Dương	vnr:southeast	Hồ Chí Minh	
+Bình Định	vnr:north-central-and-central-coast	Gia Lai	
+Bình Phước	vnr:southeast	Đồng Nai	
+Bình Thuận	vnr:north-central-and-central-coast	Lâm Đồng	
+Cà Mau	vnr:mekong-delta	Cà Mau	
+Cao Bằng	vnr:northern-midlands-and-mountains	Cao Bằng	
+Cần Thơ	vnr:mekong-delta	Cần Thơ	
+Đà Nẵng	vnr:north-central-and-central-coast	Đà Nẵng	
+Đắk Lắk	vnr:central-highlands	Đắk Lắk	Dac Lac
+Đắk Nông	vnr:central-highlands	Lâm Đồng	Dac Nong
+Điện Biên	vnr:northern-midlands-and-mountains	Điện Biên	
+Đồng Nai	vnr:southeast	Đồng Nai	
+Đồng Tháp	vnr:mekong-delta	Đồng Tháp	
+Gia Lai	vnr:central-highlands	Gia Lai	
+Hà Giang	vnr:northern-midlands-and-mountains	Tuyên Quang	
+Hà Nam	vnr:red-river-delta	Ninh Bình	
+Hà Nội	vnr:red-river-delta	Hà Nội	Hanoi|TP. Hà Nội
+Hà Tĩnh	vnr:north-central-and-central-coast	Hà Tĩnh	
+Hải Dương	vnr:red-river-delta	Hải Phòng	
+Hải Phòng	vnr:red-river-delta	Hải Phòng	
+Hậu Giang	vnr:mekong-delta	Cần Thơ	
+Hòa Bình	vnr:northern-midlands-and-mountains	Phú Thọ	
+Hưng Yên	vnr:red-river-delta	Hưng Yên	
+Khánh Hòa	vnr:north-central-and-central-coast	Khánh Hòa	
+Kiên Giang	vnr:mekong-delta	An Giang	
+Kon Tum	vnr:central-highlands	Quảng Ngãi	
+Lai Châu	vnr:northern-midlands-and-mountains	Lai Châu	
+Lạng Sơn	vnr:northern-midlands-and-mountains	Lạng Sơn	
+Lào Cai	vnr:northern-midlands-and-mountains	Lào Cai	
+Lâm Đồng	vnr:central-highlands	Lâm Đồng	
+Long An	vnr:mekong-delta	Tây Ninh	
+Nam Định	vnr:red-river-delta	Ninh Bình	
+Nghệ An	vnr:north-central-and-central-coast	Nghệ An	
+Ninh Bình	vnr:red-river-delta	Ninh Bình	
+Ninh Thuận	vnr:north-central-and-central-coast	Khánh Hòa	
+Phú Thọ	vnr:northern-midlands-and-mountains	Phú Thọ	
+Phú Yên	vnr:north-central-and-central-coast	Đắk Lắk	
+Quảng Bình	vnr:north-central-and-central-coast	Quảng Trị	
+Quảng Nam	vnr:north-central-and-central-coast	Đà Nẵng	
+Quảng Ngãi	vnr:north-central-and-central-coast	Quảng Ngãi	
+Quảng Ninh	vnr:red-river-delta	Quảng Ninh	
+Quảng Trị	vnr:north-central-and-central-coast	Quảng Trị	
+Sóc Trăng	vnr:mekong-delta	Cần Thơ	
+Sơn La	vnr:northern-midlands-and-mountains	Sơn La	
+Tây Ninh	vnr:southeast	Tây Ninh	
+Thái Bình	vnr:red-river-delta	Hưng Yên	
+Thái Nguyên	vnr:northern-midlands-and-mountains	Thái Nguyên	
+Thanh Hóa	vnr:north-central-and-central-coast	Thanh Hóa	
+Huế	vnr:north-central-and-central-coast	Huế	Thừa Thiên Huế|Thua Thien Hue|Thua Thien - Hue
+Tiền Giang	vnr:mekong-delta	Đồng Tháp	
+Hồ Chí Minh	vnr:southeast	Hồ Chí Minh	Ho Chi Minh City|TP.HCM|TP. Hồ Chí Minh|Saigon|Sai Gon|HCMC|TPHCM|HCM
+Trà Vinh	vnr:mekong-delta	Vĩnh Long	
+Tuyên Quang	vnr:northern-midlands-and-mountains	Tuyên Quang	
+Vĩnh Long	vnr:mekong-delta	Vĩnh Long	
+Vĩnh Phúc	vnr:red-river-delta	Phú Thọ	
+Yên Bái	vnr:northern-midlands-and-mountains	Lào Cai	
