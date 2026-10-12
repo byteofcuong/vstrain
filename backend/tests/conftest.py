@@ -5,12 +5,13 @@ file này, trước khi `app.db` tạo engine, nên mã nào mở kết nối tr
 Vì vậy `app.db` và `app.main` chỉ được import bên trong fixture.
 """
 
+import shutil
 from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine
-from sqlalchemy.orm import Session
+from sqlalchemy import Engine, text
+from sqlalchemy.orm import Session, sessionmaker
 
 from app import schema
 from app.config import settings
@@ -50,3 +51,21 @@ def client(session: Session) -> Iterator[TestClient]:
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def committed(engine: Engine) -> Iterator[sessionmaker[Session]]:
+    """Session thật, commit thật: cho test cần nhiều kết nối cùng lúc. Bảng hàng đợi được dọn sau khi chạy."""
+    yield sessionmaker(bind=engine, expire_on_commit=False)
+    with engine.begin() as connection:
+        connection.execute(text("TRUNCATE job CASCADE"))
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Test đánh dấu `tools` cần Augur, Nextclade, IQ-TREE; chúng chỉ có trong image worker."""
+    if shutil.which("augur") is not None:
+        return
+    skip = pytest.mark.skip(reason="cần công cụ sinh học: chạy trong image worker")
+    for item in items:
+        if "tools" in item.keywords:
+            item.add_marker(skip)

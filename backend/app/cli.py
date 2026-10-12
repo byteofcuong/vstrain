@@ -6,9 +6,13 @@ import json
 import sys
 from pathlib import Path
 
+from sqlalchemy import select
+
 from app import schema
 from app.db import SessionLocal
 from app.geo.seed import seed_geo
+from app.jobs import queue
+from app.models import Job, JobStep
 from app.samples.importer import import_genbank
 from app.samples.report import geo_report
 
@@ -39,6 +43,34 @@ def run_geo_report(_args: argparse.Namespace) -> None:
     print()
 
 
+def run_enqueue(args: argparse.Namespace) -> None:
+    with SessionLocal.begin() as session:
+        job = queue.enqueue(session, args.kind, json.loads(args.params), priority=args.priority)
+        print(job.id)
+
+
+def run_job(args: argparse.Namespace) -> None:
+    """In một job cùng các bước của nó, để theo dõi từ dòng lệnh."""
+    with SessionLocal() as session:
+        job = session.get(Job, args.id)
+        if job is None:
+            sys.exit(f"Không có job {args.id}")
+        steps = session.scalars(select(JobStep).filter_by(job_id=job.id).order_by(JobStep.position))
+        report = {
+            "id": job.id,
+            "kind": job.kind,
+            "status": job.status,
+            "params": job.params,
+            "result": job.result,
+            "error": job.error,
+            "worker": job.worker,
+            "seconds": (job.finished_at - job.started_at).total_seconds() if job.finished_at else None,
+            "steps": [{"name": step.name, "status": step.status, **step.metrics} for step in steps],
+        }
+    json.dump(report, sys.stdout, ensure_ascii=False, indent=2)
+    print()
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli", description="Lệnh quản trị VietStrain")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -57,6 +89,16 @@ def main(argv: list[str] | None = None) -> None:
     commands.add_parser("geo-report", help="thống kê mức gán địa danh của mẫu Việt Nam (JSON)").set_defaults(
         run=run_geo_report
     )
+
+    enqueue = commands.add_parser("enqueue", help="xếp một job vào hàng đợi, in ra mã job")
+    enqueue.add_argument("kind", help="loại job, ví dụ tool_versions")
+    enqueue.add_argument("--params", default="{}", help="tham số của job, dạng JSON")
+    enqueue.add_argument("--priority", type=int, default=0)
+    enqueue.set_defaults(run=run_enqueue)
+
+    job = commands.add_parser("job", help="xem một job và các bước của nó (JSON)")
+    job.add_argument("id", type=int)
+    job.set_defaults(run=run_job)
 
     args = parser.parse_args(argv)
     args.run(args)

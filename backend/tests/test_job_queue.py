@@ -5,7 +5,6 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import sessionmaker
 
 from app.jobs import queue
 from app.models import Job
@@ -110,14 +109,7 @@ def test_an_unknown_status_is_rejected(session):
         session.flush()
 
 
-# Hai test dưới đây cần kết nối thật và dữ liệu đã commit, nên tự dọn bảng sau khi chạy.
-
-
-@pytest.fixture
-def committed(engine):
-    yield sessionmaker(bind=engine, expire_on_commit=False)
-    with engine.begin() as connection:
-        connection.execute(text("TRUNCATE job CASCADE"))
+# Hai test dưới đây cần kết nối thật và dữ liệu đã commit (fixture `committed`).
 
 
 def test_a_job_locked_by_one_worker_is_skipped_by_another_without_waiting(committed):

@@ -10,6 +10,7 @@ x-backend: &backend
   environment:
     VS_DATABASE_URL: postgresql+psycopg://vietstrain:vietstrain@db:5432/vietstrain
     VS_DATA_DIR: /data
+    VS_WORK_DIR: /work
   volumes:
     - ../backend:/srv/backend      # mã nguồn mount thẳng để sửa không cần build lại image
     - ../data:/data
@@ -48,5 +49,22 @@ services:
       - "127.0.0.1:8000:8000"
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+  # Chạy job nền (gióng mẫu, dựng cây). Image riêng vì cần Augur, Nextclade, IQ-TREE.
+  worker:
+    <<: *backend
+    image: vietstrain-worker
+    build:
+      context: ../backend
+      dockerfile: ../deploy/worker.Dockerfile
+    volumes:
+      - ../backend:/srv/backend
+      - ../data:/data
+      - work:/work                   # thư mục làm việc của job nằm trên volume của Docker, nhanh hơn ổ Windows
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: ["python", "-m", "app.jobs.worker"]
+
 volumes:
   pgdata:
+  work:

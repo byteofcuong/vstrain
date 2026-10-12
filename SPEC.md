@@ -60,7 +60,13 @@ Health:         curl -s http://127.0.0.1:8000/api/health
 Khởi tạo DB:    docker compose -f deploy/docker-compose.yml run --rm init
 Nhập GenBank:   docker compose -f deploy/docker-compose.yml run --rm api python -m app.cli import-genbank --metadata /data/genbank-dengue/metadata_all.tsv --sequences /data/genbank-dengue/sequences_all.fasta
 Báo cáo địa danh: docker compose -f deploy/docker-compose.yml run --rm api python -m app.cli geo-report
+Test cần công cụ sinh học: docker compose -f deploy/docker-compose.yml run --rm worker pytest -m tools
+Xếp một job:    docker compose -f deploy/docker-compose.yml run --rm api python -m app.cli enqueue tool_versions
+Xem một job:    docker compose -f deploy/docker-compose.yml run --rm api python -m app.cli job 1
+Log của worker: docker compose -f deploy/docker-compose.yml logs -f worker
 ```
+
+Bộ test đầy đủ chạy được ở cả hai image. Trong image `api` (Python 3.12) các test đánh dấu `tools` tự bỏ qua; trong image `worker` (Python 3.11, có Augur, Nextclade, IQ-TREE) chúng chạy thật.
 
 Trong Git Bash, lệnh có đường dẫn kiểu `/data/...` phải đặt `MSYS_NO_PATHCONV=1` ở trước, nếu không Git Bash đổi nó thành đường dẫn Windows. PowerShell không cần.
 

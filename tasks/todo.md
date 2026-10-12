@@ -168,18 +168,18 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 **Mô tả:** Tiến trình worker lấy job, chạy handler theo loại job, ghi từng bước vào DB để giao diện thấy tiến độ.
 
 **Nghiệm thu:**
-- [ ] Mỗi bước có một dòng `job_step` (tên, trạng thái, bắt đầu, kết thúc, số đo, đuôi log), đọc được khi job còn đang chạy
-- [ ] Handler ném lỗi thì job thành `failed` và worker chạy tiếp; loại job lạ thì `failed`
-- [ ] Job `running` mà worker ngừng báo nhịp quá 90 giây được đánh dấu `failed`
-- [ ] Service `worker` trong Compose (image dẫn xuất từ `nextstrain/base`, chạy bằng user thường) xử lý job `tool_versions`, kết quả ghi phiên bản augur, nextclade, iqtree
+- [x] Mỗi bước có một dòng `job_step` (tên, trạng thái, bắt đầu, kết thúc, số đo, đuôi log), đọc được khi job còn đang chạy
+- [x] Handler ném lỗi thì job thành `failed` và worker chạy tiếp; loại job lạ thì `failed`
+- [x] Job `running` mà worker ngừng báo nhịp quá 90 giây được đánh dấu `failed`
+- [x] Service `worker` trong Compose (image dẫn xuất từ `nextstrain/base`, chạy bằng user thường) xử lý job `tool_versions`, kết quả ghi phiên bản augur, nextclade, iqtree
 
 **Kiểm chứng:** `DC run --rm api pytest tests/test_job_steps.py tests/test_worker.py`; `DC up -d --build` rồi `DC run --rm api python -m app.cli enqueue tool_versions` và xem dòng `job`
 **Phụ thuộc:** T4.1, T4.2. **Cỡ:** M.
-**File:** `backend/app/jobs/{steps,worker,handlers}.py`, `deploy/worker.Dockerfile`, `deploy/docker-compose.yml`, `backend/app/cli.py`, 2 file test
+**File:** `backend/app/jobs/{steps,worker,handlers}.py` (worker chạy bằng `python -m app.jobs.worker`), `deploy/worker.Dockerfile`, `deploy/docker-compose.yml`, `backend/app/cli.py`, 2 file test
 
 ## Checkpoint (hết Phase 4)
-- [ ] ADR-003 (mã nội bộ, gọi công cụ bằng danh sách đối số) và ADR-004 (bước pipeline là hàm Python có trạng thái trong DB) được viết
-- [ ] Một job thật chạy trong container worker, từ lúc xếp hàng tới lúc có kết quả
+- [x] ADR-003 (mã nội bộ, gọi công cụ bằng danh sách đối số) và ADR-004 (bước pipeline là hàm Python có trạng thái trong DB) được viết
+- [x] Một job thật chạy trong container worker, từ lúc xếp hàng tới lúc có kết quả
 
 ---
 

@@ -7,7 +7,8 @@ requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q -p no:cacheprovider"
+addopts = "-q -p no:cacheprovider --strict-markers"
+markers = ["tools: cần Augur, Nextclade, IQ-TREE; chỉ chạy được trong image worker"]
 
 [tool.ruff]
 line-length = 120

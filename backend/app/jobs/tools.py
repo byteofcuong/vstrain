@@ -27,7 +27,7 @@ class ToolResult:
     exit_code: int
     wall_seconds: float
     cpu_seconds: float  # user + system, của tiến trình và các tiến trình con nó đã chờ
-    max_rss_mb: float
+    max_rss_mb: float  # không thấp hơn bộ nhớ của worker: tiến trình con được tách ra từ worker rồi mới exec
     log_path: Path
     log_tail: str
 
