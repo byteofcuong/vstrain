@@ -1,6 +1,8 @@
 import datetime as dt
 import hashlib
 import json
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -201,3 +203,19 @@ def test_a_tip_that_is_not_a_sample_of_the_build_is_an_error(session, dataset, s
 
     with pytest.raises(ValueError, match=samples[2].internal_id):
         publish_build(session, build, root)
+
+
+def test_publishing_removes_what_an_interrupted_publication_left_behind(session, build, root):
+    folder = root / f"dengue-denv1/b{build.id:06d}"
+    stale, fresh = folder / ".tmp-interrupted", folder / ".tmp-in-progress"
+    for temporary in (stale, fresh):
+        temporary.mkdir()
+        (temporary / "tree.json").write_text("{}")
+    two_hours_ago = time.time() - 2 * 3600
+    os.utime(stale, (two_hours_ago, two_hours_ago))
+
+    path = publish_build(session, build, root)
+
+    # Thư mục tạm còn mới có thể đang được một job khác ghi, nên được để yên.
+    assert not stale.exists() and fresh.is_dir()
+    assert (root / path / "manifest.json").is_file()

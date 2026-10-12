@@ -11,6 +11,7 @@ có thể được cache vĩnh viễn, còn "bản hiện hành" chỉ là một
 import hashlib
 import json
 import shutil
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,6 +25,8 @@ from app.config import settings
 from app.models import AdminUnit, Build, BuildSample, DatasetDef, Sample
 
 FORMAT_VERSION = 1
+# Thư mục tạm cũ hơn mức này chắc chắn không còn job nào đang ghi: một lần publish mất chưa tới một giây.
+_STALE_TEMPORARY_SECONDS = 3600
 
 
 @dataclass(frozen=True)
@@ -158,8 +161,17 @@ def _files(session: Session, dataset: DatasetDef, build: Build, auspice_bytes: b
     return files
 
 
+def _remove_stale_temporaries(parent: Path) -> None:
+    """Xoá thư mục tạm mà một lần publish bị ngắt giữa chừng (mất điện, container bị dừng) để lại."""
+    limit = time.time() - _STALE_TEMPORARY_SECONDS
+    for entry in parent.glob(".tmp-*"):
+        if not entry.is_symlink() and entry.is_dir() and entry.stat().st_mtime < limit:
+            shutil.rmtree(entry, ignore_errors=True)
+
+
 def _write_folder(final: Path, files: dict[str, bytes]) -> None:
     """Ghi trọn bộ file vào một thư mục tạm rồi đổi tên: thư mục publish hoặc có đủ, hoặc không tồn tại."""
+    _remove_stale_temporaries(final.parent)
     if final.exists():
         return
     temporary = final.parent / f".tmp-{uuid.uuid4().hex}"
