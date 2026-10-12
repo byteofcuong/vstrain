@@ -269,10 +269,10 @@ Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên 
 
 ## Checkpoint D (hết mốc M2): dừng lại để bạn xem
 - [x] Tiêu chí 5 và 5b đạt
-- [ ] Tiêu chí 2: đạt phần "không có bước gióng"; phần "build nhanh hơn" chưa kết luận được (xem D1)
+- [x] Tiêu chí 2 (build N = 2.000 không chậm hơn 771 s, không có bước gióng): đạt sát ngưỡng. Ba lần chạy trên đúng tập mẫu của P1: 755, 770, 770 s. Build không nhanh hơn P1: phần gióng tiết kiệm được (77 s) bị `refine` chậm hơn ăn hết (xem `TIEN-DO.md` mục 15, ADR-005)
 - [x] ADR-005 (gióng từng mẫu một lần) được viết
-- [ ] Trình bày kết quả, đặc tả module `viewer`, `accounts`, `submission` và các câu hỏi mở
-- [ ] Xin phép cài dependency cho frontend
+- [x] Trình bày kết quả, đặc tả module `viewer`, `accounts`, `submission` và các câu hỏi mở (các câu hỏi mở đang dùng phương án đề xuất, ghi ở cuối file này)
+- [x] Xin phép cài dependency cho frontend (đồng ý ngày 2026-10-12, Node 24 portable)
 
 ---
 
@@ -281,14 +281,14 @@ Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên 
 Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong một nhóm thì dừng chờ.
 
 **Nhóm đóng Checkpoint D**
-- [ ] D1 (tuỳ chọn, khoảng 25 phút máy chạy): chạy lại `refine` 2 lần trên tập mẫu của P1 để biết 75 s chênh là nhiễu hay do alignment. Kiểm chứng: 3 số `refine` trong `do-dac/results/W4-build-webapp/`
-- [ ] D2: commit ba bản đặc tả nháp trong `specs/`; gộp `feature/build` vào `main`. Kiểm chứng: `git log --oneline -1 main`
-- [ ] D3 (việc của bạn): duyệt `specs/SPEC-viewer.md`, `SPEC-accounts.md`, `SPEC-submission.md`; trả lời các câu hỏi mở; đồng ý hay không với dependency frontend
+- [x] D1: chạy lại build 2 lần trên tập mẫu của P1, và chạy `refine` của webapp trên đầu vào của P1 (W4b). Kết quả: chênh lệch không phải nhiễu (649, 659, 660 s so với 570–584 s của P1); ít nhất 54 s đến từ đầu vào. Số liệu ở `do-dac/results/W4-build-webapp/`
+- [x] D2: commit ba bản đặc tả nháp trong `specs/`; gộp `feature/build` vào `main` (`df60514`)
+- [ ] D3 (việc của bạn, không chặn việc đang làm): đọc `specs/SPEC-accounts.md`, `SPEC-submission.md` và mục "Quyết định cho các câu hỏi mở" ở cuối file; đổi chỗ nào thì báo. Dependency frontend đã được đồng ý
 
 **Nhóm dọn nợ kỹ thuật backend** (từ review, chưa sửa; mỗi mục cỡ S)
-- [ ] N1: dọn thư mục làm việc của job đã xong quá N ngày. Kiểm chứng: test tạo thư mục cũ, chạy dọn, thư mục mất
-- [ ] N2: publish xoá thư mục `.tmp-*` còn sót của lần chạy hỏng. Kiểm chứng: test
-- [ ] N3: IQ-TREE nhận seed cố định từ cấu hình lineage để hai lần build cùng đầu vào cho cùng cây. Kiểm chứng: test `-m tools` so hai cây
+- [x] N1: worker rảnh thì dọn thư mục làm việc của job đã kết thúc quá 7 ngày (`60c63f0`)
+- [x] N2: publish xoá thư mục `.tmp-*` còn sót của lần chạy hỏng, trừ thư mục mới hơn một giờ (`e66b4ac`)
+- [x] N3: IQ-TREE nhận seed cố định từ cấu hình lineage (`4ea3436`). Kiểm chứng: test đọc dòng `Seed:` trong log của IQ-TREE. Chưa kiểm chứng rằng hai lần build cho đúng cùng một cây: IQ-TREE chọn số luồng tự động (`-T AUTO`), và số luồng khác nhau có thể cho kết quả khác nhau dù cùng seed
 
 ---
 
