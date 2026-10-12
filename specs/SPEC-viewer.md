@@ -1,6 +1,6 @@
 # Spec: module `viewer` (mốc M3)
 
-Trạng thái: **đang triển khai** (dependency được đồng ý ngày 2026-10-12; các câu hỏi mở đang dùng phương án đề xuất, ghi ở cuối `tasks/todo.md`). Những chỗ triển khai khác bản nháp được ghi ở mục "Thay đổi so với bản nháp".
+Trạng thái: **đã triển khai** (2026-10-13; sáu tiêu chí nghiệm thu đều đạt, số đo ở mục "Checkpoint E" của `tasks/todo.md`). Các câu hỏi mở dùng phương án đề xuất, ghi ở cuối `tasks/todo.md`. Những chỗ triển khai khác bản nháp được ghi ở mục "Thay đổi so với bản nháp".
 
 ## Objective
 
@@ -26,6 +26,7 @@ Không (để sau hoặc không làm): bản đồ (module `map`), panel entropy
 - `GET /api/datasets` → mỗi dataset có `currentBuild.manifestUrl`.
 - `manifest.json` (định dạng 1): `counts`, `files.tree`, `files.tips`, `columns[]` (mỗi cột: `key`, `scope` là `tip` hoặc `node`, `title.vi`, `title.en`, `valueCount`, `file.path`).
 - `tree.json`: các mảng song song theo thứ tự duyệt trước: `name`, `parent` (cha luôn đứng trước con), `div`, `numDate`, `numDateLower`, `numDateUpper`, `tipNode`.
+- `numDate` là một thời điểm ghi bằng năm thập phân, không phải một ngày: TreeTime đặt tip vào giữa ngày lấy mẫu, và `augur export` làm tròn 3 chữ số (lệch tới 0,18 ngày). Ngày lịch của một tip là ngày chứa thời điểm đó.
 - `tips.json`: `displayName`, `accession`, `collectionDate` theo thứ tự tip.
 - `col.<key>.json`: `values`, `codes` (−1 là thiếu), có thể có `labels`.
 - Mọi file trong thư mục publish không bao giờ đổi (cache vĩnh viễn).
@@ -44,6 +45,7 @@ Không (để sau hoặc không làm): bản đồ (module `map`), panel entropy
 - **Trục vẽ trên Canvas, không phải DOM.** Mốc của trục đổi theo từng khung hình khi phóng to; vẽ chung với cây thì không có lần render nào của React trong lúc phóng. Nhãn trục vì thế không đọc được bằng trình đọc màn hình; khoảng ngày của dataset có ở hai ô chọn ngày.
 - **Phóng to không tính lại bố cục.** Vị trí node nằm trong hệ toạ độ [0, 1] × [0, 1]; phóng và kéo chỉ đổi phép biến đổi sang pixel. Lưới tìm tip cũng nằm trong hệ toạ độ này nên chỉ dựng lại khi đổi bố cục hoặc trục.
 - **Tô màu tối đa tám giá trị.** Cột có nhiều hơn tám giá trị (quốc gia) thì tám giá trị nhiều mẫu nhất có màu riêng, phần còn lại chung một màu xám; bảng màu đã qua kiểm tra tách biệt cho người mù màu. Màu gắn với giá trị và không đổi khi lọc.
+- **Bộ lọc ngày giữ hai ngày dạng chữ, tính cả hai ngày.** Việc đổi sang khoảng thời điểm trên cây nằm ở một hàm (`dayRange`), dùng cùng quy tắc với hàm gọi tên ngày của một tip, nên tip hiện ngày nào thì lọc đúng ngày đó sẽ giữ nó.
 - **Tên node trong không được giữ ở trình duyệt**, chỉ giữ mã nội bộ của tip.
 - **Không dùng thư viện router.** Hai trang phân biệt bằng phần `#` của URL.
 - **Cửa nhìn cho test:** `window.__vietstrain` (chỉ đọc: số khung hình, số tip đã vẽ, toạ độ của một tip) để test đầu-cuối và harness đo hiệu năng dùng.
@@ -57,7 +59,7 @@ Không (để sau hoặc không làm): bản đồ (module `map`), panel entropy
 | 3b | Lọc theo ngày, đổi cột màu ở 35 nghìn tip | ≤ 100 ms main thread bận, không có long task trên 50 ms do mã của ứng dụng | Performance trace |
 | 3c | Rê chuột và bấm vào tip cho đúng mẫu | Đúng với 100 tip chọn ngẫu nhiên | Test Playwright so với `tree.json` |
 | V1 | Dataset 100 nghìn tip mở được | Có khung hình, không lỗi | Dataset tổng hợp |
-| V2 | Dataset DENV1 thật hiển thị đúng | Số tip, khoảng ngày, màu theo cột khớp manifest | Test Playwright |
+| V2 | Dataset DENV1 thật hiển thị đúng | Số tip, khoảng ngày, màu theo cột khớp file publish (manifest, `tree.json`, file cột) | Test Playwright |
 | V3 | Đổi ngôn ngữ không tải lại dữ liệu | Có | Test |
 
 So sánh với Auspice phải nói rõ hai bên không ngang tính năng (phần "Không" ở trên).
@@ -73,9 +75,7 @@ So sánh với Auspice phải nói rõ hai bên không ngang tính năng (phần
 7. Bố cục toả tròn; trục độ phân kỳ.
 8. Song ngữ; đo lại tiêu chí 3, 3b, 3c trên 35 nghìn và 100 nghìn tip.
 
-## Dependency cần bạn đồng ý
-
-Chưa cài gì. Đề xuất:
+## Dependency (đã được đồng ý ngày 2026-10-12, đã cài trong `frontend/`)
 
 | Loại | Gói | Dùng cho |
 |---|---|---|
@@ -86,7 +86,7 @@ Chưa cài gì. Đề xuất:
 | Phát triển | `@playwright/test` | Test đầu-cuối và harness hiệu năng; Chromium của Playwright đã có sẵn từ giai đoạn đo đạc |
 | Phát triển | `eslint`, `typescript-eslint`, `prettier` | Lint và format |
 
-Node: dùng lại Node 24 portable đã cài ở `D:\nextstrain\do-dac\tools\node24` (không đụng Node 22 của máy), hoặc image `node:24` nếu bạn muốn build trong Docker. `maplibre-gl` thuộc module `map`, sẽ hỏi riêng.
+Node: Node 24 portable ở `D:\nextstrain\do-dac\tools\node24` (không đụng Node 22 của máy). `maplibre-gl` thuộc module `map`, sẽ hỏi riêng.
 
 ## Câu hỏi mở
 

@@ -328,8 +328,26 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 **Đã biết, chưa giải thích được:** một lần chạy `npm run e2e` (khi còn chạy trên dev server) có 1 test thất bại (lọc theo chú giải); chạy lại 112 lượt test liên tiếp không tái hiện, log của API không có request nào lỗi, và đầu ra của lần hỏng không được giữ lại. Từ nay đầu ra của test đầu-cuối luôn được ghi ra file.
 
 ## Checkpoint E (hết mốc M3)
-- [ ] Tiêu chí 3, 3b, 3c, V1, V2, V3 có số đo
-- [ ] Ảnh chụp màn hình viewer với dataset DENV1 thật
+- [x] Tiêu chí 3, 3b, 3c, V1, V2, V3 có số đo (bảng dưới)
+- [x] Ảnh chụp màn hình viewer với dataset DENV1 thật: năm ảnh ở `do-dac/results/W5-viewer-webapp/anh/`, chụp qua service `web` bằng `do-dac/scripts/w5-viewer/chup_man_hinh.mjs`
+
+| Tiêu chí | Ngưỡng | Kết quả | Nguồn |
+|---|---|---|---|
+| 3 | khung hình đầu ≤ 1 s ở 35 nghìn tip | 313 ms; 418 ms qua nginx | T6.11 |
+| 3b | lọc theo ngày, đổi cột màu ở 35 nghìn tip: main thread bận ≤ 100 ms, không task trên 50 ms | bận nhiều nhất 67,7 ms; task dài nhất 44,1 ms | T6.11 |
+| 3c | rê chuột và bấm 100 tip ngẫu nhiên, ra đúng mẫu | 100 / 100; ngày trên cây của cả 100 mẫu nằm trong ngày lấy mẫu đã khai | test `(criterion 3c)` |
+| V1 | dataset 100 nghìn tip mở được, không lỗi | khung hình đầu 464 ms; 0 lỗi | T6.11 |
+| V2 | số tip, khoảng ngày, màu theo cột khớp file publish | 1.964 tip; giới hạn của hai ô chọn ngày là ngày của tip sớm nhất và muộn nhất; danh sách cột và số đếm trong chú giải khớp manifest và file cột | ba test `(criterion V2)` |
+| V3 | đổi ngôn ngữ không tải lại dữ liệu | 0 request | test `(criterion V3)` |
+
+**Kiểm chứng lúc đóng checkpoint (2026-10-13, commit `d32f469`):** `npm run test` → 148 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 12 passed; `npm run e2e:web` → 17 passed (12 test của viewer qua nginx, 5 test của cấu hình nginx).
+
+**Hai lỗi tìm ra khi đối chiếu tiêu chí V2 với file publish, đã sửa (`d32f469`):**
+- **Ngày trên cây lệch một ngày.** Trong `tree.json`, tip nằm ở giữa ngày lấy mẫu (quy ước của TreeTime) và `augur export` làm tròn 3 chữ số thập phân; viewer lại làm tròn tới nửa đêm gần nhất. Trên build DENV1, 606 trong 1.964 tip hiện một ngày nằm ngoài ngày lấy mẫu đã khai (352 trong 773 mẫu có ngày đầy đủ bị muộn một ngày; mẫu chỉ khai năm 1971 hiện 1972-01-01). Sau khi sửa: 0.
+- **Bộ lọc "Đến ngày" làm rơi tip ở cuối ngày.** Cận trên đặt ở 99% của ngày được chọn, nên tip có thời điểm rơi vào mấy phút cuối ngày bị loại (3 tip của build DENV1). Nay bộ lọc giữ hai ngày dạng chữ và đổi sang một khoảng thời điểm khớp với cách viewer gọi tên ngày.
+- Test cũ của V2 chỉ so số tip, nên cả hai lỗi lọt qua. Test mới thất bại trên bản build cũ ở đúng hai chỗ này. Mutation check cho phần ngày: 28 chỗ sửa thử, cả 28 bị test bắt.
+
+**Dọn dẹp:** hai dataset tổng hợp (`synth-35000`, `synth-100000`) đã xoá khỏi DB và thư mục publish, danh sách dataset chỉ còn dengue. File nguồn vẫn ở `data/tmp/synth/`; mốc M7 cần đo lại thì tạo lại bằng lệnh ghi ở đầu `do-dac/scripts/w5-viewer/xuat_dataset_tong_hop.py`.
 
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
