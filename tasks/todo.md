@@ -306,10 +306,23 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 - [x] T6.8 Lưới không gian tìm tip dưới con trỏ; tooltip; bấm mở bảng chi tiết mẫu. Kiểm chứng: Playwright rê chuột và bấm 100 tip ngẫu nhiên, ra đúng mẫu cả 100 lần (tiêu chí 3c)
 - [x] T6.9 Bố cục toả tròn. Kiểm chứng: vitest; Playwright đổi bố cục và trục, không mất tip nào
 - [x] T6.10 Song ngữ Việt, Anh; đổi ngôn ngữ không tải lại dữ liệu (tiêu chí V3). Kiểm chứng: Playwright đếm request sau khi đổi ngôn ngữ (0)
-- [ ] T6.11 Đo tiêu chí 3, 3b, V1 trên dataset 35 nghìn và 100 nghìn tip; ghi vào `do-dac/results/`
+- [x] T6.11 Đo tiêu chí 3, 3b, V1 trên dataset 35 nghìn và 100 nghìn tip. Số liệu ở `do-dac/results/W5-viewer-webapp/`, diễn giải ở `do-dac/bao-cao/TIEN-DO.md` mục 16
 - [ ] T6.12 Service `web` (nginx) phục vụ frontend đã build và thư mục publish, chuyển `/api` sang `api`
 
 **Kết quả kiểm chứng của T6.1–T6.10 (2026-10-13):** `npm run test` → 97 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 9 passed trên bản build, với dataset DENV1 thật (1.964 tip).
+
+**Kết quả của T6.11 (2026-10-13, commit `a575ac2`; Chromium headless, 5 lần mỗi dataset):**
+
+| Tiêu chí | Ngưỡng | Đo được | Đạt |
+|---|---|---|---|
+| 3: khung hình đầu ở 35 nghìn tip | ≤ 1 s | 313 ms (trung vị; 463 / 313 / 306 / 327 / 312) | có |
+| 3b: lọc theo ngày, đổi cột màu ở 35 nghìn tip | main thread bận ≤ 100 ms, không task trên 50 ms | bận nhiều nhất 67,7 ms; task dài nhất 44,1 ms | có |
+| V1: dataset 100 nghìn tip mở được | có khung hình, không lỗi | khung hình đầu 464 ms; 0 lỗi; 14 thao tác chạy xong ở cả 5 lần | có |
+
+- Ngoài phạm vi tiêu chí 3b: lần đầu đổi sang bố cục toả tròn trong một phiên có một task 51–77 ms ở 35 nghìn tip.
+- Bộ vẽ được tối ưu trong lúc đo (`33d6f18`, `fa8e40a`, `a575ac2`): chỉ vẽ nét thêm pixel mới, tip nhỏ vẽ thành ô 2 × 2 pixel, bố cục toả tròn bỏ nhánh ngoài khung nhìn, mỗi lượt màu chỉ duyệt node của màu đó. Khi kéo cây liên tục ở 35 nghìn tip, main thread cần 12–25 ms cho một khung hình (trước: 21–37 ms); ở 100 nghìn tip 22–38 ms (trước: 44–94 ms).
+- Kiểm chứng sau các thay đổi này: `npm run test` → 142 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 9 passed. Mutation check trên `draw.ts`: 59 chỗ sửa, 57 bị test bắt; 2 chỗ còn lại không đổi hình vẽ.
+- Chưa làm: bỏ qua cả cây con nằm ngoài khung nhìn (mỗi khung hình vẫn duyệt mọi node); phần raster nằm ngoài hàm vẽ (7–17 ms mỗi khung hình ở 35 nghìn tip); đo trên Chrome có GPU, mạng chậm, CPU chậm.
 
 **Đã biết, chưa giải thích được:** một lần chạy `npm run e2e` (khi còn chạy trên dev server) có 1 test thất bại (lọc theo chú giải); chạy lại 112 lượt test liên tiếp không tái hiện, log của API không có request nào lỗi, và đầu ra của lần hỏng không được giữ lại. Từ nay đầu ra của test đầu-cuối luôn được ghi ra file.
 
@@ -319,6 +332,6 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
-- Định dạng cột giữ JSON; xét lại sau khi có số đo ở T6.11.
+- Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.
 - Tài khoản do admin tạo (CLI); có bảng `audit_log` đơn giản.
 - Mẫu nộp hiện ngay với nhãn "tạm" sau khi qua kiểm tra chất lượng; admin có nút ẩn. Mỗi lần nộp một chuỗi.
