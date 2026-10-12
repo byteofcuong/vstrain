@@ -37,7 +37,7 @@ Mỗi quyết định được ghi thành ADR khi module liên quan bắt đầu
 
 ### Phase 3: `samples`
 - [x] T3.1 Bảng `sample`, `sample_sequence`; phân tích ngày không đầy đủ
-- [ ] T3.2 Lệnh nhập GenBank, chạy lại không nhân đôi
+- [x] T3.2 Lệnh nhập GenBank, chạy lại không nhân đôi
 - [ ] T3.3 Nhập 59.551 bản ghi dengue thật; báo cáo địa danh Việt Nam
 - [ ] T3.4 API tra cứu mẫu theo tỉnh, khoảng ngày, có phân trang
 

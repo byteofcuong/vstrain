@@ -100,13 +100,13 @@ Quy ước: `DC` là `docker compose -f deploy/docker-compose.yml`. Mỗi task x
 **Mô tả:** Nhập file metadata TSV và FASTA do ingest của Nextstrain tạo ra; bản ghi Việt Nam được gán địa danh.
 
 **Nghiệm thu:**
-- [ ] Nhập bộ mẫu nhỏ cho đúng số bản ghi, đúng chuỗi, đúng trạng thái địa danh
-- [ ] Chạy lại lệnh không tạo bản ghi trùng (khoá là accession)
-- [ ] Bản ghi thiếu chuỗi hoặc thiếu accession bị đếm và báo cáo, không làm hỏng cả lô
+- [x] Nhập bộ mẫu nhỏ cho đúng số bản ghi, đúng chuỗi, đúng trạng thái địa danh
+- [x] Chạy lại lệnh không tạo bản ghi trùng (khoá là accession)
+- [x] Bản ghi thiếu chuỗi hoặc thiếu accession bị đếm và báo cáo, không làm hỏng cả lô
 
 **Kiểm chứng:** `DC run --rm api pytest tests/test_import_genbank.py`
 **Phụ thuộc:** T2.4, T3.1. **Cỡ:** M.
-**File:** `backend/app/samples/importer.py`, `backend/app/cli.py`, `backend/tests/test_import_genbank.py`, `backend/tests/fixtures/genbank_small.*`
+**File:** `backend/app/samples/importer.py`, `backend/app/cli.py`, `backend/tests/test_import_genbank.py` (dữ liệu thử được viết ngay trong từng test)
 
 ### T3.3 Nhập dữ liệu thật và báo cáo địa danh
 **Mô tả:** Nhập 59.551 bản ghi dengue; đo tỉ lệ gán địa danh cho 4.305 bản ghi Việt Nam.
