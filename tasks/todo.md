@@ -385,6 +385,36 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 - Mã tỉnh của Tổng cục Thống kê cho 34 đơn vị đã có trong file hình học, chưa đưa vào bảng `admin_unit`.
 - Chưa làm: phóng to và kéo bản đồ; nhớ việc ẩn bản đồ giữa các lần mở trang; vùng của 34 đơn vị mới theo cách chia sau sáp nhập.
 
+---
+
+## Phase 8: `accounts` (mốc M5, phần đăng nhập)
+
+Đặc tả: `specs/SPEC-accounts.md`; quyết định: ADR-008. Không thêm dependency nào.
+
+- [x] T8.1 Băm mật khẩu bằng scrypt của thư viện chuẩn, chuỗi băm tự mô tả, chuẩn hoá NFKC, trần số lần băm cùng lúc. Kiểm chứng: `tests/test_passwords.py`
+- [x] T8.2 Bảng `app_user`, `user_session`, `audit_log` (migration 0008); đăng nhập, đăng xuất, `GET /api/auth/me`, khoá sau 5 lần sai, header chống CSRF cho mọi request ghi, `CurrentUser` và `AdminUser`. Kiểm chứng: `tests/test_auth_api.py`
+- [x] T8.3 Lệnh `python -m app.cli create-user`. Kiểm chứng: test trong `tests/test_auth_api.py` và script bằng chứng trên stack thật
+- [x] T8.4 Trang `#/login` và khối tài khoản ở thanh đầu trang. Kiểm chứng: `frontend/e2e/auth.spec.ts` trên stack thật, tài khoản tạm tạo bằng lệnh quản trị và xoá sau khi chạy
+- [x] T8.5 Review độc lập hai bước, sửa theo review, reviewer đọc lại bản sửa (chấp nhận). Chi tiết ở mục "Review độc lập" của đặc tả
+
+| Tiêu chí | Kết quả | Nguồn |
+|---|---|---|
+| A1 đăng nhập, `me`, đăng xuất có hiệu lực ngay ở server | đạt | `test_auth_api.py`; cookie cũ gửi lại sau khi đăng xuất nhận 401 qua nginx |
+| A2 endpoint admin: 401 khi chưa đăng nhập, 403 với người nộp | đạt | `test_auth_api.py` |
+| A3 chuỗi băm và token không rời server, không vào nhật ký | đạt | `test_auth_api.py`; quét hai bảng trên stack thật: 0 bí mật |
+| A4 khoá sau 5 lần sai, giữ qua các request | đạt, kể cả khi các lần sai được gửi cùng lúc | test dùng session thật của ứng dụng; test 8 lần sai song song |
+| A5 request ghi thiếu header bị từ chối | đạt | 4 phương thức x 5 đường dẫn |
+| A6 review độc lập trước khi gộp | đạt | 18 điều kiểm: 16 đạt, 2 không đạt và đã sửa; bản sửa được chấp nhận |
+| A7 trang đăng nhập | đạt | 8 test đầu-cuối |
+
+**Kiểm chứng lúc đóng (2026-10-13):** backend `pytest` trong image api → 372 passed, 13 skipped; trong image worker → 385 passed. Mutation check của module: 81 chỗ sửa thử, cả 81 bị test bắt. Frontend: `npm run test` → 235 passed; `npm run e2e` → 35 passed; `npm run e2e:web` → 40 passed.
+
+**Số đo qua nginx, tham số băm thật:** bốn kiểu đăng nhập thất bại trả lời giống nhau từng byte, trung vị 285 đến 292 ms; 30 lần đăng nhập sai gửi cùng lúc vào một tài khoản thì 12 lần được kiểm tra, 18 lần nhận 503, `/api/health` trong lúc đó chậm nhất 61 ms và database thấy nhiều nhất 4 kết nối bận.
+
+**Lỗi do review tìm ra, đã sửa:** các lần đăng nhập vào cùng một email xếp hàng sau khoá của dòng tài khoản trước khi trần số lần băm được xét, nên một loạt 20 request làm cả API treo. Test của tôi trước đó chỉ thử trần ở tầng hàm băm, không thử qua endpoint với cùng một tài khoản.
+
+**Chưa làm (đã ghi trong ADR-008):** giới hạn tần suất theo IP ở nginx, HTTPS, đổi và đặt lại mật khẩu, giao diện admin để khoá tài khoản, dọn định kỳ phiên hết hạn và nhật ký.
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.

@@ -67,7 +67,14 @@ Một reviewer không viết mã này làm hai bước: viết danh sách 18 đi
 | Phiên hết hạn chỉ bị xoá khi tài khoản đó đăng nhập lại; `audit_log` không có thời hạn lưu | Để mốc M6 (dọn định kỳ) |
 | `--role` có giá trị mặc định `submitter` | Không đổi: mặc định là vai trò thấp nhất |
 
-Reviewer không chạy được lệnh nào (chỉ đọc mã và log), và chưa đọc test đầu-cuối của frontend.
+Bản sửa được chính reviewer đó đọc lại và chấp nhận, kèm hai ghi chú mức thấp:
+
+| Ghi chú | Xử lý |
+|---|---|
+| Thông báo lỗi của SQLAlchemy chép cả tham số của câu lệnh, nên log của server có thể chứa email vừa thử đăng nhập | Sửa: engine được tạo với `hide_parameters=True` (`tests/test_db.py`) |
+| Lỗi chưa lường trước nay thành câu trả lời 500 cả trong test (trước đây test thấy thẳng traceback); client ngắt kết nối giữa chừng cũng bị ghi log như một lỗi | Không đổi: traceback vẫn nằm trong log, và pytest in log khi test thất bại |
+
+Reviewer không chạy được lệnh nào (chỉ đọc mã và log), chưa đọc test đầu-cuối của frontend, và ở lần đọc lại chưa đối chiếu các file số liệu (kết quả test, mutation check, số đo qua nginx).
 
 ## Quyết định cho các câu hỏi mở
 

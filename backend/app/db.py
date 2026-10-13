@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+# hide_parameters: thông báo lỗi của SQLAlchemy không chép lại giá trị gửi kèm câu lệnh. Thông báo đó đi vào log và
+# vào `job.error`, còn giá trị có thể là email vừa thử đăng nhập hay cả một genome. (Phần thông báo do chính
+# PostgreSQL viết thì không bị ảnh hưởng.)
+engine = create_engine(settings.database_url, pool_pre_ping=True, hide_parameters=True)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
