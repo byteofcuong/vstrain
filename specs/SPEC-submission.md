@@ -102,7 +102,7 @@ Một reviewer không viết mã này làm hai bước: trước tiên chỉ đ�
 | S1 viết 422 nhưng request trên 4 MB nhận 413 | Giữ nguyên, ghi rõ ở bảng tiêu chí |
 | Tên mẫu được chuẩn hoá NFC, không phải "nguyên văn" từng byte | Giữ nguyên, ghi rõ ở mục kiểm tra lúc nộp |
 
-Reviewer đọc lại bản sửa (commit `b022964`) và chấp nhận: năm phát hiện có sửa mã đều đã được xử lý, không có lỗi mới ở mức chặn. Nó lưu ý hai điều đã biết: `except Exception` quanh mỗi lần gắn bắt cả lỗi mất kết nối database (khi đó mọi lần gắn sau cũng hỏng và job vẫn kết thúc là hỏng), và việc giữ nguyên độ ưu tiên của `place_pending` cùng endpoint tip tạm không phân trang chỉ ổn ở quy mô vài chục tài khoản.
+Reviewer đọc lại bản sửa (commit `7082874`) và chấp nhận: năm phát hiện có sửa mã đều đã được xử lý, không có lỗi mới ở mức chặn. Nó lưu ý hai điều đã biết: `except Exception` quanh mỗi lần gắn bắt cả lỗi mất kết nối database (khi đó mọi lần gắn sau cũng hỏng và job vẫn kết thúc là hỏng), và việc giữ nguyên độ ưu tiên của `place_pending` cùng endpoint tip tạm không phân trang chỉ ổn ở quy mô vài chục tài khoản.
 
 Reviewer không đọc frontend. Phần đó dựa vào test đầu-cuối trên stack thật, mutation check, và một lần rà: mã frontend không dùng `innerHTML` hay `dangerouslySetInnerHTML`, nên tên mẫu luôn được React thoát ký tự khi hiển thị.
 

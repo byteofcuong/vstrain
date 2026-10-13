@@ -265,7 +265,7 @@ Test của phase này chạy công cụ thật (Nextclade, IQ-TREE, Augur) nên 
 - [x] Byte NUL trong log và thông báo lỗi không làm hỏng việc ghi DB; job quá thời gian giữ được đuôi log
 - [x] Job có tham số lạ bị từ chối; chuỗi có ký tự không phải nucleotide không tới công cụ; `/builds/` chỉ phát đúng dạng đường dẫn của bản publish
 
-**Kiểm chứng:** 14 test mới thất bại trên mã cũ; `DC run --rm worker pytest` → 267 passed; `DC run --rm api pytest` → 255 passed, 12 skipped (commit `aa2a37b`)
+**Kiểm chứng:** 14 test mới thất bại trên mã cũ; `DC run --rm worker pytest` → 267 passed; `DC run --rm api pytest` → 255 passed, 12 skipped (commit `f94412d`)
 
 ## Checkpoint D (hết mốc M2): dừng lại để bạn xem
 - [x] Tiêu chí 5 và 5b đạt
@@ -282,13 +282,13 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 **Nhóm đóng Checkpoint D**
 - [x] D1: chạy lại build 2 lần trên tập mẫu của P1, và chạy `refine` của webapp trên đầu vào của P1 (W4b). Kết quả: chênh lệch không phải nhiễu (649, 659, 660 s so với 570–584 s của P1); ít nhất 54 s đến từ đầu vào. Số liệu ở `do-dac/results/W4-build-webapp/`
-- [x] D2: commit ba bản đặc tả nháp trong `specs/`; gộp `feature/build` vào `main` (`8dd8a1d`)
+- [x] D2: commit ba bản đặc tả nháp trong `specs/`; gộp `feature/build` vào `main` (`98efe17`)
 - [ ] D3 (việc của bạn, không chặn việc đang làm): đọc `specs/SPEC-accounts.md`, `SPEC-submission.md` và mục "Quyết định cho các câu hỏi mở" ở cuối file; đổi chỗ nào thì báo. Dependency frontend đã được đồng ý
 
 **Nhóm dọn nợ kỹ thuật backend** (từ review, chưa sửa; mỗi mục cỡ S)
-- [x] N1: worker rảnh thì dọn thư mục làm việc của job đã kết thúc quá 7 ngày (`e6c1f1d`)
-- [x] N2: publish xoá thư mục `.tmp-*` còn sót của lần chạy hỏng, trừ thư mục mới hơn một giờ (`27735e3`)
-- [x] N3: IQ-TREE nhận seed cố định từ cấu hình lineage (`b71db41`). Kiểm chứng: test đọc dòng `Seed:` trong log của IQ-TREE. Chưa kiểm chứng rằng hai lần build cho đúng cùng một cây: IQ-TREE chọn số luồng tự động (`-T AUTO`), và số luồng khác nhau có thể cho kết quả khác nhau dù cùng seed
+- [x] N1: worker rảnh thì dọn thư mục làm việc của job đã kết thúc quá 7 ngày (`a613d1f`)
+- [x] N2: publish xoá thư mục `.tmp-*` còn sót của lần chạy hỏng, trừ thư mục mới hơn một giờ (`81fd3ee`)
+- [x] N3: IQ-TREE nhận seed cố định từ cấu hình lineage (`967fd3f`). Kiểm chứng: test đọc dòng `Seed:` trong log của IQ-TREE. Chưa kiểm chứng rằng hai lần build cho đúng cùng một cây: IQ-TREE chọn số luồng tự động (`-T AUTO`), và số luồng khác nhau có thể cho kết quả khác nhau dù cùng seed
 
 ---
 
@@ -311,7 +311,7 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 **Kết quả kiểm chứng của T6.1–T6.10 (2026-10-13):** `npm run test` → 97 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 9 passed trên bản build, với dataset DENV1 thật (1.964 tip).
 
-**Kết quả của T6.11 (2026-10-13, commit `67dc8fd`; Chromium headless, 5 lần mỗi dataset):**
+**Kết quả của T6.11 (2026-10-13, commit `e9f6145`; Chromium headless, 5 lần mỗi dataset):**
 
 | Tiêu chí | Ngưỡng | Đo được | Đạt |
 |---|---|---|---|
@@ -321,7 +321,7 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 - Các số trên đo bản build do `vite preview` phục vụ (không nén). Qua service `web` (nginx, nén gzip lúc phát), khung hình đầu là 418 ms ở 35 nghìn tip và 804 ms ở 100 nghìn tip; tiêu chí 3 và 3b vẫn đạt.
 - Ngoài phạm vi tiêu chí 3b: lần đầu đổi sang bố cục toả tròn trong một phiên có một task 51–77 ms ở 35 nghìn tip.
-- Bộ vẽ được tối ưu trong lúc đo (`e822aff`, `e4defc7`, `67dc8fd`): chỉ vẽ nét thêm pixel mới, tip nhỏ vẽ thành ô 2 × 2 pixel, bố cục toả tròn bỏ nhánh ngoài khung nhìn, mỗi lượt màu chỉ duyệt node của màu đó. Khi kéo cây liên tục ở 35 nghìn tip, main thread cần 12–25 ms cho một khung hình (trước: 21–37 ms); ở 100 nghìn tip 22–38 ms (trước: 44–94 ms).
+- Bộ vẽ được tối ưu trong lúc đo (`1123011`, `b23cf3e`, `e9f6145`): chỉ vẽ nét thêm pixel mới, tip nhỏ vẽ thành ô 2 × 2 pixel, bố cục toả tròn bỏ nhánh ngoài khung nhìn, mỗi lượt màu chỉ duyệt node của màu đó. Khi kéo cây liên tục ở 35 nghìn tip, main thread cần 12–25 ms cho một khung hình (trước: 21–37 ms); ở 100 nghìn tip 22–38 ms (trước: 44–94 ms).
 - Kiểm chứng sau các thay đổi này: `npm run test` → 142 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 9 passed. Mutation check trên `draw.ts`: 59 chỗ sửa, 57 bị test bắt; 2 chỗ còn lại không đổi hình vẽ.
 - Chưa làm: bỏ qua cả cây con nằm ngoài khung nhìn (mỗi khung hình vẫn duyệt mọi node); phần raster nằm ngoài hàm vẽ (7–17 ms mỗi khung hình ở 35 nghìn tip); đo trên Chrome có GPU, mạng chậm, CPU chậm.
 
@@ -340,9 +340,9 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 | V2 | số tip, khoảng ngày, màu theo cột khớp file publish | 1.964 tip; giới hạn của hai ô chọn ngày là ngày của tip sớm nhất và muộn nhất; danh sách cột và số đếm trong chú giải khớp manifest và file cột | ba test `(criterion V2)` |
 | V3 | đổi ngôn ngữ không tải lại dữ liệu | 0 request | test `(criterion V3)` |
 
-**Kiểm chứng lúc đóng checkpoint (2026-10-13, commit `1279663`):** `npm run test` → 148 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 12 passed; `npm run e2e:web` → 17 passed (12 test của viewer qua nginx, 5 test của cấu hình nginx).
+**Kiểm chứng lúc đóng checkpoint (2026-10-13, commit `f14b8e6`):** `npm run test` → 148 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 12 passed; `npm run e2e:web` → 17 passed (12 test của viewer qua nginx, 5 test của cấu hình nginx).
 
-**Hai lỗi tìm ra khi đối chiếu tiêu chí V2 với file publish, đã sửa (`1279663`):**
+**Hai lỗi tìm ra khi đối chiếu tiêu chí V2 với file publish, đã sửa (`f14b8e6`):**
 - **Ngày trên cây lệch một ngày.** Trong `tree.json`, tip nằm ở giữa ngày lấy mẫu (quy ước của TreeTime) và `augur export` làm tròn 3 chữ số thập phân; viewer lại làm tròn tới nửa đêm gần nhất. Trên build DENV1, 606 trong 1.964 tip hiện một ngày nằm ngoài ngày lấy mẫu đã khai (352 trong 773 mẫu có ngày đầy đủ bị muộn một ngày; mẫu chỉ khai năm 1971 hiện 1972-01-01). Sau khi sửa: 0.
 - **Bộ lọc "Đến ngày" làm rơi tip ở cuối ngày.** Cận trên đặt ở 99% của ngày được chọn, nên tip có thời điểm rơi vào mấy phút cuối ngày bị loại (3 tip của build DENV1). Nay bộ lọc giữ hai ngày dạng chữ và đổi sang một khoảng thời điểm khớp với cách viewer gọi tên ngày.
 - Test cũ của V2 chỉ so số tip, nên cả hai lỗi lọt qua. Test mới thất bại trên bản build cũ ở đúng hai chỗ này. Mutation check cho phần ngày: 28 chỗ sửa thử, cả 28 bị test bắt.
@@ -355,7 +355,7 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 Đặc tả: `specs/SPEC-map.md`; quyết định: ADR-007. Nguồn đường biên được đồng ý ngày 2026-10-13 (HDX cho bộ 34, geoBoundaries cho bộ 63); không cài thêm gói nào.
 
-- [x] T7.1 Bộ dựng hình học (`npm run build:map`): khớp tên với mã của `admin_unit`, gộp 63 tỉnh thành 6 vùng và 3 miền, rút gọn lớp HDX, chiếu và ghi `src/map/vn-map.json` (138 KB, 25 KB khi nén). Kiểm chứng: 50 test đơn vị; mutation check trên `generate.ts`: 34 chỗ sửa, cả 34 bị bắt (`3b34510`)
+- [x] T7.1 Bộ dựng hình học (`npm run build:map`): khớp tên với mã của `admin_unit`, gộp 63 tỉnh thành 6 vùng và 3 miền, rút gọn lớp HDX, chiếu và ghi `src/map/vn-map.json` (138 KB, 25 KB khi nén). Kiểm chứng: 50 test đơn vị; mutation check trên `generate.ts`: 34 chỗ sửa, cả 34 bị bắt (`bf10c14`)
 - [x] T7.2 Xếp mẫu vào địa bàn ở bốn lớp, đếm, độ phủ, cấp mở đầu, bộ lọc theo địa bàn (thuần logic). Kiểm chứng: vitest
 - [x] T7.3 Bảng bản đồ SVG: thang màu năm lớp (qua `validate_palette.js --ordinal`), chú giải, dòng tóm tắt, danh sách địa bàn, tooltip, bàn phím; nối vào bộ lọc chung của cây. Kiểm chứng: Playwright
 - [x] T7.4 Đo tiêu chí B7 và chụp ảnh. Số liệu ở `do-dac/results/W5-viewer-webapp/viewer_denv1_2000_qua_nginx_co_ban_do.json`, ảnh `06`–`08` trong `anh/`
