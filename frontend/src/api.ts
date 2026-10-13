@@ -16,6 +16,8 @@ export interface DatasetInfo {
   pathogen: string;
   lineage: string;
   maxSamples: number;
+  /** Số giờ giữa hai lần build tự động; `null` là không có lịch. */
+  buildIntervalHours: number | null;
   currentBuild: CurrentBuild | null;
 }
 
@@ -209,4 +211,122 @@ export function getPlacements(slug: string, signal?: AbortSignal): Promise<Place
 /** Ẩn hoặc hiện lại một mẫu (chỉ admin). */
 export function setSampleHidden(internalId: string, hidden: boolean): Promise<void> {
   return send<void>("POST", `/api/admin/samples/${encodeURIComponent(internalId)}/${hidden ? "hide" : "unhide"}`);
+}
+
+// --- Vận hành (chỉ admin) ---
+
+export type JobStatus = "queued" | "running" | "succeeded" | "failed";
+
+export interface Job {
+  id: number;
+  kind: string;
+  status: JobStatus;
+  params: Record<string, unknown>;
+  priority: number;
+  worker: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  /** Thời gian chạy của job đã kết thúc. */
+  seconds: number | null;
+  /** Trong danh sách: dòng đầu của lỗi; ở chi tiết: đầy đủ. */
+  error: string | null;
+  retryOf: number | null;
+}
+
+export interface JobStep {
+  position: number;
+  name: string;
+  status: "running" | "succeeded" | "failed";
+  startedAt: string;
+  finishedAt: string | null;
+  seconds: number | null;
+  logTail: string | null;
+}
+
+export interface JobDetail extends Job {
+  result: Record<string, unknown> | null;
+  retriedBy: number | null;
+  steps: JobStep[];
+}
+
+export type JobCounts = Record<JobStatus, number>;
+
+export interface JobPage {
+  items: Job[];
+  total: number;
+  /** Của cả hàng đợi, không theo bộ lọc. */
+  counts: JobCounts;
+  oldestQueuedSeconds: number | null;
+}
+
+export function listJobs(status: JobStatus | null, signal?: AbortSignal): Promise<JobPage> {
+  return get<JobPage>(`/api/admin/jobs?limit=100${status ? `&status=${status}` : ""}`, signal);
+}
+
+export function getJob(id: number, signal?: AbortSignal): Promise<JobDetail> {
+  return get<JobDetail>(`/api/admin/jobs/${id}`, signal);
+}
+
+/** Chạy lại một job hỏng; trả về mã của job mới. */
+export async function retryJob(id: number): Promise<number> {
+  return (await send<{ id: number }>("POST", `/api/admin/jobs/${id}/retry`)).id;
+}
+
+export async function setBuildInterval(slug: string, hours: number | null): Promise<number | null> {
+  const path = `/api/admin/datasets/${encodeURIComponent(slug)}`;
+  return (await send<{ buildIntervalHours: number | null }>("PATCH", path, { buildIntervalHours: hours }))
+    .buildIntervalHours;
+}
+
+/** Xếp một lần dựng cây ngay; trả về mã job. */
+export async function requestBuild(slug: string): Promise<number> {
+  return (await send<{ id: number }>("POST", `/api/admin/datasets/${encodeURIComponent(slug)}/builds`)).id;
+}
+
+export async function listUnits(signal?: AbortSignal): Promise<AdminUnit[]> {
+  return (await get<{ items: AdminUnit[] }>("/api/units", signal)).items;
+}
+
+/** Một cách viết địa danh chưa khớp được với đơn vị nào. */
+export interface UnresolvedPlace {
+  key: string;
+  text: string;
+  spellings: string[];
+  samples: number;
+}
+
+export interface UnresolvedPlaces {
+  items: UnresolvedPlace[];
+  samples: number;
+}
+
+export interface PlaceAlias {
+  key: string;
+  text: string;
+  unitCode: string;
+  unitName: string;
+}
+
+/** Kết quả của việc thêm hoặc xoá một tên thay thế: bao nhiêu mẫu đổi, cây của dataset nào được publish lại. */
+export interface AliasChange {
+  key: string;
+  changedSamples: number;
+  republished: string[];
+}
+
+export function listUnresolvedPlaces(signal?: AbortSignal): Promise<UnresolvedPlaces> {
+  return get<UnresolvedPlaces>("/api/admin/places/unresolved", signal);
+}
+
+export async function listAliases(signal?: AbortSignal): Promise<PlaceAlias[]> {
+  return (await get<{ items: PlaceAlias[] }>("/api/admin/places/aliases", signal)).items;
+}
+
+export function addAlias(text: string, unitCode: string): Promise<AliasChange> {
+  return send<AliasChange>("POST", "/api/admin/places/aliases", { text, unitCode });
+}
+
+export function removeAlias(key: string): Promise<AliasChange> {
+  return send<AliasChange>("DELETE", `/api/admin/places/aliases/${encodeURIComponent(key)}`);
 }

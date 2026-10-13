@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import { DatasetList } from "./components/DatasetList";
 import { DatasetView } from "./components/DatasetView";
@@ -9,6 +9,9 @@ import type { Lang } from "./i18n";
 import { parseRoute } from "./route";
 import { useAuth } from "./state/auth";
 import { useT, useUi } from "./state/store";
+
+// Ba trang quản trị chỉ vài người dùng tới: mã của chúng được tải riêng, người xem cây không phải tải.
+const AdminPage = lazy(() => import("./components/admin/AdminPage").then((module) => ({ default: module.AdminPage })));
 
 function useRoute() {
   const [hash, setHash] = useState(() => window.location.hash);
@@ -71,6 +74,11 @@ export function App() {
               <a href="#/mine" aria-current={route.page === "mine" ? "page" : undefined}>
                 {t("mySamples")}
               </a>
+              {user.role === "admin" && (
+                <a href="#/admin/jobs" aria-current={route.page === "admin" ? "page" : undefined}>
+                  {t("admin")}
+                </a>
+              )}
             </nav>
           )}
           {user && (
@@ -95,6 +103,11 @@ export function App() {
       {route.page === "login" && <LoginPage />}
       {route.page === "submit" && <SubmitPage />}
       {route.page === "mine" && <MySamplesPage />}
+      {route.page === "admin" && (
+        <Suspense fallback={<main className="page" />}>
+          <AdminPage section={route.section} />
+        </Suspense>
+      )}
       {route.page === "list" && <DatasetList />}
     </div>
   );

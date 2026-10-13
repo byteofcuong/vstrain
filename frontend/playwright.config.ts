@@ -2,15 +2,18 @@ import { defineConfig } from "@playwright/test";
 
 /** Test của việc nộp mẫu. Chúng thêm tip tạm vào dataset mà các test khác đang đọc, nên chạy riêng, sau cùng. */
 export const SUBMISSION = "submission.spec.ts";
+/** Test của các trang quản trị. Chúng xếp job và thêm dataset tạm, nên cũng chạy riêng. */
+export const ADMIN = "admin.spec.ts";
 
 /**
- * Hai nhóm test: `viewer` chạy song song và chỉ đọc; `submission` chạy sau khi `viewer` xong, lần lượt từng test,
- * vì nó ghi vào dataset dùng chung (mỗi test tự dọn mẫu và tài khoản của mình).
+ * Ba nhóm test: `viewer` chạy song song và chỉ đọc; `submission` rồi `admin` chạy sau khi `viewer` xong, lần lượt
+ * từng test, vì chúng ghi vào dữ liệu dùng chung (mỗi nhóm tự dọn những gì nó tạo ra).
  */
 export function projects(viewerIgnore: string[]) {
   return [
-    { name: "viewer", testIgnore: [...viewerIgnore, SUBMISSION] },
+    { name: "viewer", testIgnore: [...viewerIgnore, SUBMISSION, ADMIN] },
     { name: "submission", testMatch: SUBMISSION, dependencies: ["viewer"], fullyParallel: false },
+    { name: "admin", testMatch: ADMIN, dependencies: ["submission"], fullyParallel: false },
   ];
 }
 

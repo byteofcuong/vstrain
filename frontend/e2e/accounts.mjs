@@ -14,7 +14,8 @@ function docker(args, input) {
   return run.stdout.trim();
 }
 
-function sql(text) {
+/** Chạy một câu SQL trên database của stack; chỉ dùng với chuỗi do chính các file test này dựng. */
+export function sql(text) {
   return docker(["exec", "-T", "db", "psql", "-U", "vietstrain", "-d", "vietstrain", "-At", "-F", "\t", "-c", text]);
 }
 

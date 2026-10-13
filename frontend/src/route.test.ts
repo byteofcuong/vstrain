@@ -10,6 +10,9 @@ describe("parseRoute", () => {
     expect(parseRoute("#/login")).toEqual({ page: "login" });
     expect(parseRoute("#/submit")).toEqual({ page: "submit" });
     expect(parseRoute("#/mine")).toEqual({ page: "mine" });
+    expect(parseRoute("#/admin/jobs")).toEqual({ page: "admin", section: "jobs" });
+    expect(parseRoute("#/admin/datasets")).toEqual({ page: "admin", section: "datasets" });
+    expect(parseRoute("#/admin/places")).toEqual({ page: "admin", section: "places" });
   });
 
   it("reads the provisional tip a dataset address points at", () => {
@@ -38,6 +41,10 @@ describe("parseRoute", () => {
       "#/d/dengue-denv1/x/S0059552",
       "#/constructor",
       "#/toString",
+      "#/admin",
+      "#/admin/",
+      "#/admin/users",
+      "#/admin/jobs/7",
     ]) {
       expect(parseRoute(hash), hash).toEqual({ page: "list" });
     }

@@ -8,6 +8,7 @@ export interface Account {
   role: "submitter" | "admin";
 }
 
+export function sql(text: string): string;
 export function createAccount(role?: "submitter" | "admin"): Account;
 export function removeAccount(email: string): void;
 

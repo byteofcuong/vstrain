@@ -915,6 +915,22 @@ div.notice {
   .masthead__tagline {
     display: none;
   }
+
+  /* Người đã đăng nhập có thêm các liên kết và tên tài khoản: thanh đầu trang xuống dòng thay vì tràn ngang. */
+  .masthead,
+  .masthead__end {
+    flex-wrap: wrap;
+  }
+
+  .masthead__end {
+    gap: 0.4rem 1rem;
+  }
+
+  .masthead__nav a,
+  .masthead__account,
+  .masthead__lang button {
+    white-space: nowrap;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1054,53 +1070,210 @@ div.notice {
   display: none;
 }
 
-.submissions {
+:is(.submissions, .records) {
   width: 100%;
   margin-top: 1.5rem;
   border-collapse: collapse;
 }
 
-.submissions th,
-.submissions td {
+:is(.submissions, .records) th,
+:is(.submissions, .records) td {
   padding: 0.55rem 1rem 0.55rem 0;
   border-top: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
 }
 
-.submissions thead th {
+:is(.submissions, .records) thead th {
   border-top: 0;
   color: var(--ink-soft);
   font-weight: 600;
   white-space: nowrap;
 }
 
-.submissions tbody th {
+:is(.submissions, .records) tbody th {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.submissions small {
+:is(.submissions, .records) small {
   display: block;
   color: var(--ink-faint);
   font-size: var(--step--1);
   font-weight: 400;
 }
 
-.submissions td a,
-.submissions td button {
+:is(.submissions, .records) td a,
+:is(.submissions, .records) td button {
   display: block;
   margin-top: 0.25rem;
 }
 
-.submissions td button.quiet {
+:is(.submissions, .records) td button.quiet {
   padding-left: 0;
 }
 
 /* Màn hình hẹp: bảng cuộn ngang trong khung của nó, trang không bị kéo rộng. */
 @media (max-width: 760px) {
-  .submissions {
+  :is(.submissions, .records) {
     display: block;
     overflow-x: auto;
   }
+}
+
+/* Trang quản trị: công việc nền, lịch dựng cây, địa danh */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs a {
+  padding: 0.4rem 0;
+  border-bottom: 3px solid transparent;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.tabs a:hover {
+  color: var(--ink);
+}
+
+.tabs a[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.page > .queue {
+  margin-top: 1rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.page__section {
+  margin-top: 2.75rem;
+}
+
+.page__section h2 {
+  font-size: var(--step-2);
+  font-weight: 650;
+}
+
+.records td {
+  font-variant-numeric: tabular-nums;
+}
+
+.records thead td {
+  border-top: 0;
+}
+
+.records .records__actions {
+  padding-right: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.records td.records__actions button {
+  display: inline-block;
+  margin-top: 0;
+}
+
+.records select {
+  max-width: 100%;
+}
+
+/* Tình trạng của một việc: chữ luôn có mặt; dấu đứng trước chỉ nhắc lại nó bằng hình. */
+.state {
+  white-space: nowrap;
+}
+
+.state::before {
+  content: "";
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: 0.45rem;
+  border: 1.5px solid var(--ink-faint);
+  border-radius: 50%;
+}
+
+.state[data-status="running"]::before {
+  border-color: var(--accent);
+  background: linear-gradient(90deg, var(--accent) 50%, transparent 50%);
+}
+
+.state[data-status="succeeded"]::before {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.state[data-status="failed"] {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.state[data-status="failed"]::before {
+  border-color: var(--warn);
+  border-radius: 0;
+  background: var(--warn);
+}
+
+.records .records__detail > td {
+  padding: 0 0 1.25rem;
+  border-top: 0;
+}
+
+.job {
+  padding: 0.25rem 1rem 1rem;
+  border-left: 3px solid var(--panel-strong);
+  background: var(--panel);
+}
+
+.job h3 {
+  margin-top: 1rem;
+  font-size: var(--step-0);
+  font-weight: 650;
+}
+
+.job__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  padding-top: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.records--plain {
+  margin-top: 0.25rem;
+}
+
+.records--plain details {
+  margin-top: 0.25rem;
+  font-weight: 400;
+}
+
+.records--plain summary {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.log {
+  max-height: 16rem;
+  margin-top: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: var(--step--1);
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
