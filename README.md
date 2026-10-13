@@ -9,7 +9,7 @@
 ## Ứng dụng làm được gì
 
 - **Xem:** danh sách bộ dữ liệu; cây vẽ bằng Canvas (bố cục chữ nhật và toả tròn, trục thời gian hoặc độ phân kỳ); tô màu, lọc theo thuộc tính và theo ngày; tìm mẫu; bản đồ theo miền, vùng, tỉnh (bộ 63 tỉnh cũ và bộ 34 đơn vị từ 1/7/2025); tiếng Việt và tiếng Anh.
-- **Nộp mẫu:** người nộp đăng nhập, gửi một file FASTA kèm ngày và nơi lấy mẫu. Hệ thống tự tìm serotype, kiểm tra chất lượng, rồi gắn tạm mẫu vào cây đang phát. Mẫu thành tip chính thức ở lần dựng cây kế tiếp.
+- **Nộp mẫu:** người nộp đăng nhập, gửi một file FASTA kèm ngày và nơi lấy mẫu. Hệ thống tự tìm serotype, kiểm tra chất lượng, rồi gắn tạm mẫu vào cây đang phát. Mẫu thành tip chính thức ở lần dựng cây kế tiếp. Người nộp sửa được tên, ngày, tỉnh và vật chủ của mẫu mình đã nộp.
 - **Vận hành:** cây được dựng lại theo lịch và chỉ khi tập mẫu đã đổi; admin theo dõi các việc nền, chạy lại việc hỏng, và gán các cách viết địa danh chưa khớp ngay trên giao diện.
 
 | Mẫu vừa nộp, gắn tạm lên cây | Trang việc nền của admin |
@@ -144,7 +144,7 @@ data/               dữ liệu nạp vào và file build sinh ra; không nằm 
 - Chạy trên một máy bằng Docker Compose; chưa triển khai lên server, chưa có HTTPS, chưa đo dưới tải.
 - Mọi số đo dùng DENV1 và một máy (8 nhân, 13 GB cho Docker).
 - Tài khoản do admin tạo bằng dòng lệnh; chưa có đổi mật khẩu, chưa có giao diện quản lý tài khoản.
-- Chưa sửa được mẫu đã nộp (admin ẩn mẫu, người nộp nộp lại); mỗi lần nộp một chuỗi.
+- Mỗi lần nộp một chuỗi, và chuỗi của mẫu đã nộp không sửa được (chuỗi khác là mẫu khác).
 - Vùng của 34 đơn vị hành chính mới chưa có nguồn chính thức nên chưa được gán; mã đơn vị là mã nội bộ.
 - Cách chọn mẫu bối cảnh thế giới cho mỗi cây là một quy tắc đơn giản; đồ án tập trung vào kiến trúc, không đánh giá chất lượng khoa học của cây.
 

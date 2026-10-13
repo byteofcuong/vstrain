@@ -1,6 +1,6 @@
 # Spec: module `submission` (mốc M5, phần nộp mẫu)
 
-Trạng thái: **đã triển khai và đã qua review độc lập** (2026-10-13), trừ tiêu chí 1b (đo ở mốc M7) và việc sửa mẫu đã nộp (xem "Chưa làm"). Các câu hỏi mở dùng phương án đề xuất.
+Trạng thái: **đã triển khai và đã qua review độc lập** (2026-10-13), kể cả việc sửa mẫu đã nộp (bổ sung sau mốc M7). Tiêu chí 1 ở 5.000 tip và tiêu chí 1b được đo ở mốc M7: xem `docs/KET-QUA.md`. Các câu hỏi mở dùng phương án đề xuất.
 
 ## Objective
 
@@ -73,11 +73,56 @@ Tình trạng của một mẫu đã nộp (`stage`): `processing`, `failed` (jo
 | 5 | Mẫu tên "Hà_Nội/01/2024" đi trọn luồng nộp, đặt tạm và build | Qua | **đạt**: `tests/test_ingest.py` (công cụ thật: nộp, tip tạm, build kế tiếp có mẫu, tên nằm trong bản publish, không file nào của job chứa tên) và `frontend/e2e/submission.spec.ts` (qua giao diện, tên có cả `; touch pwned`) |
 | S1 | File không phải FASTA, chuỗi quá ngắn, sai ký tự, quá lớn | Từ chối với lỗi 422 nói rõ lý do, không tạo job | **đạt**: 19 trường hợp trong `tests/test_submissions_api.py`. File trên 2 MB nhận 422 `FASTA_TOO_LARGE`. Khác chữ của tiêu chí ở một chỗ, có chủ ý: request trên 4 MB nhận 413 `BODY_TOO_LARGE`, vì nó bị chặn trước khi thân được đọc vào bộ nhớ |
 | S2 | Genome khác serotype của dataset | Được gán đúng serotype hoặc bị từ chối có lý do | **đạt**: genome DENV2 được nhận là `denv2`; chuỗi ngẫu nhiên bị từ chối `NOT_THIS_PATHOGEN` |
-| S3 | Người nộp chỉ thấy và sửa được mẫu của mình | Có test | **đạt phần "thấy"**; phần "sửa" chưa làm |
+| S3 | Người nộp chỉ thấy và sửa được mẫu của mình | Có test | **đạt**; phần "sửa" ở mục "Sửa mẫu đã nộp" |
+
+## Sửa mẫu đã nộp (bổ sung sau mốc M7)
+
+Trạng thái: **đã triển khai** (2026-10-13).
+
+Người nộp gõ nhầm ngày hoặc chọn nhầm tỉnh là chuyện thường. Trước phần này, cách duy nhất để sửa là nhờ admin ẩn mẫu rồi nộp lại, tức là một mẫu mới, một mã mới và một lần kiểm tra mới cho cùng một chuỗi.
+
+### Thiết kế
+
+- `PATCH /api/submissions/{internalId}` với đủ bốn trường `displayName`, `collectionDate`, `unitCode`, `host`. Chuỗi không sửa được: chuỗi khác là mẫu khác, phải nộp mới.
+- **Chỉ người đã nộp mẫu đó sửa được.** Người nộp khác nhận 404, như khi xem. Admin xem được mọi mẫu nhưng không sửa hộ: nhận 403. Việc của admin vẫn là ẩn mẫu.
+- **Chỉ mẫu đã được nhận** (`accepted`) và không có việc kiểm tra nào đang chờ hoặc đang chạy mới sửa được. Mẫu đang được kiểm tra nhận 409 `SAMPLE_BEING_CHECKED`; mẫu bị từ chối, bị ẩn, hoặc có việc kiểm tra đã hỏng nhận 409 `SAMPLE_NOT_EDITABLE`.
+- Bốn trường qua đúng các phép kiểm tra của lúc nộp, với cùng mã lỗi cho từng trường, và mọi lỗi được báo trong một lượt. Tỉnh phải tồn tại trong khoảng ngày lấy mẫu mới.
+- Gửi lại đúng các giá trị đang có thì không có gì được ghi: không nhật ký, không việc nền.
+- Mỗi lần sửa có một dòng nhật ký `sample_edited` ghi các trường đã đổi (tên trường, không ghi giá trị).
+
+### Sửa xong thì cây đổi thế nào
+
+| Mẫu đang là | Tên, tỉnh, vật chủ, ngày hiển thị | Vị trí trên trục thời gian |
+|---|---|---|
+| Tip tạm | Đổi ngay: API tip tạm đọc thẳng từ database | Đổi ngay: tip tạm đứng ở ngày người nộp khai |
+| Tip chính thức của một cây đang phát | Đổi sau một việc `publish_build` (viết lại các cột từ database, cây không bị dựng lại), như khi sửa địa danh | Đổi ở lần dựng cây kế tiếp. Ngày nằm trong hash đầu vào, nên lịch thấy tập đầu vào đã đổi và xếp một lần dựng khi tới hạn |
+
+### Giao diện
+
+- Trang `#/mine`: mẫu sửa được có liên kết "Sửa", chỉ ở danh sách mẫu của chính mình.
+- Trang `#/mine/<mã>/edit`: bốn trường của form nộp, điền sẵn giá trị đang có; nút lưu và liên kết quay lại. Lưu xong quay về `#/mine` kèm lời báo. Lỗi của từng trường hiện cạnh trường đó, như ở form nộp.
+
+### Tiêu chí nghiệm thu
+
+| # | Tiêu chí | Ngưỡng | Kết quả |
+|---|---|---|---|
+| S3 | Người nộp sửa được mẫu của mình; người nộp khác và admin không sửa được | Có test: 200, 404, 403; mẫu của người khác không đổi | **đạt**; thêm 401 cho khách và 403 khi thiếu header chống CSRF |
+| S4 | Giá trị sai bị từ chối với đúng mã lỗi của lúc nộp, và không có gì được ghi | Có test cho từng trường và cho tỉnh không tồn tại vào ngày mới | **đạt**: 11 trường hợp, gồm một lần sai cả bốn trường được báo trong một lượt |
+| S5 | Mẫu chưa được nhận, đang được kiểm tra, bị từ chối hoặc bị ẩn không sửa được | Có test cho từng trạng thái | **đạt**: 5 trạng thái, hai mã lỗi 409 |
+| S6 | Sửa một tip chính thức: bản publish mới mang giá trị mới, `tree.json` giữ nguyên từng byte, không việc dựng cây nào được xếp | Có test | **đạt**; cây không chứa mẫu thì không bị publish lại |
+| S7 | Sửa ngày của một tip chính thức làm lịch dựng lại cây khi tới hạn; sửa tên thì không | Có test | **đạt**, kiểm ở mức hash đầu vào: sửa tên và vật chủ giữ nguyên hash, sửa ngày làm hash đổi |
+| S8 | Sửa qua giao diện trên stack thật: tip tạm mang tên và tỉnh mới | Test đầu-cuối | **đạt**: `frontend/e2e/submission.spec.ts`, hai test (người nộp sửa; admin không sửa được) |
+
+Các test backend nằm ở cuối `tests/test_submissions_api.py`. Kiểm chứng lúc xong (2026-10-13): backend `pytest` trong image api 631 passed, 17 skipped, trong image worker 648 passed; frontend 282 passed; `npm run e2e` 48 passed; `npm run e2e:web` 54 passed. Mutation check riêng cho phần này: 19 chỗ sửa thử, cả 19 bị test bắt. Ảnh chụp trên stack thật ở `do-dac/results/W10-sua-mau/anh/`.
+
+Điều cần biết:
+- Hai lần sửa gửi cùng lúc thì lần ghi sau thắng; không có khoá hay kiểm tra phiên bản. Chỉ một tài khoản sửa được một mẫu, nên đây là một người tự ghi đè lên chính mình.
+- Mẫu đang là tip chính thức mà bị sửa ngày: ngày hiển thị đổi sau việc publish lại, còn vị trí trên trục thời gian vẫn là của cây đã dựng cho tới lần dựng kế tiếp. Trong khoảng đó hai thứ không khớp nhau.
+- Mỗi lần sửa một tip chính thức xếp một việc publish lại (khoảng 0,2 giây ở cây 2.000 tip); không có trần riêng cho số lần sửa.
+- Admin không sửa hộ được. Muốn sửa dữ liệu của một phòng xét nghiệm thì phòng đó tự sửa, hoặc admin ẩn mẫu.
 
 ## Chưa làm
 
-- **Sửa mẫu đã nộp** (tên, ngày, tỉnh, vật chủ). Hiện muốn sửa thì admin ẩn mẫu và người nộp nộp lại.
 - Nộp nhiều chuỗi một lần.
 - Tip tạm trên bản đồ: bản đồ chỉ đếm tip của build.
 - Lọc tip tạm theo thuộc tính (tỉnh, vật chủ, genotype).

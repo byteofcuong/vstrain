@@ -536,6 +536,18 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 - Mấy file cấu hình dengue chép từ `nextstrain/dengue`, repo không có file giấy phép (`backend/app/pathogens/dengue/NGUON.md`).
 - Còn mở: sửa mẫu đã nộp (S3 của mốc M5).
 
+## Phase 12: sửa mẫu đã nộp (sau mốc M7)
+
+Đặc tả: mục "Sửa mẫu đã nộp" của `specs/SPEC-submission.md`. Đóng tiêu chí S3 còn mở từ mốc M5. Không thêm dependency, không đổi schema.
+
+- [x] T12.1 `PATCH /api/submissions/{id}`: người nộp sửa tên, ngày, tỉnh, vật chủ của mẫu đã được nhận; cùng phép kiểm tra và mã lỗi với lúc nộp; nhật ký `sample_edited`. Kiểm chứng: `tests/test_submissions_api.py`
+- [x] T12.2 Mẫu đang là tip chính thức thì cây được publish lại, không dựng lại (dùng chung hàm với việc sửa địa danh, nay ở `app/jobs/schedule.py`); sửa ngày làm hash đầu vào đổi. Kiểm chứng: cùng file test
+- [x] T12.3 Trang `#/mine/<mã>/edit` và liên kết "Sửa" ở trang "Mẫu của tôi"; bốn trường dùng chung một component với form nộp. Kiểm chứng: `frontend/e2e/submission.spec.ts` trên stack thật
+
+**Kiểm chứng (2026-10-13):** backend `pytest` trong image api → 631 passed, 17 skipped; trong image worker → 648 passed; `ruff` sạch. Frontend: `npm run test` → 282 passed; `typecheck`, `lint` sạch; `npm run e2e` → 48 passed; `npm run e2e:web` → 54 passed. Mutation check: 19 chỗ sửa thử, cả 19 bị bắt.
+
+**Điều cần biết:** chuỗi không sửa được; admin không sửa hộ; hai lần sửa cùng lúc thì lần ghi sau thắng; sửa ngày của một tip chính thức chỉ đổi vị trí trên trục thời gian ở lần dựng cây kế tiếp.
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.
