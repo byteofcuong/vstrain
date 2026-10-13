@@ -518,7 +518,10 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 | 4c | 331 cách viết ra đúng tỉnh ≥ 95% | đạt: 96,7% chỉ nhờ chuẩn hoá | `dia_danh_331_cach_viet.json` |
 | 5, 5b | tên có dấu đi trọn luồng; chuỗi tấn công không được thực thi | đạt: 61 test của năm file liên quan qua với công cụ thật | `test_an_toan.txt` |
 
-**Kiểm chứng lúc đóng checkpoint (2026-10-13):** mốc này chỉ thêm tài liệu và file số liệu, mã không đổi so với Checkpoint H (backend 599 passed, 17 skipped trong image api và 616 passed trong image worker; frontend 277 passed; e2e 46 và 52 passed). Chạy lại ở mốc này: 61 test an toàn trong image worker, và lệnh `enqueue align_pending` của README.
+**Kiểm chứng lúc đóng checkpoint (2026-10-13):** backend `pytest` trong image api → 603 passed, 17 skipped; trong image worker (công cụ thật) → 620 passed; `ruff` sạch. Frontend không đổi từ Checkpoint H (277 passed); `npm run e2e` → 46 passed; `npm run e2e:web` → 52 passed, hai lần liền. Thay đổi mã duy nhất của mốc này là bản sửa lỗi 502 ở dưới (4 test mới, 4 chỗ sửa thử đều bị bắt).
+
+**Lỗi tìm ra lúc đóng mốc, đã sửa:**
+- **Request ghi bị API từ chối trước khi đọc thân có lúc thành 502 của nginx.** API trả lời rồi đóng kết nối trong lúc nginx còn đang gửi thân; với thân 4,5 MB, 2 trong 160 request nhận trang 502 thay cho lời từ chối 413 mà giao diện đọc được (102 lần nginx ghi nhận kết nối phía sau bị đứt). Test đầu-cuối của nginx hỏng một lần vì thế. Nay API đọc bỏ thân (tới 8 MB) rồi mới trả lời: 640 request liền đều nhận 413, không lần đứt kết nối nào. Thân khai dài hơn 8 MB thì không đọc.
 
 **Điều tìm ra trong lúc đo:**
 - **Dựng cây không nhanh hơn Nextstrain ở cả hai cỡ.** Bỏ bước gióng tiết kiệm 77 và 322 giây, nhưng `refine` chậm hơn 85 và 282 giây trên đầu vào của ứng dụng. Chưa tìm hiểu vì sao.

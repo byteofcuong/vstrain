@@ -134,7 +134,9 @@ Chromium headless qua Playwright, cửa sổ 1920 × 1080, cache tắt, mỗi l�
 
 ## Kiểm thử
 
-Bản cuối: 599 test backend trong image api (17 test cần công cụ sinh học tự bỏ qua ở đó), 616 test trong image worker với công cụ thật, 277 test logic của frontend, 46 test đầu-cuối và 52 khi đi qua nginx. Ba module rủi ro nhất (đăng nhập, nộp mẫu, vận hành) còn qua mutation check: mã bị sửa sai có chủ đích ở từng chỗ một để xem bộ test có bắt được không; mọi chỗ sửa thử đều bị bắt sau khi bổ sung test.
+Bản cuối: 603 test backend trong image api (17 test cần công cụ sinh học tự bỏ qua ở đó), 620 test trong image worker với công cụ thật, 277 test logic của frontend, 46 test đầu-cuối và 52 khi đi qua nginx. Ba module rủi ro nhất (đăng nhập, nộp mẫu, vận hành) còn qua mutation check: mã bị sửa sai có chủ đích ở từng chỗ một để xem bộ test có bắt được không; mọi chỗ sửa thử đều bị bắt sau khi bổ sung test.
+
+Lần chạy cuối của bộ test qua nginx tìm ra một lỗi hiếm: một request ghi lớn hơn trần của API có lúc nhận trang 502 của nginx thay cho lời từ chối 413 của API (2 trong 160 request 4,5 MB), vì API trả lời rồi đóng kết nối khi nginx còn đang gửi thân. Sau khi sửa (API đọc bỏ thân rồi mới trả lời): 640 request liền đều nhận 413.
 
 ## Chưa đo
 
