@@ -12,6 +12,7 @@ import secrets
 from typing import Any
 
 from sqlalchemy import delete, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.accounts.passwords import WeakPassword, check_policy, hash_password, same_password, verify_password
@@ -122,8 +123,16 @@ def create_user(
     if session.scalar(select(AppUser.id).where(AppUser.email == email)) is not None:
         raise EmailTaken(f"There is already an account for {email}")
     user = AppUser(email=email, display_name=name, password_hash=hash_password(password), role=role)
-    session.add(user)
-    session.flush()
+    try:
+        # Savepoint: nếu database từ chối dòng này thì chỉ việc thêm nó bị huỷ, session của bên gọi vẫn dùng được.
+        with session.begin_nested():
+            session.add(user)
+            session.flush()
+    except IntegrityError:
+        # Một lần tạo khác cho cùng email đã commit sau bước kiểm tra ở trên.
+        if session.scalar(select(AppUser.id).where(AppUser.email == email)) is None:
+            raise
+        raise EmailTaken(f"There is already an account for {email}") from None
     record(session, created_by, "user_created", f"user:{user.id}", role=role)
     session.flush()
     return user
@@ -258,9 +267,7 @@ def change_password(
     `WrongPassword` (lần sai đã được đếm: bên gọi phải commit), `WeakPassword` hoặc `SamePassword`.
     Bên gọi giữ `passwords.hashing_slot()` quanh lời gọi này, như với `log_in`.
     """
-    user = session.scalar(select(AppUser).where(AppUser.id == user_id).with_for_update())
-    if user is None:
-        raise UserNotFound(f"No account with id {user_id}")
+    user = _account(session, user_id)
     subject = f"user:{user.id}"
     if user.locked_until is not None and user.locked_until > now:
         # Đang khoá vì nhập sai nhiều lần: không thử mật khẩu, không đếm thêm, không kéo dài thời gian khoá.
@@ -285,7 +292,13 @@ def change_password(
 
 
 def _account(session: Session, user_id: int) -> AppUser:
-    user = session.scalar(select(AppUser).where(AppUser.id == user_id).with_for_update())
+    """Tài khoản mang mã này, với dòng của nó đã được khoá và các cột được đọc lại sau khi có khoá.
+
+    Session của request thường đã nạp chính tài khoản này từ trước (để biết ai đang gọi). Không đọc lại thì bộ đếm
+    số lần sai và thời hạn khoá là của lúc chưa chờ khoá: các request chạy song song cùng đếm từ một số cũ.
+    """
+    locked_row = select(AppUser).where(AppUser.id == user_id).with_for_update()
+    user = session.scalar(locked_row.execution_options(populate_existing=True))
     if user is None:
         raise UserNotFound(f"No account with id {user_id}")
     return user

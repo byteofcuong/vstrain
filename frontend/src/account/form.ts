@@ -13,7 +13,8 @@ const normalized = (password: string) => password.normalize("NFKC");
 
 /** Mật khẩu có độ dài server nhận không (10 tới 200 ký tự sau chuẩn hoá). */
 export function passwordFits(password: string): boolean {
-  const length = normalized(password).length;
+  // Đếm theo ký tự Unicode như server, không theo đơn vị UTF-16: một ký tự ngoài mặt phẳng cơ bản là một, không phải hai.
+  const length = Array.from(normalized(password)).length;
   return length >= MIN_PASSWORD && length <= MAX_PASSWORD;
 }
 

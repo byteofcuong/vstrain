@@ -24,6 +24,16 @@ describe("passwordFits", () => {
     expect(nine.length).toBeGreaterThanOrEqual(10);
     expect(passwordFits(nine)).toBe(false);
   });
+
+  it("counts a character outside the basic plane once, as the server does", () => {
+    // Mỗi hình này là một ký tự với server nhưng chiếm hai đơn vị trong chuỗi của JavaScript.
+    const helix = String.fromCodePoint(0x1f9ec);
+    expect(helix.repeat(5).length).toBe(10);
+    expect(passwordFits(helix.repeat(5))).toBe(false);
+    expect(passwordFits(helix.repeat(10))).toBe(true);
+    expect(passwordFits(helix.repeat(200))).toBe(true);
+    expect(passwordFits(helix.repeat(201))).toBe(false);
+  });
 });
 
 describe("changeProblems", () => {

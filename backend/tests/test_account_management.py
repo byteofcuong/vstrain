@@ -1,6 +1,7 @@
 """Đổi mật khẩu của chính mình, và việc admin tạo, khoá, mở khoá tài khoản và đặt lại mật khẩu."""
 
 import datetime as dt
+import threading
 import unicodedata
 
 import pytest
@@ -498,6 +499,67 @@ def test_wrong_current_passwords_are_remembered_from_one_request_to_the_next(eng
             connection.execute(text("TRUNCATE app_user, audit_log CASCADE"))
 
 
+def test_wrong_current_passwords_sent_at_the_same_moment_are_all_counted(engine, monkeypatch):
+    # Mỗi request đã nạp tài khoản của phiên trước khi tới lượt giữ khoá dòng. Nếu sau khi có khoá nó vẫn dùng bộ
+    # đếm đã nạp lúc trước thì cả loạt request cùng đếm từ số cũ: gửi một lúc tám lần đoán mà chỉ bị tính một.
+    from app.main import app
+
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    with sessions.begin() as setup:
+        service.create_user(setup, email=EMAIL, display_name="Phòng xét nghiệm A", password=PASSWORD)
+    attempts = 8
+    recognized = threading.Semaphore(0)
+    release = threading.Event()
+    real_session_user = service.session_user
+    real_scrypt = passwords.hashlib.scrypt
+
+    def counted_session_user(*args, **kwargs):
+        found = real_session_user(*args, **kwargs)
+        recognized.release()
+        return found
+
+    def held_scrypt(*args, **kwargs):
+        release.wait(10)
+        return real_scrypt(*args, **kwargs)
+
+    try:
+        with TestClient(app) as client:
+            log_in(client)
+            monkeypatch.setattr(service, "session_user", counted_session_user)
+            monkeypatch.setattr(passwords.hashlib, "scrypt", held_scrypt)
+            statuses: list[int] = []
+
+            def guess():
+                statuses.append(change(client, current="đoán mò mật khẩu").status_code)
+
+            threads = [threading.Thread(target=guess) for _ in range(attempts)]
+            for thread in threads:
+                thread.start()
+            try:
+                # Chờ tới khi cả tám request đã nhận ra phiên (và đã nạp tài khoản) rồi mới cho lần băm đầu chạy.
+                all_recognized = all(recognized.acquire(timeout=10) for _ in range(attempts))
+            finally:
+                release.set()
+                for thread in threads:
+                    thread.join()
+            monkeypatch.undo()
+            monkeypatch.setattr(passwords, "N", 2**10)
+
+            assert all_recognized
+            assert sorted(statuses) == [403] * 5 + [429] * 3
+            # Tài khoản đang bị khoá: mật khẩu đúng cũng không đổi được.
+            assert error_of(change(client)) == (429, "TOO_MANY_ATTEMPTS")
+        with sessions() as check:
+            written = check.scalars(select(AuditLog.action).where(AuditLog.action.like("%password_change%"))).all()
+            assert sorted(written) == ["password_change_failed"] * 4 + ["password_change_refused"] * 4
+            assert (
+                check.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action == "login_locked")) == 1
+            )
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text("TRUNCATE app_user, audit_log CASCADE"))
+
+
 def test_a_failure_nobody_foresaw_while_changing_a_password_leaves_the_old_one_in_place(engine, monkeypatch):
     from app.main import app
 
@@ -554,6 +616,66 @@ def test_what_an_administrator_does_to_accounts_is_saved_from_one_request_to_the
             for action in ("user_locked", "user_unlocked", "password_reset"):
                 assert written.count(action) == 1
             assert written.count("user_created") == 2
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text("TRUNCATE app_user, audit_log CASCADE"))
+
+
+def test_a_change_of_password_holds_a_place_under_the_shared_limit_before_it_touches_the_account(
+    client, user, monkeypatch
+):
+    # Các lần đổi mật khẩu của một tài khoản xếp hàng sau khoá của dòng tài khoản; chỗ xếp hàng đó phải nằm trong
+    # trần chung với đăng nhập, nên chỗ băm được giữ từ trước khi service chạm vào database.
+    log_in(client)
+    held: list[bool] = []
+    real_change = service.change_password
+
+    def watched(*args, **kwargs):
+        held.append(getattr(passwords._slot, "held", False))
+        return real_change(*args, **kwargs)
+
+    monkeypatch.setattr(service, "change_password", watched)
+
+    assert change(client).status_code == 204
+    assert held == [True]
+
+
+def test_two_accounts_made_for_one_email_at_the_same_moment_leave_one_account_and_one_clear_refusal(engine):
+    # Lần tạo thứ hai đã qua bước kiểm tra "email chưa có" trước khi lần thứ nhất commit: database từ chối nó, và
+    # lời từ chối đó phải thành `EmailTaken` (409), không phải một lỗi 500 không tên.
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    outcome: list[object] = []
+
+    def second():
+        with sessions() as other:
+            try:
+                service.create_user(other, email=EMAIL, display_name="Người đến sau", password=PASSWORD)
+                other.commit()
+                outcome.append("created")
+            except Exception as error:  # noqa: BLE001 - test cần thấy đúng loại lỗi đã ném ra
+                outcome.append(error)
+
+    def someone_waits_for_a_lock() -> bool:
+        with engine.connect() as connection:
+            waiting = text("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'")
+            return bool(connection.scalar(waiting))
+
+    try:
+        with sessions() as first:
+            service.create_user(first, email=EMAIL, display_name="Người đến trước", password=PASSWORD)
+            thread = threading.Thread(target=second)
+            thread.start()
+            deadline = dt.datetime.now(dt.UTC) + dt.timedelta(seconds=10)
+            while not someone_waits_for_a_lock() and dt.datetime.now(dt.UTC) < deadline:
+                thread.join(0.02)
+            waited = someone_waits_for_a_lock()
+            first.commit()
+            thread.join(10)
+
+        assert waited
+        assert len(outcome) == 1 and isinstance(outcome[0], service.EmailTaken)
+        with sessions() as check:
+            assert check.scalars(select(AppUser.display_name)).all() == ["Người đến trước"]
     finally:
         with engine.begin() as connection:
             connection.execute(text("TRUNCATE app_user, audit_log CASCADE"))
