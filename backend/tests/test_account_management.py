@@ -521,3 +521,39 @@ def test_a_failure_nobody_foresaw_while_changing_a_password_leaves_the_old_one_i
     finally:
         with engine.begin() as connection:
             connection.execute(text("TRUNCATE app_user, audit_log CASCADE"))
+
+
+def test_what_an_administrator_does_to_accounts_is_saved_from_one_request_to_the_next(engine):
+    # Fixture `client` dùng chung một session nên không thấy được việc quên commit; ở đây mỗi request một session.
+    from app.main import app
+
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    with sessions.begin() as setup:
+        service.create_user(setup, email=ADMIN_EMAIL, display_name="Quản trị", password=PASSWORD, role="admin")
+    try:
+        with TestClient(app) as boss, TestClient(app) as lab:
+            log_in(boss, email=ADMIN_EMAIL)
+            created = create(boss, email=EMAIL)
+            assert created.status_code == 201
+            account = created.json()["id"]
+            assert log_in(lab, password=NEW_PASSWORD).status_code == 200
+
+            assert boss.post(f"/api/admin/users/{account}/lock", headers=BROWSER).status_code == 204
+            assert error_of(lab.get("/api/auth/me")) == (401, "NOT_AUTHENTICATED")
+            assert error_of(log_in(lab, password=NEW_PASSWORD)) == (401, "INVALID_CREDENTIALS")
+
+            assert boss.post(f"/api/admin/users/{account}/unlock", headers=BROWSER).status_code == 204
+            assert log_in(lab, password=NEW_PASSWORD).status_code == 200
+
+            reset = boss.post(f"/api/admin/users/{account}/password", json={"password": PASSWORD}, headers=BROWSER)
+            assert reset.status_code == 204
+            assert error_of(lab.get("/api/auth/me")) == (401, "NOT_AUTHENTICATED")
+            assert log_in(lab).status_code == 200
+        with sessions() as check:
+            written = [row.action for row in check.scalars(select(AuditLog).order_by(AuditLog.id))]
+            for action in ("user_locked", "user_unlocked", "password_reset"):
+                assert written.count(action) == 1
+            assert written.count("user_created") == 2
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text("TRUNCATE app_user, audit_log CASCADE"))
