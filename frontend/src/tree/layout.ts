@@ -27,7 +27,16 @@ export function axisValues(tree: Tree, axis: Axis): Float64Array | Float32Array 
   return axis === "time" ? tree.numDate : tree.div;
 }
 
-export function computePositions(tree: Tree, layout: Layout, axis: Axis): Positions {
+/**
+ * `extent` nới khoảng giá trị của trục để chứa cả những điểm nằm ngoài cây (tip tạm): một mẫu vừa nộp thường mới
+ * hơn mọi tip của build, và phải có chỗ trên trục thay vì rơi ra ngoài mép.
+ */
+export function computePositions(
+  tree: Tree,
+  layout: Layout,
+  axis: Axis,
+  extent: readonly [number, number] | null = null,
+): Positions {
   const { nodeCount, tipCount, parent, order } = tree;
   const values = axisValues(tree, axis);
 
@@ -37,6 +46,10 @@ export function computePositions(tree: Tree, layout: Layout, axis: Axis): Positi
     const value = values[i];
     if (value < min) min = value;
     if (value > max) max = value;
+  }
+  if (extent !== null) {
+    min = Math.min(min, extent[0]);
+    max = Math.max(max, extent[1]);
   }
   if (!(min <= max)) {
     min = 0;

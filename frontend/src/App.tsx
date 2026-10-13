@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { DatasetList } from "./components/DatasetList";
 import { DatasetView } from "./components/DatasetView";
 import { LoginPage } from "./components/LoginPage";
+import { MySamplesPage } from "./components/MySamplesPage";
+import { SubmitPage } from "./components/SubmitPage";
 import type { Lang } from "./i18n";
 import { parseRoute } from "./route";
 import { useAuth } from "./state/auth";
@@ -62,6 +64,16 @@ export function App() {
             </a>
           )}
           {user && (
+            <nav className="masthead__nav" aria-label={t("submitSample")}>
+              <a href="#/submit" aria-current={route.page === "submit" ? "page" : undefined}>
+                {t("submitSample")}
+              </a>
+              <a href="#/mine" aria-current={route.page === "mine" ? "page" : undefined}>
+                {t("mySamples")}
+              </a>
+            </nav>
+          )}
+          {user && (
             <span className="masthead__account">
               <span>{user.displayName}</span>
               {/* Đăng xuất không thành thì phiên còn sống ở server: tên vẫn hiện, để không ai tưởng mình đã ra. */}
@@ -79,8 +91,10 @@ export function App() {
           </div>
         </div>
       </header>
-      {route.page === "dataset" && <DatasetView key={route.slug} slug={route.slug} />}
+      {route.page === "dataset" && <DatasetView key={route.slug} slug={route.slug} tip={route.tip} />}
       {route.page === "login" && <LoginPage />}
+      {route.page === "submit" && <SubmitPage />}
+      {route.page === "mine" && <MySamplesPage />}
       {route.page === "list" && <DatasetList />}
     </div>
   );

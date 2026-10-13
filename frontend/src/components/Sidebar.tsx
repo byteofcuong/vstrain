@@ -29,6 +29,8 @@ interface Props {
   map: MapData | null;
   /** Dataset có cột địa bàn, tức là có bản đồ để bật, tắt. */
   mapAvailable: boolean;
+  /** Các tip tạm của dataset: có bao nhiêu, có tải được không, và có đang bị bộ lọc che hết không. */
+  provisional: { failed: boolean; total: number; filteredOut: boolean; onRetry(): void };
 }
 
 export function Sidebar({
@@ -44,6 +46,7 @@ export function Sidebar({
   visibleCount,
   map,
   mapAvailable,
+  provisional,
 }: Props) {
   const t = useT();
   const lang = useUi((state) => state.lang);
@@ -174,6 +177,39 @@ export function Sidebar({
           </div>
         </fieldset>
       </section>
+
+      {(provisional.failed || provisional.total > 0) && (
+        <section className="provisional">
+          {provisional.failed ? (
+            <div className="notice" role="alert">
+              <p>{t("provisionalFailed")}</p>
+              <button type="button" onClick={provisional.onRetry}>
+                {t("retry")}
+              </button>
+            </div>
+          ) : (
+            <>
+              <Choice<"shown" | "hidden">
+                legend={t("provisional")}
+                value={ui.showProvisional ? "shown" : "hidden"}
+                options={[
+                  ["shown", t("mapShown")],
+                  ["hidden", t("mapHidden")],
+                ]}
+                onChange={(value) => ui.setShowProvisional(value === "shown")}
+              />
+              <p className="provisional__summary">
+                <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+                  <path d="M7 1.5 12.5 7 7 12.5 1.5 7Z" />
+                </svg>
+                {t("provisionalSummary", { count: provisional.total })}
+              </p>
+              <p className="hint">{t("provisionalNote")}</p>
+              {provisional.filteredOut && <p className="hint">{t("provisionalFiltered")}</p>}
+            </>
+          )}
+        </section>
+      )}
 
       <section className="sidebar__view">
         <Choice<Layout>

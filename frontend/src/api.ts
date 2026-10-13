@@ -1,3 +1,5 @@
+import type { ProvisionalTip } from "./tree/provisional";
+
 /** Các lời gọi tới API của backend. Kiểu dữ liệu theo hợp đồng trong các file `schemas.py` và `api.py` của backend. */
 
 export interface CurrentBuild {
@@ -42,11 +44,19 @@ export interface User {
   role: "submitter" | "admin";
 }
 
+/** Một lỗi gắn với một trường của request. `code` có ở những lỗi mà giao diện dịch được; không có thì dùng `message`. */
+export interface FieldProblem {
+  field: string;
+  code?: string;
+  message: string;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
     message: string,
+    readonly details: FieldProblem[] = [],
   ) {
     super(message);
   }
@@ -55,8 +65,16 @@ export class ApiError extends Error {
 /** Biến một câu trả lời lỗi thành `ApiError`. */
 async function failure(response: Response): Promise<ApiError> {
   // Lỗi của API có dạng {"error": {"code", "message"}}; thứ khác (proxy, mất mạng) thì không.
-  const body = (await response.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
-  return new ApiError(response.status, body?.error?.code ?? "HTTP_ERROR", body?.error?.message ?? response.statusText);
+  const body = (await response.json().catch(() => null)) as {
+    error?: { code?: string; message?: string; details?: FieldProblem[] };
+  } | null;
+  const details = Array.isArray(body?.error?.details) ? body.error.details : [];
+  return new ApiError(
+    response.status,
+    body?.error?.code ?? "HTTP_ERROR",
+    body?.error?.message ?? response.statusText,
+    details,
+  );
 }
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -109,4 +127,85 @@ export async function logIn(email: string, password: string): Promise<User> {
 
 export function logOut(): Promise<void> {
   return send<void>("POST", "/api/auth/logout");
+}
+
+/** Một đơn vị hành chính, kèm thời gian hiệu lực (bộ 63 tỉnh tới 2025-06-30, bộ 34 đơn vị từ 2025-07-01). */
+export interface AdminUnit {
+  code: string;
+  level: "macro_region" | "region" | "province";
+  unitSet: "vn63" | "vn34" | null;
+  nameVi: string;
+  nameEn: string;
+  parentCode: string | null;
+  successorCode: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+}
+
+export async function listProvinces(signal?: AbortSignal): Promise<AdminUnit[]> {
+  return (await get<{ items: AdminUnit[] }>("/api/units?level=province", signal)).items;
+}
+
+/** Thứ form nộp mẫu gửi đi. `collectionDate` là "YYYY", "YYYY-MM" hoặc "YYYY-MM-DD"; `fasta` là nội dung file. */
+export interface SubmissionInput {
+  displayName: string;
+  collectionDate: string;
+  unitCode: string;
+  host: string | null;
+  fasta: string;
+}
+
+/** Mẫu đang ở đâu trên đường từ lúc nộp tới cây. */
+export type SubmissionStage = "processing" | "failed" | "rejected" | "hidden" | "accepted" | "placed" | "in_tree";
+
+export interface Submission {
+  internalId: string;
+  displayName: string;
+  collectionDate: string | null;
+  unitCode: string | null;
+  host: string | null;
+  status: string;
+  stage: SubmissionStage;
+  rejectCode: string | null;
+  rejectMessage: string | null;
+  lineage: string | null;
+  coverage: number | null;
+  validNt: number | null;
+  sequenceLength: number | null;
+  submittedAt: string;
+  submitterName: string;
+  /** Dataset mà build hiện hành đã có mẫu này như một tip chính thức. */
+  inDatasets: { dataset: string; title: string }[];
+  /** Dataset mà mẫu đang là tip tạm trên cây của build hiện hành. */
+  placements: { dataset: string; title: string; clade: string | null; privateMutations: number }[];
+}
+
+export interface SubmissionPage {
+  items: Submission[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export function submitSample(input: SubmissionInput): Promise<Submission> {
+  return send<Submission>("POST", "/api/submissions", input);
+}
+
+export function listSubmissions(scope: "mine" | "all", signal?: AbortSignal): Promise<SubmissionPage> {
+  return get<SubmissionPage>(`/api/submissions?scope=${scope}&limit=200`, signal);
+}
+
+/** Các tip tạm của một dataset. Chỉ số node chỉ có nghĩa với cây của build mang mã `buildId`. */
+export interface Placements {
+  buildId: number | null;
+  items: (ProvisionalTip & { placedAt: string })[];
+}
+
+export function getPlacements(slug: string, signal?: AbortSignal): Promise<Placements> {
+  return get<Placements>(`/api/datasets/${encodeURIComponent(slug)}/placements`, signal);
+}
+
+/** Ẩn hoặc hiện lại một mẫu (chỉ admin). */
+export function setSampleHidden(internalId: string, hidden: boolean): Promise<void> {
+  return send<void>("POST", `/api/admin/samples/${encodeURIComponent(internalId)}/${hidden ? "hide" : "unhide"}`);
 }

@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-import base from "./playwright.config";
+import base, { projects } from "./playwright.config";
 
 /**
  * Cùng bộ test đầu-cuối, chạy qua service `web` (nginx) của bản triển khai ở cổng 8080 thay vì `vite preview`,
@@ -9,7 +9,7 @@ import base from "./playwright.config";
  */
 export default defineConfig({
   ...base,
-  testIgnore: [],
+  projects: projects([]),
   use: { ...base.use, baseURL: "http://127.0.0.1:8080" },
   webServer: undefined,
 });

@@ -11,6 +11,15 @@ import { nodeMask } from "../tree/filter";
 import { buildTipGrid, nearestTip } from "../tree/grid";
 import { computePositions, type Positions } from "../tree/layout";
 import type { Tree } from "../tree/parse";
+import {
+  MARKER,
+  drawProvisional,
+  placeProvisional,
+  provisionalAt,
+  provisionalExtent,
+  type Provisional,
+  type ProvisionalLayer,
+} from "../tree/provisional";
 import { clampView, fitView, pan, toWorldX, toWorldY, zoomWithin, type Padding, type View } from "../tree/view";
 
 const THEME: Theme = {
@@ -35,8 +44,10 @@ const MAX_ZOOM_X = 60;
 /** Khi phóng hết cỡ theo chiều dọc, hai tip kề nhau cách nhau chừng này pixel. */
 const MAX_TIP_SPACING = 28;
 
+/** Thứ đang dưới con trỏ: một tip của build (`tip`) hoặc một tip tạm (`provisional`), cái còn lại là -1. */
 interface Hover {
   tip: number;
+  provisional: number;
   x: number;
   y: number;
 }
@@ -51,6 +62,13 @@ interface Props {
   coloring: Coloring | null;
   colorColumn: Column | null;
   colorTitle: string | null;
+  /** Các tip tạm của build này; `null` khi không có hoặc chưa tải. */
+  provisional: Provisional | null;
+  /** Tip tạm nào đang hiện (qua bộ lọc và công tắc ở thanh bên). */
+  provisionalVisible: Uint8Array | null;
+  /** Tip tạm đang được chọn (chỉ số trong `provisional.tips`), -1 là không chọn. */
+  selectedProvisional: number;
+  onSelectProvisional(index: number): void;
 }
 
 /** Thứ mà test đầu-cuối và harness đo hiệu năng đọc được từ trang. Chỉ đọc, không đổi được trạng thái. */
@@ -66,6 +84,9 @@ export interface DebugHook {
   tipPoint(tip: number): { x: number; y: number } | null;
   tipName(tip: number): string;
   isTipVisible(tip: number): boolean;
+  /** Số tip tạm được vẽ ở khung hình gần nhất, và toạ độ trên trang của một tip tạm theo mã nội bộ. */
+  provisionalDrawn: number;
+  provisionalPoint(internalId: string): { x: number; y: number } | null;
 }
 
 declare global {
@@ -74,7 +95,20 @@ declare global {
   }
 }
 
-export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, coloring, colorColumn, colorTitle }: Props) {
+export function TreeCanvas({
+  title,
+  tree,
+  tips,
+  tipVisible,
+  visibleCount,
+  coloring,
+  colorColumn,
+  colorTitle,
+  provisional,
+  provisionalVisible,
+  selectedProvisional,
+  onSelectProvisional,
+}: Props) {
   const t = useT();
   const layout = useUi((state) => state.layout);
   const axis = useUi((state) => state.axis);
@@ -90,6 +124,8 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
   /** Cây và bố cục của khung nhìn hiện tại, để biết một lần đổi kích thước có kèm đổi dữ liệu hay không. */
   const shownRef = useRef<{ tree: Tree | null; positions: Positions | null }>({ tree: null, positions: null });
   const hoverRef = useRef(-1);
+  const hoverProvisionalRef = useRef(-1);
+  const provisionalDrawnRef = useRef(0);
   const pendingRef = useRef(0);
   const statsRef = useRef<DrawStats | null>(null);
   const framesRef = useRef(0);
@@ -100,7 +136,13 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   // Vị trí và lưới tìm tip chỉ phụ thuộc cây, bố cục và trục; phóng to hay lọc không tính lại chúng.
-  const positions = useMemo(() => computePositions(tree, layout, axis), [tree, layout, axis]);
+  // Trục chừa chỗ cho mọi tip tạm đã tải, dù đang hiện hay ẩn: bật tắt chúng không làm cây co giãn.
+  const extent = useMemo(() => provisionalExtent(provisional, axis), [provisional, axis]);
+  const positions = useMemo(() => computePositions(tree, layout, axis, extent), [tree, layout, axis, extent]);
+  const provisionalPositions = useMemo(
+    () => (provisional ? placeProvisional(tree, positions, provisional) : null),
+    [tree, positions, provisional],
+  );
   const grid = useMemo(() => buildTipGrid(tree, positions), [tree, positions]);
   const nodeVisible = useMemo(() => nodeMask(tree, tipVisible), [tree, tipVisible]);
   const padding = layout === "rect" ? RECT_PADDING : RADIAL_PADDING;
@@ -134,6 +176,16 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
     };
   }, [tree, positions, tipVisible, nodeVisible, coloring, selectedTip, padding]);
 
+  const provisionalLayer = useCallback((): ProvisionalLayer | null => {
+    if (!provisionalPositions || !provisionalVisible) return null;
+    return {
+      positions: provisionalPositions,
+      visible: provisionalVisible,
+      hover: hoverProvisionalRef.current,
+      selected: selectedProvisional,
+    };
+  }, [provisionalPositions, provisionalVisible, selectedProvisional]);
+
   const draw = useCallback(() => {
     pendingRef.current = 0;
     const canvas = canvasRef.current;
@@ -145,6 +197,12 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const started = performance.now();
     statsRef.current = drawTree(ctx, current, scratchRef.current);
+    const layer = provisionalLayer();
+    // Tip tạm được vẽ đè lên cây; phần nằm dưới dải nhãn trục của bố cục chữ nhật thì bỏ.
+    const bottom = current.guides?.kind === "lines" ? current.height - AXIS_BAND : current.height;
+    provisionalDrawnRef.current = layer
+      ? drawProvisional(ctx, current.view, layer, { ink: THEME.highlight, background: THEME.background }, bottom)
+      : 0;
     drawnAtRef.current = performance.now();
     drawMsRef.current = drawnAtRef.current - started;
     framesRef.current += 1;
@@ -153,7 +211,7 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
       // Khung hình kế tiếp bắt đầu nghĩa là khung hình đầu đã được trình duyệt đưa lên màn hình.
       requestAnimationFrame(() => performance.mark("vietstrain:first-frame-presented"));
     }
-  }, [scene]);
+  }, [scene, provisionalLayer]);
 
   /** Gom mọi yêu cầu vẽ trong một khung hình thành một lần vẽ. */
   const requestDraw = useCallback(() => {
@@ -199,6 +257,7 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
       viewRef.current = fitRef.current;
     }
     hoverRef.current = -1;
+    hoverProvisionalRef.current = -1;
     setHover(null);
   }, [size, layout, padding, tree, positions, maxZoom]);
 
@@ -242,15 +301,38 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
     [grid, tree, positions, tipVisible],
   );
 
+  const pixelOfProvisional = useCallback(
+    (index: number): { x: number; y: number } | null => {
+      const view = viewRef.current;
+      if (!view || !provisionalPositions || index < 0 || index >= provisionalPositions.x.length) return null;
+      return {
+        x: view.offsetX + provisionalPositions.x[index] * view.scaleX,
+        y: view.offsetY + provisionalPositions.y[index] * view.scaleY,
+      };
+    },
+    [provisionalPositions],
+  );
+
+  /** Tip tạm dưới điểm (x, y) của canvas; -1 nếu không có. Tip tạm được xét trước tip của build. */
+  const provisionalUnder = useCallback(
+    (x: number, y: number): number => {
+      const view = viewRef.current;
+      const layer = provisionalLayer();
+      return view && layer ? provisionalAt(layer, view, x, y, HIT_RADIUS) : -1;
+    },
+    [provisionalLayer],
+  );
+
   const showHover = useCallback(
-    (tip: number) => {
-      if (tip === hoverRef.current) return;
+    (tip: number, provisionalIndex = -1) => {
+      if (tip === hoverRef.current && provisionalIndex === hoverProvisionalRef.current) return;
       hoverRef.current = tip;
-      const point = pixelOfTip(tip);
-      setHover(tip >= 0 && point ? { tip, ...point } : null);
+      hoverProvisionalRef.current = provisionalIndex;
+      const point = provisionalIndex >= 0 ? pixelOfProvisional(provisionalIndex) : pixelOfTip(tip);
+      setHover((tip >= 0 || provisionalIndex >= 0) && point ? { tip, provisional: provisionalIndex, ...point } : null);
       requestDraw();
     },
-    [pixelOfTip, requestDraw],
+    [pixelOfTip, pixelOfProvisional, requestDraw],
   );
 
   const setView = useCallback(
@@ -258,8 +340,9 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
       const fit = fitRef.current;
       viewRef.current = fit ? clampView(next, fit, ...maxZoom()) : next;
       // Tooltip gắn với vị trí cũ của tip; bỏ nó khi khung nhìn đổi.
-      if (hoverRef.current !== -1) {
+      if (hoverRef.current !== -1 || hoverProvisionalRef.current !== -1) {
         hoverRef.current = -1;
+        hoverProvisionalRef.current = -1;
         setHover(null);
       }
       requestDraw();
@@ -327,11 +410,23 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
       },
       tipName: (tip) => tree.tipNames[tip] ?? "",
       isTipVisible: (tip) => tipVisible[tip] === 1,
+      get provisionalDrawn() {
+        return provisionalDrawnRef.current;
+      },
+      provisionalPoint(internalId) {
+        const index = provisional?.tips.findIndex((one) => one.internalId === internalId) ?? -1;
+        const point = pixelOfProvisional(index);
+        const canvas = canvasRef.current;
+        if (!point || !canvas || provisionalVisible?.[index] !== 1) return null;
+        const box = canvas.getBoundingClientRect();
+        if (point.x < 0 || point.y < 0 || point.x > box.width || point.y > box.height) return null;
+        return { x: box.left + point.x, y: box.top + point.y };
+      },
     };
     return () => {
       delete window.__vietstrain;
     };
-  }, [tree, pixelOfTip, tipVisible]);
+  }, [tree, pixelOfTip, tipVisible, provisional, provisionalVisible, pixelOfProvisional]);
 
   const local = (event: { clientX: number; clientY: number }) => {
     const box = canvasRef.current!.getBoundingClientRect();
@@ -357,7 +452,9 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
       if (viewRef.current) setView(pan(viewRef.current, dx, dy));
       return;
     }
-    showHover(tipAt(point.x, point.y));
+    const over = provisionalUnder(point.x, point.y);
+    if (over >= 0) showHover(-1, over);
+    else showHover(tipAt(point.x, point.y));
   };
 
   const onPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -365,7 +462,9 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
     dragRef.current = null;
     if (!drag || drag.pointer !== event.pointerId || drag.moved) return;
     const point = local(event);
-    selectTip(tipAt(point.x, point.y));
+    const over = provisionalUnder(point.x, point.y);
+    if (over >= 0) onSelectProvisional(over);
+    else selectTip(tipAt(point.x, point.y));
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLCanvasElement>) => {
@@ -391,6 +490,17 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
 
   const tooltip = useMemo(() => {
     if (!hover) return null;
+    if (hover.provisional >= 0) {
+      const one = provisional?.tips[hover.provisional];
+      if (!one) return null;
+      return {
+        name: one.displayName,
+        date: one.collectionDate,
+        value: t("privateMutationsValue", { count: one.privateMutations }),
+        swatch: null,
+        tag: t("provisionalTag"),
+      };
+    }
     const node = tree.tipNode[hover.tip];
     const date = tree.numDate[node];
     const code = colorColumn ? colorColumn.tipCodes[hover.tip] : -1;
@@ -399,10 +509,12 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
       date: tips?.collectionDate[hover.tip] ?? (Number.isNaN(date) ? null : isoDate(date)),
       value: colorColumn ? (code >= 0 ? colorColumn.labels[code] : t("missingValue")) : null,
       swatch: coloring && code >= 0 ? coloring.colors[coloring.slotOfValue[code]] : null,
+      tag: null,
     };
-  }, [hover, tree, tips, colorColumn, coloring, t]);
+  }, [hover, tree, tips, colorColumn, coloring, provisional, t]);
 
-  const radius = viewRef.current ? tipRadius({ tree, positions, view: viewRef.current }) : 3;
+  const tipSize = viewRef.current ? tipRadius({ tree, positions, view: viewRef.current }) : 3;
+  const radius = hover !== null && hover.provisional >= 0 ? MARKER + 2 : tipSize;
   // Tooltip nằm bên phải tip, lật sang trái khi gần mép phải.
   const flip = hover !== null && hover.x > size.width - 260;
 
@@ -447,12 +559,15 @@ export function TreeCanvas({ title, tree, tips, tipVisible, visibleCount, colori
           role="status"
           style={{ left: hover.x + (flip ? -(radius + 10) : radius + 10), top: hover.y }}
         >
-          <strong className="tooltip__name">{tooltip.name}</strong>
+          <strong className="tooltip__name">
+            {tooltip.name}
+            {tooltip.tag && <span className="tag">{tooltip.tag}</span>}
+          </strong>
           {tooltip.date && <span>{tooltip.date}</span>}
           {tooltip.value !== null && (
             <span className="tooltip__value">
               {tooltip.swatch && <i className="swatch" style={{ background: tooltip.swatch }} />}
-              {colorTitle}: {tooltip.value}
+              {tooltip.tag ? tooltip.value : `${colorTitle}: ${tooltip.value}`}
             </span>
           )}
         </div>

@@ -172,14 +172,19 @@ def submit(
 
 def _stage(status: str, job_status: str | None, in_tree: bool, placed: bool) -> str:
     """Mẫu đang ở đâu trên đường từ lúc nộp tới cây, nói bằng một từ cho giao diện."""
+    running = job_status in (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
     if status == SampleStatus.RECEIVED.value:
         # Job không còn, hoặc đã dừng mà mẫu vẫn chưa có kết luận: việc kiểm tra đã hỏng, cần người vận hành xem.
-        return "processing" if job_status in (JobStatus.QUEUED.value, JobStatus.RUNNING.value) else "failed"
+        return "processing" if running else "failed"
     if status != SampleStatus.ACCEPTED.value:
         return status  # 'rejected' | 'hidden'
     if in_tree:
         return "in_tree"
-    return "placed" if placed else "accepted"
+    if placed:
+        return "placed"
+    # Job ghi kết luận "đạt" trước rồi mới gắn mẫu lên cây: khi job còn chạy thì mẫu vẫn đang được xử lý. Chỉ khi
+    # job đã xong mà không có chỗ gắn nào thì mới thật là chưa có cây để gắn.
+    return "processing" if running else "accepted"
 
 
 def describe(session: Session, sample_ids: Sequence[int]) -> list[dict[str, Any]]:

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.accounts import passwords
 from app.accounts import service as accounts
@@ -384,6 +384,12 @@ def aligned(session, sample: Sample, lineage: str = "denv1") -> None:
         )
     )
     sample.status = "accepted"
+    # Job kiểm tra của mẫu (nếu là mẫu nộp) đã chạy xong.
+    session.execute(
+        update(Job)
+        .where(Job.id == select(Submission.job_id).where(Submission.sample_id == sample.id).scalar_subquery())
+        .values(status="succeeded")
+    )
     session.flush()
 
 
@@ -421,6 +427,35 @@ def test_a_sample_whose_check_broke_down_is_reported_as_failed_not_as_still_proc
     session.flush()
     session.expire_all()
     assert stage_of(client, sample) == "failed"
+
+
+def test_a_sample_that_passed_the_check_is_still_being_processed_until_its_job_has_tried_to_place_it(
+    session, client, lab
+):
+    # Job ghi kết luận "đạt" trước, rồi mới gắn mẫu lên cây. Trong khoảng giữa đó, trang của người nộp phải tiếp tục
+    # chờ: nếu báo "chưa có cây để gắn" thì nó ngừng tự cập nhật, và người nộp không bao giờ thấy mẫu lên cây.
+    sample = submitted(session, client)
+    job = session.scalars(select(Job)).one()
+    job.status = "running"
+    session.add(
+        SampleAlignment(
+            sample_id=sample.id,
+            lineage="denv1",
+            status="aligned",
+            aligned_sequence="ACGT",
+            valid_nt=10_500,
+            sequence_sha256="0" * 64,
+            tool="nextclade 3.24.0",
+        )
+    )
+    sample.status = "accepted"
+    session.flush()
+
+    assert stage_of(client, sample) == "processing"
+
+    job.status = "succeeded"
+    session.flush()
+    assert stage_of(client, sample) == "accepted"
 
 
 def test_a_rejected_sample_says_why(session, client, lab):

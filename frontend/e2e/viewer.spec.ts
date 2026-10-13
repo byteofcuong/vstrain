@@ -337,3 +337,22 @@ test("a column that fails to load is reported and can be loaded again", async ({
   await expect(notice).toHaveCount(0);
   expect(failures).toBe(1);
 });
+
+test("on a short screen the side panel scrolls by itself and the page stays put", async ({ page }) => {
+  // Thanh bên dài hơn màn hình thì nó tự cuộn. Trang không được cuộn theo: nếu có, thanh đầu trang trôi mất và
+  // bên dưới cây lộ ra một khoảng trống.
+  await page.setViewportSize({ width: 1280, height: 480 });
+  await openTree(page);
+
+  await page.getByText("Toả tròn").click();
+
+  await expect(page.locator(".masthead")).toBeInViewport({ ratio: 1 });
+  const scrolled = await page.evaluate(() => ({
+    page: document.scrollingElement!.scrollTop,
+    app: document.querySelector(".app")!.scrollTop,
+    workspace: document.querySelector(".workspace")!.scrollTop,
+    sidebar: document.querySelector(".sidebar")!.scrollTop,
+  }));
+  expect(scrolled).toMatchObject({ page: 0, app: 0, workspace: 0 });
+  expect(scrolled.sidebar).toBeGreaterThan(0);
+});

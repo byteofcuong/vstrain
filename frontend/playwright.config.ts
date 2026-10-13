@@ -1,5 +1,19 @@
 import { defineConfig } from "@playwright/test";
 
+/** Test của việc nộp mẫu. Chúng thêm tip tạm vào dataset mà các test khác đang đọc, nên chạy riêng, sau cùng. */
+export const SUBMISSION = "submission.spec.ts";
+
+/**
+ * Hai nhóm test: `viewer` chạy song song và chỉ đọc; `submission` chạy sau khi `viewer` xong, lần lượt từng test,
+ * vì nó ghi vào dataset dùng chung (mỗi test tự dọn mẫu và tài khoản của mình).
+ */
+export function projects(viewerIgnore: string[]) {
+  return [
+    { name: "viewer", testIgnore: [...viewerIgnore, SUBMISSION] },
+    { name: "submission", testMatch: SUBMISSION, dependencies: ["viewer"], fullyParallel: false },
+  ];
+}
+
 /**
  * Test đầu-cuối chạy trên bản build của frontend (thứ sẽ được triển khai), không phải dev server: mỗi lần chạy
  * build lại rồi phục vụ ở cổng 4173. API và file publish do backend ở cổng 8000 phục vụ
@@ -8,7 +22,7 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "e2e",
   // Các kiểm tra của nginx chỉ có nghĩa khi chạy qua service `web`: xem `playwright.web.config.ts`.
-  testIgnore: ["deploy.spec.ts"],
+  projects: projects(["deploy.spec.ts"]),
   timeout: 30_000,
   fullyParallel: true,
   reporter: [["list"]],

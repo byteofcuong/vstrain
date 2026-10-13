@@ -35,8 +35,8 @@ describe("translate", () => {
 
 describe("parseRoute", () => {
   it("reads the dataset slug from the fragment of the URL", () => {
-    expect(parseRoute("#/d/dengue-denv1")).toEqual({ page: "dataset", slug: "dengue-denv1" });
-    expect(parseRoute("#/d/synth-35000")).toEqual({ page: "dataset", slug: "synth-35000" });
+    expect(parseRoute("#/d/dengue-denv1")).toEqual({ page: "dataset", slug: "dengue-denv1", tip: null });
+    expect(parseRoute("#/d/synth-35000")).toEqual({ page: "dataset", slug: "synth-35000", tip: null });
   });
 
   it.each([

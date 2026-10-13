@@ -74,7 +74,10 @@ def run_job(session, work_dir: Path, kind: str, params: dict):
 
 def check(session, lab, tmp_path, sequence: str, **fields) -> tuple[Sample, dict]:
     sample = submit(session, lab, sequence, **fields)
-    result = ingest_sample(claimed(session, tmp_path / f"ingest-{sample.id}"))
+    context = claimed(session, tmp_path / f"ingest-{sample.id}")
+    result = ingest_sample(context)
+    # Worker ghi kết cục của job sau khi handler trả về; trạng thái mẫu hiện cho người nộp dựa cả vào đó.
+    assert queue.finish(session, context.job, result)
     session.expire_all()
     return sample, result
 

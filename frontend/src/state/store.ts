@@ -22,6 +22,10 @@ interface UiState {
   filters: Filters;
   /** Tip đang được chọn (chỉ số tip), -1 là không chọn. */
   selectedTip: number;
+  /** Tip tạm đang được chọn (mã nội bộ của mẫu); chọn một tip của build thì bỏ chọn tip tạm, và ngược lại. */
+  selectedProvisional: string | null;
+  /** Có vẽ các tip tạm (mẫu vừa nộp, chưa qua build) lên cây không. */
+  showProvisional: boolean;
   /** Bảng bản đồ có đang mở không. */
   mapOpen: boolean;
   /** Cấp địa bàn người xem đã chọn cho bản đồ; `null` là chưa chọn, bản đồ tự lấy cấp hợp với dữ liệu. */
@@ -46,6 +50,8 @@ interface UiState {
   setMapGrain(grain: MapGrain): void;
   setProvinceSet(set: ProvinceSet): void;
   selectTip(tip: number): void;
+  selectProvisional(internalId: string | null): void;
+  setShowProvisional(show: boolean): void;
   /** Về trạng thái ban đầu khi mở một dataset khác (giữ ngôn ngữ). */
   resetForDataset(): void;
 }
@@ -69,6 +75,8 @@ export const useUi = create<UiState>((set) => ({
   colorKey: null,
   filters: NO_FILTERS,
   selectedTip: -1,
+  selectedProvisional: null,
+  showProvisional: true,
   mapOpen: true,
   mapGrain: null,
   provinceSet: "vn34",
@@ -107,10 +115,23 @@ export const useUi = create<UiState>((set) => ({
   setMapOpen: (mapOpen) => set({ mapOpen }),
   setMapGrain: (mapGrain) => set({ mapGrain }),
   setProvinceSet: (provinceSet) => set({ provinceSet }),
-  selectTip: (selectedTip) => set({ selectedTip }),
+  selectTip: (selectedTip) => set({ selectedTip, selectedProvisional: null }),
+  selectProvisional: (selectedProvisional) =>
+    set((state) => ({ selectedProvisional, selectedTip: selectedProvisional === null ? state.selectedTip : -1 })),
+  // Ẩn các tip tạm thì tip tạm đang chọn cũng thôi được chọn: không để bảng chi tiết nói về thứ không còn thấy.
+  setShowProvisional: (showProvisional) =>
+    set((state) => ({ showProvisional, selectedProvisional: showProvisional ? state.selectedProvisional : null })),
   // Cấp của bản đồ được chọn lại theo dữ liệu của dataset mới; việc mở hay đóng bảng bản đồ là thói quen, giữ nguyên.
   resetForDataset: () =>
-    set({ layout: "rect", axis: "time", colorKey: null, filters: NO_FILTERS, selectedTip: -1, mapGrain: null }),
+    set({
+      layout: "rect",
+      axis: "time",
+      colorKey: null,
+      filters: NO_FILTERS,
+      selectedTip: -1,
+      selectedProvisional: null,
+      mapGrain: null,
+    }),
 }));
 
 /** Hàm dịch theo ngôn ngữ đang chọn. Đổi ngôn ngữ chỉ vẽ lại chữ, không đụng tới dữ liệu cây. */

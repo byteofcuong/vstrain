@@ -95,6 +95,23 @@ button:hover,
   border-color: var(--ink-faint);
 }
 
+/* Nút của hành động chính trên một trang: gửi form. */
+.button--primary {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+
+.button--primary:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.button--primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 button.quiet {
   padding: 0.15rem 0.4rem;
   border-color: transparent;
@@ -358,6 +375,9 @@ div.notice {
 }
 
 .sidebar {
+  /* Khung cuộn phải là khối chứa của các phần tử định vị tuyệt đối bên trong nó (ô radio ẩn của các dải nút):
+     không thì chúng nằm ngoài khung, làm cả trang cao thêm và cuộn được. */
+  position: relative;
   overflow-y: auto;
   border-right: 1px solid var(--line);
   background: var(--panel);
@@ -617,6 +637,8 @@ div.notice {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  /* Rộng theo nội dung, không theo khoảng trống còn lại tới mép phải của cây. */
+  width: max-content;
   max-width: 16rem;
   padding: 0.4rem 0.6rem;
   border-radius: var(--radius);
@@ -646,6 +668,7 @@ div.notice {
 
 /* Cột nằm cạnh cây chứ không đè lên: các mẫu mới nhất nằm sát mép phải của cây. */
 .context {
+  position: relative;
   flex: none;
   width: min(29rem, 44%);
   overflow-y: auto;
@@ -897,5 +920,187 @@ div.notice {
 @media (prefers-reduced-motion: no-preference) {
   .legend__bar {
     transition: width 160ms ease-out;
+  }
+}
+
+/* Mẫu tạm: thẻ nhỏ cạnh tên, và phần của nó ở thanh bên */
+
+.tag {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0 0.35rem;
+  border: 1px dashed currentColor;
+  border-radius: var(--radius);
+  font-size: var(--step--1);
+  font-weight: 600;
+  vertical-align: 0.1em;
+  white-space: nowrap;
+}
+
+.provisional__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+/* Cùng hình với dấu trên cây: hình thoi rỗng, viền màu mực. */
+.provisional__summary svg {
+  flex: none;
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.75;
+}
+
+.sample__header + .hint {
+  margin: -0.4rem 0 0.9rem;
+}
+
+.sample__actions {
+  margin-top: 0.9rem;
+}
+
+/* Đường dẫn của người đã đăng nhập ở thanh đầu trang */
+
+.masthead__nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.masthead__nav a {
+  color: #cfe6e8;
+}
+
+.masthead__nav a[aria-current="page"] {
+  color: #fff;
+  font-weight: 650;
+  text-decoration-thickness: 2px;
+}
+
+/* Trang nội dung: form nộp mẫu và danh sách mẫu đã nộp */
+
+.page {
+  width: min(34rem, 100% - 2rem);
+  margin: 2.5rem auto 4rem;
+}
+
+.page--wide {
+  width: min(68rem, 100% - 2rem);
+}
+
+.page h1 {
+  font-size: var(--step-3);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.page > p {
+  max-width: 62ch;
+  margin-top: 0.5rem;
+  color: var(--ink-soft);
+}
+
+.page > .choice {
+  margin-top: 1.25rem;
+}
+
+.page > .notice {
+  margin-top: 1rem;
+  color: var(--warn);
+}
+
+.page > .notice--good {
+  color: var(--accent);
+}
+
+.form {
+  display: grid;
+  gap: 1.1rem;
+  margin-top: 1.5rem;
+}
+
+.form .button {
+  justify-self: start;
+}
+
+.form .notice:focus-visible {
+  outline-offset: 4px;
+}
+
+.field input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.field [aria-invalid="true"] {
+  border-color: var(--warn);
+}
+
+.field select:disabled {
+  color: var(--ink-faint);
+}
+
+.field__problem {
+  margin-top: 0.4rem;
+  color: var(--warn);
+  font-size: var(--step--1);
+}
+
+/* Một ô ghi chú rỗng không chiếm chỗ. */
+.field .hint:empty {
+  display: none;
+}
+
+.submissions {
+  width: 100%;
+  margin-top: 1.5rem;
+  border-collapse: collapse;
+}
+
+.submissions th,
+.submissions td {
+  padding: 0.55rem 1rem 0.55rem 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.submissions thead th {
+  border-top: 0;
+  color: var(--ink-soft);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.submissions tbody th {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.submissions small {
+  display: block;
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  font-weight: 400;
+}
+
+.submissions td a,
+.submissions td button {
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.submissions td button.quiet {
+  padding-left: 0;
+}
+
+/* Màn hình hẹp: bảng cuộn ngang trong khung của nó, trang không bị kéo rộng. */
+@media (max-width: 760px) {
+  .submissions {
+    display: block;
+    overflow-x: auto;
   }
 }

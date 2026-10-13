@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { ApiError, getDataset, type DatasetInfo } from "../api";
+import { ApiError, getDataset, getPlacements, type DatasetInfo, type Placements } from "../api";
 import { DatasetSession } from "../data/session";
 import { useMapData } from "../map/load";
 import { selectionMask } from "../map/placement";
 import { useT, useUi } from "../state/store";
 import { colorize } from "../tree/colors";
-import { countSet, intersect, tipMask } from "../tree/filter";
+import { countSet, hasFilters, intersect, tipMask } from "../tree/filter";
+import { attachProvisional, provisionalMask } from "../tree/provisional";
 import { MapPanel } from "./MapPanel";
+import { ProvisionalPanel } from "./ProvisionalPanel";
 import { SamplePanel } from "./SamplePanel";
 import { Sidebar } from "./Sidebar";
 import { TreeCanvas } from "./TreeCanvas";
@@ -17,6 +19,12 @@ type Lookup =
   | { state: "found"; dataset: DatasetInfo }
   | { state: "missing" }
   | { state: "failed"; message: string };
+
+/** Các tip tạm của dataset: đang tải, đã có, hoặc tải không được (cây vẫn xem được, chỉ thiếu tip tạm). */
+type PlacementsState = { state: "loading" } | ({ state: "ready" } & Placements) | { state: "error" };
+
+/** Chờ danh sách tip tạm lâu nhất bấy nhiêu mili giây rồi vẽ cây mà không có chúng. */
+const PLACEMENTS_TIMEOUT = 3000;
 
 /** Cột được tô màu khi vừa mở dataset: genotype nếu có, không thì cột đầu tiên. */
 const PREFERRED_COLOR = "clade";
@@ -38,12 +46,23 @@ function Message({ children, onRetry }: { children: React.ReactNode; onRetry?: (
   );
 }
 
-function OpenDataset({ session }: { session: DatasetSession }) {
+interface OpenProps {
+  session: DatasetSession;
+  placements: PlacementsState;
+  onReloadPlacements(): void;
+  /** Mã nội bộ của mẫu mà địa chỉ trang chỉ vào; được chọn sẵn khi cây mở. */
+  wantedTip: string | null;
+}
+
+function OpenDataset({ session, placements, onReloadPlacements, wantedTip }: OpenProps) {
   const t = useT();
   const lang = useUi((state) => state.lang);
   const colorKey = useUi((state) => state.colorKey);
   const filters = useUi((state) => state.filters);
   const selectedTip = useUi((state) => state.selectedTip);
+  const selectedProvisional = useUi((state) => state.selectedProvisional);
+  const showProvisional = useUi((state) => state.showProvisional);
+  const selectProvisional = useUi((state) => state.selectProvisional);
   const mapWanted = useUi((state) => state.mapOpen);
   const setColorKey = useUi((state) => state.setColorKey);
   const selectTip = useUi((state) => state.selectTip);
@@ -97,6 +116,28 @@ function OpenDataset({ session }: { session: DatasetSession }) {
   }, [tree, columns, filters, areaTips]);
   const visibleCount = useMemo(() => countSet(tipVisible), [tipVisible]);
 
+  // Tip tạm chỉ có nghĩa với cây của đúng build mà chúng được gắn vào: build của trang khác đi thì bỏ qua.
+  const provisional = useMemo(() => {
+    if (!tree || !manifest || placements.state !== "ready" || placements.buildId !== manifest.build.id) return null;
+    const attached = attachProvisional(tree, placements.items);
+    return attached.tips.length > 0 ? attached : null;
+  }, [tree, manifest, placements]);
+  const provisionalVisible = useMemo(() => {
+    if (!provisional) return null;
+    return showProvisional ? provisionalMask(provisional, filters) : new Uint8Array(provisional.tips.length);
+  }, [provisional, showProvisional, filters]);
+  const provisionalIndex = provisional
+    ? provisional.tips.findIndex((one) => one.internalId === selectedProvisional)
+    : -1;
+
+  // Địa chỉ trang chỉ vào một mẫu: chọn nó khi cây và các tip tạm đã về. Mẫu đã thành tip chính thức thì chọn
+  // tip đó.
+  useEffect(() => {
+    if (!wantedTip || !tree || placements.state === "loading") return;
+    if (provisional?.tips.some((one) => one.internalId === wantedTip)) selectProvisional(wantedTip);
+    else if (tree.tipNames.includes(wantedTip)) selectTip(tree.tipNames.indexOf(wantedTip));
+  }, [wantedTip, tree, placements.state, provisional, selectProvisional, selectTip]);
+
   if (data.status === "error") {
     return (
       <Message>
@@ -104,7 +145,8 @@ function OpenDataset({ session }: { session: DatasetSession }) {
       </Message>
     );
   }
-  if (!manifest || !tree) return <Message>{t("loadingTree")}</Message>;
+  // Khung hình đầu được vẽ khi đã biết các tip tạm, để trục không co giãn ngay sau khi cây hiện ra.
+  if (!manifest || !tree || placements.state === "loading") return <Message>{t("loadingTree")}</Message>;
 
   const colorTitle = manifest.columns.find((column) => column.key === colorKey)?.title[lang] ?? null;
   const selected = selectedTip >= 0 && selectedTip < tree.tipCount ? selectedTip : -1;
@@ -124,6 +166,12 @@ function OpenDataset({ session }: { session: DatasetSession }) {
         visibleCount={visibleCount}
         map={map.data}
         mapAvailable={hasGeo}
+        provisional={{
+          failed: placements.state === "error",
+          total: provisional?.tips.length ?? 0,
+          filteredOut: provisional !== null && hasFilters({ ...filters, dateFrom: null, dateTo: null }),
+          onRetry: onReloadPlacements,
+        }}
       />
       <main className="stage">
         <TreeCanvas
@@ -135,8 +183,12 @@ function OpenDataset({ session }: { session: DatasetSession }) {
           coloring={coloring}
           colorColumn={colorColumn}
           colorTitle={colorTitle}
+          provisional={provisional}
+          provisionalVisible={provisionalVisible}
+          selectedProvisional={provisionalIndex}
+          onSelectProvisional={(index) => selectProvisional(provisional?.tips[index]?.internalId ?? null)}
         />
-        {(selected >= 0 || mapOpen) && (
+        {(selected >= 0 || provisionalIndex >= 0 || mapOpen) && (
           // Một cột bên phải cho cả hai: chi tiết của mẫu đang chọn nằm trên, bản đồ nằm dưới.
           <div className="context">
             {selected >= 0 && (
@@ -146,6 +198,16 @@ function OpenDataset({ session }: { session: DatasetSession }) {
                 treeDate={tree.numDate[tree.tipNode[selected]]}
                 unitColumn={unitColumn}
                 onClose={() => selectTip(-1)}
+              />
+            )}
+            {provisional && provisionalIndex >= 0 && (
+              <ProvisionalPanel
+                tip={provisional.tips[provisionalIndex]}
+                onClose={() => selectProvisional(null)}
+                onHidden={() => {
+                  selectProvisional(null);
+                  onReloadPlacements();
+                }}
               />
             )}
             {mapOpen && (
@@ -167,12 +229,15 @@ function OpenDataset({ session }: { session: DatasetSession }) {
   );
 }
 
-export function DatasetView({ slug }: { slug: string }) {
+export function DatasetView({ slug, tip }: { slug: string; tip: string | null }) {
   const t = useT();
   const resetForDataset = useUi((state) => state.resetForDataset);
   const [lookup, setLookup] = useState<Lookup>({ state: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [session, setSession] = useState<DatasetSession | null>(null);
+  const [placements, setPlacements] = useState<PlacementsState>({ state: "loading" });
+  const [placementsAttempt, setPlacementsAttempt] = useState(0);
+  const askedFor = useRef<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -201,6 +266,31 @@ export function DatasetView({ slug }: { slug: string }) {
     return () => opened.dispose();
   }, [manifestUrl]);
 
+  // Các tip tạm được hỏi song song với việc tải cây. Hỏi không được, hoặc quá lâu, thì cây vẫn được vẽ.
+  useEffect(() => {
+    if (!manifestUrl) return;
+    const controller = new AbortController();
+    let current = true;
+    const timer = window.setTimeout(() => controller.abort(), PLACEMENTS_TIMEOUT);
+    // Chỉ lần hỏi đầu của một bản publish mới giữ cây lại chờ. Hỏi lại (sau khi ẩn một mẫu, hay bấm thử lại) thì cây
+    // đang xem vẫn đứng yên cho tới khi có câu trả lời mới.
+    if (askedFor.current !== manifestUrl) setPlacements({ state: "loading" });
+    askedFor.current = manifestUrl;
+    getPlacements(slug, controller.signal)
+      .then((found) => current && setPlacements({ state: "ready", ...found }))
+      .catch((error: unknown) => {
+        if (!current) return;
+        console.error(error);
+        setPlacements({ state: "error" });
+      })
+      .finally(() => window.clearTimeout(timer));
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [slug, manifestUrl, placementsAttempt]);
+
   if (lookup.state === "loading") return <Message>{t("loading")}</Message>;
   if (lookup.state === "missing") return <Message>{t("datasetNotFound")}</Message>;
   if (lookup.state === "failed") {
@@ -212,5 +302,12 @@ export function DatasetView({ slug }: { slug: string }) {
   }
   if (!manifestUrl) return <Message>{t("datasetNotBuilt")}</Message>;
   if (!session) return <Message>{t("loadingTree")}</Message>;
-  return <OpenDataset session={session} />;
+  return (
+    <OpenDataset
+      session={session}
+      placements={placements}
+      onReloadPlacements={() => setPlacementsAttempt((count) => count + 1)}
+      wantedTip={tip}
+    />
+  );
 }

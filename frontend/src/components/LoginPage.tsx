@@ -73,7 +73,7 @@ export function LoginPage() {
             {t(failure)}
           </p>
         )}
-        <button type="submit" className="button" disabled={sending}>
+        <button type="submit" className="button button--primary" disabled={sending}>
           {t(sending ? "loggingIn" : "logIn")}
         </button>
       </form>
