@@ -49,6 +49,13 @@ def test_a_password_that_is_too_short_or_too_long_is_refused(password):
         hash_password(password)
 
 
+@pytest.mark.parametrize("length", [10, 200])
+def test_the_shortest_and_the_longest_allowed_passwords_are_accepted(length):
+    password = "x" * length
+
+    assert verify_password(password, hash_password(password)) is True
+
+
 def test_an_overlong_password_is_rejected_without_being_hashed(monkeypatch):
     encoded = hash_password(GOOD)
 
@@ -80,10 +87,45 @@ def test_a_hash_made_by_another_scheme_does_not_verify():
         "scrypt$n=131072,r=8000,p=1$c2FsdHNhbHRzYWx0c2FsdA==$aGFzaA==",
         "scrypt$n=0,r=8,p=1$c2FsdHNhbHRzYWx0c2FsdA==$aGFzaA==",
         "scrypt$n=abc,r=8,p=1$c2FsdHNhbHRzYWx0c2FsdA==$aGFzaA==",
+        # Tham số mà scrypt không nhận hoặc tốn thời gian vô lý.
+        "scrypt$n=131072,r=0,p=1$c2FsdHNhbHRzYWx0c2FsdA==$aGFzaA==",
+        "scrypt$n=131072,r=8,p=0$c2FsdHNhbHRzYWx0c2FsdA==$aGFzaA==",
+        "scrypt$n=131072,r=8,p=64$c2FsdHNhbHRzYWx0c2FsdA==$aGFzaA==",
+        "scrypt$n=1,r=8,p=1$c2FsdHNhbHRzYWx0c2FsdA==$aGFzaA==",
+        "scrypt$n=100000,r=8,p=1$c2FsdHNhbHRzYWx0c2FsdA==$aGFzaA==",
     ],
 )
-def test_a_stored_hash_that_cannot_be_read_never_verifies_and_never_raises(encoded):
+def test_a_stored_hash_that_cannot_be_read_never_verifies_and_never_raises(encoded, monkeypatch):
+    def no_hashing(*_args, **_kwargs):
+        raise AssertionError("the server tried to hash with a stored value it should have refused")
+
+    monkeypatch.setattr(passwords.hashlib, "scrypt", no_hashing)
+
     assert verify_password(GOOD, encoded) is False
+
+
+@pytest.mark.parametrize("parameters", ["n=1048576,r=8,p=1", "n=131072,r=64,p=1", "n=524288,r=16,p=1"])
+def test_a_stored_hash_asking_for_a_gigabyte_is_refused_without_trying(parameters, monkeypatch):
+    # Tham số hợp lệ về hình thức nhưng đòi 1 GB bộ nhớ: một dòng bị sửa trong DB không được làm server cấp phát nó.
+    def no_hashing(*_args, **_kwargs):
+        raise AssertionError("the server tried to hash with these parameters")
+
+    monkeypatch.setattr(passwords.hashlib, "scrypt", no_hashing)
+
+    assert verify_password(GOOD, f"scrypt${parameters}$c2FsdHNhbHRzYWx0c2FsdA==$aGFzaA==") is False
+
+
+def test_a_stored_hash_with_twice_the_current_memory_cost_still_verifies():
+    # Chỗ để nâng tham số về sau: gấp đôi mức hiện tại vẫn nằm trong trần.
+    current = passwords.N
+    passwords.N = 2**18
+    try:
+        encoded = hash_password(GOOD)
+    finally:
+        passwords.N = current
+
+    assert encoded.startswith("scrypt$n=262144,")
+    assert verify_password(GOOD, encoded) is True
 
 
 def test_the_length_limits_apply_to_the_password_as_normalised_however_it_was_typed():
@@ -152,3 +194,67 @@ def test_only_a_few_hashes_run_at_once_and_the_overflow_is_turned_away(monkeypat
     assert most == passwords.CONCURRENT_HASHES
     assert outcomes.count("done") == waiting_room
     assert outcomes.count("busy") == 30 - waiting_room
+
+
+def test_a_thread_that_has_left_its_slot_must_ask_for_one_again(monkeypatch):
+    # Server dùng lại luồng cho request sau: luồng vừa xong một lần đăng nhập không được coi là còn giữ chỗ.
+    monkeypatch.setattr(passwords, "_admitted", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(passwords, "_running", threading.BoundedSemaphore(1))
+    with passwords.hashing_slot():
+        pass
+    entered, release = threading.Event(), threading.Event()
+
+    def occupy():
+        with passwords.hashing_slot():
+            entered.set()
+            release.wait(10)
+
+    other = threading.Thread(target=occupy)
+    other.start()
+    try:
+        assert entered.wait(5)
+        with pytest.raises(TooBusy), passwords.hashing_slot():
+            pass
+    finally:
+        release.set()
+        other.join()
+
+
+def test_a_slot_held_for_a_whole_login_counts_once_and_covers_the_hashing_inside_it(monkeypatch):
+    # Đăng nhập giữ một chỗ từ trước khi chạm vào database tới sau khi commit; lần băm bên trong dùng chính
+    # chỗ đó, không xin thêm chỗ thứ hai.
+    monkeypatch.setattr(passwords, "N", 2**10)
+    encoded = hash_password(GOOD)
+    release = threading.Event()
+    lock = threading.Lock()
+    inside = 0
+    outcomes = []
+
+    def attempt():
+        nonlocal inside
+        try:
+            with passwords.hashing_slot():
+                with lock:
+                    inside += 1
+                release.wait(10)
+                outcomes.append(verify_password(GOOD, encoded))
+        except TooBusy:
+            outcomes.append("busy")
+
+    threads = [threading.Thread(target=attempt) for _ in range(30)]
+    for thread in threads:
+        thread.start()
+    capacity = passwords.CONCURRENT_HASHES + passwords.WAITING_HASHES
+    deadline = time.monotonic() + 5
+    while outcomes.count("busy") < 30 - capacity and time.monotonic() < deadline:
+        time.sleep(0.01)
+    # Chờ thêm một nhịp: nếu trần số lần chạy không còn, mọi lần đã được nhận sẽ kịp vào trong.
+    time.sleep(0.2)
+    turned_away, running = outcomes.count("busy"), inside
+    release.set()
+    for thread in threads:
+        thread.join()
+
+    assert turned_away == 30 - capacity
+    assert running == passwords.CONCURRENT_HASHES
+    assert outcomes.count(True) == capacity and outcomes.count("busy") == 30 - capacity

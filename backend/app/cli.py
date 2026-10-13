@@ -81,7 +81,11 @@ def run_create_user(args: argparse.Namespace) -> None:
     """Tạo một tài khoản. Mật khẩu không nhận qua tham số dòng lệnh, vì tham số nằm trong danh sách tiến trình."""
     if args.password_stdin:
         # Đọc byte rồi tự giải mã: mật khẩu tiếng Việt không phụ thuộc bảng mã mặc định của terminal.
-        password = sys.stdin.buffer.readline().decode("utf-8").rstrip("\r\n")
+        try:
+            password = sys.stdin.buffer.readline().decode("utf-8").rstrip("\r\n")
+        except UnicodeDecodeError:
+            # Thà dừng còn hơn băm một chuỗi khác với thứ người dùng sẽ gõ lúc đăng nhập.
+            sys.exit("Mật khẩu đọc từ stdin không phải UTF-8. Bỏ --password-stdin để gõ mật khẩu trực tiếp.")
     else:
         password = getpass.getpass("Mật khẩu: ")
         if getpass.getpass("Nhập lại mật khẩu: ") != password:

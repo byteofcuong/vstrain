@@ -1,18 +1,37 @@
-from collections.abc import Awaitable, Callable
+import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response, status
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.accounts import service as accounts
 from app.accounts.api import admin_router
 from app.accounts.api import router as auth_router
 from app.build.api import files_router
 from app.build.api import router as datasets_router
 from app.db import SessionDep
-from app.errors import error_response, install_error_handlers
+from app.errors import error_response, install_error_handlers, internal_error
 from app.samples.api import router as samples_router
 
-app = FastAPI(title="VietStrain API", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
+log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Tính sẵn chuỗi băm dùng để so với email lạ, để lần đăng nhập đầu tiên không phải tự tính nó.
+    accounts.unknown_email_hash()
+    yield
+
+
+app = FastAPI(
+    title="VietStrain API",
+    version="0.1.0",
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
 install_error_handlers(app)
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -39,7 +58,13 @@ async def guard_requests(request: Request, call_next: Callable[[Request], Awaita
             403, "CSRF_HEADER_REQUIRED", "Write requests must carry the X-Requested-With header"
         )
     else:
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            # Lỗi chưa lường trước được trả lời ngay ở đây, không để lớp ngoài cùng của framework trả: câu trả
+            # lời của lớp đó không đi qua phần gắn header bên dưới.
+            log.exception("Unhandled error in %s %s", request.method, request.url.path)
+            response = internal_error()
     if request.url.path.startswith(_PRIVATE_PATHS):
         response.headers["Cache-Control"] = "no-store"
     return response

@@ -72,13 +72,16 @@ AdminUser = Annotated[AppUser, Depends(require_admin)]
 @router.post("/login")
 def login(body: Credentials, response: Response, session: SessionDep) -> Me:
     try:
-        result = service.log_in(session, body.email, body.password, now=_now())
+        # Giữ một chỗ băm cho cả lần đăng nhập, từ trước câu truy vấn đầu tiên tới sau khi commit. Lần đang chờ
+        # tới lượt chưa mở transaction nên không giữ kết nối database, và số lần cùng chờ khoá của một dòng
+        # tài khoản không vượt quá số chỗ chạy.
+        with passwords.hashing_slot():
+            result = service.log_in(session, body.email, body.password, now=_now())
+            # Commit cả khi thất bại: số lần sai phải được lưu thì giới hạn số lần thử mới có nghĩa.
+            session.commit()
     except passwords.TooBusy:
-        # Quá nhiều lần đăng nhập cùng lúc: từ chối ngay, không tính là một lần sai. Lúc này chưa có gì được
-        # ghi; khoá trên dòng tài khoản được nhả khi session của request đóng lại.
+        # Quá nhiều lần đăng nhập cùng lúc: từ chối ngay, không tính là một lần sai, chưa có gì được ghi.
         raise ApiError(503, "LOGIN_BUSY", "Too many logins are being checked; try again in a moment") from None
-    # Commit cả khi thất bại: số lần sai phải được lưu thì giới hạn số lần thử mới có nghĩa.
-    session.commit()
     if result is None:
         raise ApiError(
             401, "INVALID_CREDENTIALS", "Wrong email or password, or the account is locked after too many attempts"
@@ -101,7 +104,7 @@ def logout(response: Response, session: SessionDep, token: SessionToken = None) 
     if token:
         service.log_out(session, token)
         session.commit()
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="lax", secure=settings.cookie_secure)
 
 
 @router.get("/me")

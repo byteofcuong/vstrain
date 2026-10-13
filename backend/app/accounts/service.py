@@ -79,8 +79,12 @@ def _token_hash(token: str) -> str:
 
 
 @functools.cache
-def _dummy_hash() -> str:
-    """Chuỗi băm của một mật khẩu không ai biết, để email không tồn tại cũng tốn một lần băm như email có thật."""
+def unknown_email_hash() -> str:
+    """Chuỗi băm của một mật khẩu không ai biết, để email không tồn tại cũng tốn một lần băm như email có thật.
+
+    Tính một lần rồi giữ lại. API gọi hàm này lúc khởi động: nếu để lần đăng nhập đầu tiên với email lạ tự tính
+    thì lần đó tốn hai lần băm, và độ chậm ấy nói rằng email không có tài khoản.
+    """
     return hash_password(secrets.token_urlsafe(32))
 
 
@@ -91,14 +95,15 @@ def log_in(session: Session, email: str, password: str, *, now: dt.datetime) -> 
     một dòng nhật ký, để câu trả lời và thời gian trả lời không cho biết email nào có tài khoản. Nhật ký không
     ghi email đã thử: người dùng hay gõ nhầm mật khẩu vào ô email.
 
-    Ném `TooBusy` khi đang có quá nhiều lần băm; khi đó chưa có gì được ghi.
+    Bên gọi giữ `passwords.hashing_slot()` quanh lời gọi này và lần commit theo sau: khoá dòng dưới đây chỉ
+    được chờ bởi số lần đăng nhập có trần, không phải bởi mọi request đang tới.
     """
     email = normalize_email(email)
     # Khoá dòng: các lần thử chạy song song không vượt được bộ đếm số lần sai.
     locked_row = select(AppUser).where(AppUser.email == email).with_for_update()
     user = session.scalar(locked_row) if _is_email(email) else None
     if user is None:
-        verify_password(password, _dummy_hash())
+        verify_password(password, unknown_email_hash())
         record(session, None, "login_failed")
         session.flush()
         return None

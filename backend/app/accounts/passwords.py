@@ -11,6 +11,8 @@ import hmac
 import secrets
 import threading
 import unicodedata
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 # Mức tối thiểu OWASP khuyến nghị cho scrypt: khoảng 128 MB bộ nhớ, 0,3 giây trên máy phát triển.
 N = 2**17
@@ -27,8 +29,8 @@ MAX_LENGTH = 200
 RAW_LIMIT = 4 * MAX_LENGTH
 
 # Trần cho tham số đọc từ chuỗi đã lưu: một dòng bị sửa trong DB không được bắt server cấp phát hàng gigabyte.
-_MAX_N = 2**20
-_MAX_R = 16
+# scrypt cần khoảng 128 * n * r byte; trần là 256 MB, gấp đôi mức hiện tại để còn chỗ nâng tham số về sau.
+_MAX_MEMORY = 2**28
 _MAX_P = 4
 
 # Mỗi lần băm giữ khoảng 128 MB. Đăng nhập không cần quyền gì, nên số lần băm chạy cùng lúc phải có trần:
@@ -37,6 +39,7 @@ CONCURRENT_HASHES = 4
 WAITING_HASHES = 8
 _running = threading.BoundedSemaphore(CONCURRENT_HASHES)
 _admitted = threading.BoundedSemaphore(CONCURRENT_HASHES + WAITING_HASHES)
+_slot = threading.local()  # luồng này có đang giữ một chỗ băm không
 
 
 class WeakPassword(ValueError):
@@ -61,14 +64,33 @@ def _normalized(password: str) -> tuple[int, bytes] | None:
         return None
 
 
-def _key(raw: bytes, salt: bytes, n: int, r: int, p: int, length: int) -> bytes:
+@contextmanager
+def hashing_slot() -> Iterator[None]:
+    """Giữ một chỗ băm; ném `TooBusy` ngay nếu cả chỗ chạy lẫn chỗ chờ đều đã hết.
+
+    Mỗi lần băm tự lấy một chỗ. Đăng nhập thì lấy chỗ sớm hơn, từ trước khi chạm vào database tới sau khi commit:
+    các lần đăng nhập vào cùng một tài khoản xếp hàng sau khoá của dòng tài khoản, và chỗ xếp hàng đó cũng phải
+    nằm trong trần này. Lần băm bên trong dùng lại chỗ luồng đang giữ.
+    """
+    if getattr(_slot, "held", False):
+        yield
+        return
     if not _admitted.acquire(blocking=False):
         raise TooBusy("Too many passwords are being checked")
     try:
         with _running:
-            return hashlib.scrypt(raw, salt=salt, n=n, r=r, p=p, dklen=length, maxmem=128 * n * r * p + 2**20)
+            _slot.held = True
+            try:
+                yield
+            finally:
+                _slot.held = False
     finally:
         _admitted.release()
+
+
+def _key(raw: bytes, salt: bytes, n: int, r: int, p: int, length: int) -> bytes:
+    with hashing_slot():
+        return hashlib.scrypt(raw, salt=salt, n=n, r=r, p=p, dklen=length, maxmem=128 * n * r * p + 2**20)
 
 
 def _text(raw: bytes) -> str:
@@ -102,6 +124,6 @@ def verify_password(password: str, encoded: str) -> bool:
     except (ValueError, KeyError, binascii.Error):
         return False
     # n phải là luỹ thừa của 2 lớn hơn 1, như scrypt đòi hỏi.
-    if not (1 < n <= _MAX_N and n & (n - 1) == 0 and 0 < r <= _MAX_R and 0 < p <= _MAX_P and expected):
+    if not (n > 1 and n & (n - 1) == 0 and r > 0 and 128 * n * r <= _MAX_MEMORY and 0 < p <= _MAX_P and expected):
         return False
     return hmac.compare_digest(_key(normalized[1], salt, n, r, p, len(expected)), expected)

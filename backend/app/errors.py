@@ -37,6 +37,14 @@ def error_response(
     return JSONResponse({"error": error}, status_code=status_code)
 
 
+def internal_error() -> JSONResponse:
+    """Câu trả lời cho lỗi chưa lường trước: chi tiết nằm trong log của server, không gửi cho người gọi.
+
+    Middleware trong `app.main` bắt lỗi của mọi route và trả lời bằng hàm này.
+    """
+    return error_response(500, "INTERNAL_ERROR", "The server could not handle this request")
+
+
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def api_error(_request: Request, error: ApiError) -> JSONResponse:
@@ -51,8 +59,3 @@ def install_error_handlers(app: FastAPI) -> None:
     async def http_error(_request: Request, error: HTTPException) -> JSONResponse:
         # Lỗi do framework sinh ra (đường dẫn không tồn tại, sai phương thức) cũng theo cùng một dạng.
         return error_response(error.status_code, HTTPStatus(error.status_code).name, str(error.detail))
-
-    @app.exception_handler(Exception)
-    async def unexpected_error(_request: Request, _error: Exception) -> JSONResponse:
-        # Lỗi chưa lường trước: chi tiết nằm trong log của server, không gửi cho người gọi.
-        return error_response(500, "INTERNAL_ERROR", "The server could not handle this request")

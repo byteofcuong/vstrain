@@ -1,5 +1,9 @@
 import datetime as dt
 import hashlib
+import io
+import threading
+import time
+import types
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,6 +24,10 @@ BROWSER = {"X-Requested-With": "vietstrain"}
 def cheap_hashing(monkeypatch):
     """Băm nhẹ cho test: tham số nằm trong chuỗi băm nên việc kiểm tra vẫn đi đúng đường thật."""
     monkeypatch.setattr(passwords, "N", 2**10)
+    # Chuỗi băm dùng cho email lạ được tính một lần rồi giữ lại; tính lại với tham số nhẹ của test này.
+    service.unknown_email_hash.cache_clear()
+    yield
+    service.unknown_email_hash.cache_clear()
 
 
 @pytest.fixture
@@ -76,6 +84,7 @@ def test_the_session_cookie_is_marked_secure_when_configured(client, user, monke
     monkeypatch.setattr("app.config.settings.cookie_secure", True)
 
     assert "Secure" in log_in(client).headers["set-cookie"]
+    assert "Secure" in client.post("/api/auth/logout", headers=BROWSER).headers["set-cookie"]
 
 
 def test_nobody_is_logged_in_without_a_cookie(client):
@@ -105,6 +114,8 @@ def test_logging_out_ends_the_session_on_the_server(client, user):
     # Trình duyệt được bảo xoá cookie.
     cleared = response.headers["set-cookie"]
     assert cleared.startswith(f'{COOKIE}="";') and "Max-Age=0" in cleared
+    # Lệnh xoá mang cùng thuộc tính với lúc đặt, để trình duyệt nào cũng coi là cùng một cookie.
+    assert "HttpOnly" in cleared and "SameSite=lax" in cleared and "Path=/" in cleared
     assert error_of(client.get("/api/auth/me")) == (401, "NOT_AUTHENTICATED")
     # Cookie cũ bị ai đó giữ lại cũng không còn dùng được.
     client.cookies.set(COOKIE, token)
@@ -475,7 +486,7 @@ def test_a_login_is_turned_away_when_too_many_are_being_checked(client, session,
     assert (user.failed_logins, user.locked_until) == (0, None)
 
 
-def test_an_unexpected_failure_is_reported_without_its_details(session, user, monkeypatch):
+def test_an_unexpected_failure_is_reported_without_its_details(session, user, monkeypatch, caplog):
     from app.db import get_session
     from app.main import app
 
@@ -492,6 +503,10 @@ def test_an_unexpected_failure_is_reported_without_its_details(session, user, mo
 
     assert error_of(response) == (500, "INTERNAL_ERROR")
     assert "secret detail" not in response.text and "Traceback" not in response.text
+    # Câu trả lời lỗi ở đường dẫn của tài khoản cũng không được giữ lại.
+    assert response.headers.get("cache-control") == "no-store"
+    # Chi tiết không mất: nó nằm trong log của server, nơi người vận hành đọc được.
+    assert "POST /api/auth/login" in caplog.text and "secret detail from inside the server" in caplog.text
 
 
 def test_logging_in_works_with_the_real_cost_of_hashing(client, session, monkeypatch):
@@ -509,3 +524,149 @@ def test_logging_in_works_with_the_real_cost_of_hashing(client, session, monkeyp
 def test_a_display_name_must_be_readable_text(session):
     with pytest.raises(ValueError, match="name"):
         service.create_user(session, email="e@example.org", display_name="tên\x00lạ", password=PASSWORD)
+
+
+def _wait_for(condition, seconds: float = 5.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while not condition():
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.01)
+    return True
+
+
+def test_logins_beyond_the_limit_are_turned_away_at_once_even_when_they_all_name_one_account(real, engine, monkeypatch):
+    # Các lần đăng nhập vào cùng một email xếp hàng sau khoá của dòng tài khoản. Chỗ chờ đó phải nằm trong trần
+    # chung: lần vượt trần bị từ chối ngay, và lần đang chờ tới lượt chưa giữ kết nối database nào.
+    client, _sessions = real
+    release = threading.Event()
+    real_scrypt = passwords.hashlib.scrypt
+
+    def held_scrypt(*args, **kwargs):
+        release.wait(10)
+        return real_scrypt(*args, **kwargs)
+
+    monkeypatch.setattr(passwords.hashlib, "scrypt", held_scrypt)
+    capacity = passwords.CONCURRENT_HASHES + passwords.WAITING_HASHES
+    extra = 6
+    statuses: list[int] = []
+
+    def attempt():
+        statuses.append(log_in(client, password="sai mật khẩu rồi").status_code)
+
+    threads = [threading.Thread(target=attempt) for _ in range(capacity + extra)]
+    for thread in threads:
+        thread.start()
+    try:
+        answered_at_once = _wait_for(lambda: len(statuses) >= extra)
+        early = list(statuses)
+        connections = engine.pool.checkedout()
+    finally:
+        release.set()
+        for thread in threads:
+            thread.join()
+
+    assert answered_at_once and early == [503] * extra
+    assert connections <= passwords.CONCURRENT_HASHES
+    assert sorted(statuses) == [401] * capacity + [503] * extra
+
+
+def test_wrong_passwords_tried_at_the_same_moment_are_all_counted(real, monkeypatch):
+    # Không có khoá dòng thì các lần thử song song cùng đọc bộ đếm cũ rồi ghi đè nhau: gửi cả loạt một lúc là
+    # vượt được giới hạn năm lần.
+    client, sessions = real
+    real_scrypt = passwords.hashlib.scrypt
+
+    def slow_scrypt(*args, **kwargs):
+        time.sleep(0.05)
+        return real_scrypt(*args, **kwargs)
+
+    monkeypatch.setattr(passwords.hashlib, "scrypt", slow_scrypt)
+    threads = [
+        threading.Thread(target=log_in, args=(client,), kwargs={"password": "sai mật khẩu rồi"}) for _ in range(8)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    with sessions() as check:
+        actions = check.scalars(select(AuditLog.action).where(AuditLog.action != "user_created")).all()
+    assert sorted(actions) == ["login_failed"] * 4 + ["login_locked"] + ["login_refused"] * 3
+    assert error_of(log_in(client)) == (401, "INVALID_CREDENTIALS")
+
+
+def test_the_first_login_after_a_start_costs_one_hash_even_for_an_unknown_email(session, monkeypatch):
+    # Email lạ được so với một chuỗi băm giả. Chuỗi đó phải có sẵn từ lúc server khởi động: nếu lần đăng nhập
+    # đầu tiên phải tự tạo nó thì lần đó chậm gấp đôi, và độ chậm ấy nói rằng email không có tài khoản.
+    from app.db import get_session
+    from app.main import app
+
+    calls = []
+    real_scrypt = passwords.hashlib.scrypt
+    app.dependency_overrides[get_session] = lambda: session
+    try:
+        with TestClient(app) as started:
+            monkeypatch.setattr(
+                passwords.hashlib, "scrypt", lambda *args, **kwargs: calls.append(1) or real_scrypt(*args, **kwargs)
+            )
+            log_in(started, email="nobody@example.org")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert len(calls) == 1
+
+
+def _create_user_from_stdin(monkeypatch, typed: bytes, email: str = "cli@example.org") -> None:
+    from app import cli
+
+    monkeypatch.setattr(cli.sys, "stdin", types.SimpleNamespace(buffer=io.BytesIO(typed)))
+    cli.main(["create-user", "--email", email, "--name", "Người dùng lệnh", "--role", "submitter", "--password-stdin"])
+
+
+def test_the_admin_command_reads_a_vietnamese_password_from_standard_input(real, monkeypatch, capsys):
+    client, _sessions = real
+
+    _create_user_from_stdin(monkeypatch, "mật khẩu từ dòng lệnh\r\n".encode())
+
+    assert "cli@example.org" in capsys.readouterr().out
+    assert log_in(client, email="cli@example.org", password="mật khẩu từ dòng lệnh").status_code == 200
+
+
+def test_the_admin_command_refuses_a_password_that_is_not_utf8_text(real, monkeypatch):
+    # Windows PowerShell 5.1 không gửi UTF-8 khi nối ống: thà dừng với lời báo rõ còn hơn băm một chuỗi sai.
+    _client, sessions = real
+
+    with pytest.raises(SystemExit) as stopped:
+        _create_user_from_stdin(monkeypatch, "mật khẩu từ dòng lệnh".encode("utf-16") + b"\n")
+
+    assert "UTF-8" in str(stopped.value)
+    with sessions() as check:
+        assert check.scalars(select(AppUser.email)).all() == [EMAIL]
+
+
+def _create_user_by_typing(monkeypatch, typed: list[str], role: str) -> None:
+    from app import cli
+
+    answers = iter(typed)
+    monkeypatch.setattr(cli.getpass, "getpass", lambda _prompt: next(answers))
+    cli.main(["create-user", "--email", "typed@example.org", "--name", "Người gõ tay", "--role", role])
+
+
+def test_the_admin_command_asks_for_the_password_twice_and_makes_the_role_it_was_told(real, monkeypatch):
+    client, _sessions = real
+
+    _create_user_by_typing(monkeypatch, ["mật khẩu gõ hai lần", "mật khẩu gõ hai lần"], role="admin")
+
+    assert log_in(client, email="typed@example.org", password="mật khẩu gõ hai lần").json()["user"]["role"] == "admin"
+    assert client.get("/api/admin/users").status_code == 200
+
+
+def test_the_admin_command_stops_when_the_two_typed_passwords_differ(real, monkeypatch):
+    _client, sessions = real
+
+    with pytest.raises(SystemExit):
+        _create_user_by_typing(monkeypatch, ["mật khẩu thứ nhất", "mật khẩu thứ hai"], role="submitter")
+
+    with sessions() as check:
+        assert check.scalars(select(AppUser.email)).all() == [EMAIL]
