@@ -93,3 +93,19 @@ test("nothing but the page, its assets, published files and the API can be fetch
     expect(response.headers()["x-content-type-options"], path).toBe("nosniff");
   }
 });
+
+test("a request as large as the API accepts reaches the API, which refuses a larger one in its own words", async ({
+  request,
+}) => {
+  const headers = { "X-Requested-With": "vietstrain" };
+  // nginx mặc định chặn thân request trên 1 MB bằng một trang HTML. Một file FASTA được phép tới 2 MB, nên request
+  // cỡ này phải tới được API (ở đây API trả 401 vì người gửi là khách).
+  const allowed = await request.post("/api/submissions", { headers, data: { fasta: "A".repeat(3 * 1024 * 1024) } });
+  expect(allowed.status()).toBe(401);
+  expect((await allowed.json()).error.code).toBe("NOT_AUTHENTICATED");
+
+  // Quá trần của API (4 MB): chính API từ chối, bằng dạng lỗi mà giao diện đọc được.
+  const tooLarge = await request.post("/api/submissions", { headers, data: { fasta: "A".repeat(4.5 * 1024 * 1024) } });
+  expect(tooLarge.status()).toBe(413);
+  expect((await tooLarge.json()).error.code).toBe("BODY_TOO_LARGE");
+});
