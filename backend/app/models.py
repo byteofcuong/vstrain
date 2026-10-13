@@ -187,7 +187,12 @@ class DatasetDef(Base):
 
     __tablename__ = "dataset_def"
     # Slug được dùng làm tên thư mục khi publish.
-    __table_args__ = (CheckConstraint("slug ~ '^[a-z0-9][a-z0-9-]*$'", name="slug_is_path_safe"),)
+    __table_args__ = (
+        CheckConstraint("slug ~ '^[a-z0-9][a-z0-9-]*$'", name="slug_is_path_safe"),
+        CheckConstraint(
+            "build_interval_hours IS NULL OR build_interval_hours BETWEEN 1 AND 8760", name="build_interval_in_range"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     slug: Mapped[str] = mapped_column(String(60), unique=True)  # tên trong URL, ví dụ 'dengue-denv1'
@@ -198,6 +203,8 @@ class DatasetDef(Base):
     home_country: Mapped[str] = mapped_column(String(100), server_default="Vietnam")
     # Phần tối thiểu dành cho mẫu bối cảnh thế giới, để cây vẫn cho thấy mẫu trong nước nằm ở đâu.
     min_context_share: Mapped[float] = mapped_column(Float, server_default=text("0.25"))
+    # Số giờ giữa hai lần build tự động; `None` là chỉ build khi có người yêu cầu.
+    build_interval_hours: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -216,6 +223,8 @@ class Build(Base):
     is_current: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     sample_count: Mapped[int | None] = mapped_column(Integer)
     content_hash: Mapped[str | None] = mapped_column(String(64))
+    # Hash của những gì cây được dựng từ (mẫu nào, ngày nào, chuỗi nào): lịch build so nó để biết có cần dựng lại.
+    inputs_hash: Mapped[str | None] = mapped_column(String(64))
     path: Mapped[str | None] = mapped_column(String(300))  # thư mục đã publish, tương đối so với thư mục builds
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # cây dựng xong
@@ -253,6 +262,8 @@ class Job(Base):
     result: Mapped[dict | None] = mapped_column(JSONB)
     error: Mapped[str | None] = mapped_column(Text)
     worker: Mapped[str | None] = mapped_column(String(100))
+    # Job hỏng mà job này là lần chạy lại; mỗi job hỏng chỉ được chạy lại một lần.
+    retry_of: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"), unique=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     heartbeat_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # worker báo còn sống

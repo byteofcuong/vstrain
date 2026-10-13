@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.build.selection import select_samples
+from app.build.selection import inputs_hash, select_samples
 from app.models import Build, BuildSample, DatasetDef, Sample, SampleAlignment
 from app.pathogens import Lineage
 
@@ -44,7 +44,7 @@ def start_build(session: Session, dataset: DatasetDef, job_id: int) -> Build:
     choices = select_samples(session, dataset)
     if not choices:
         raise ValueError(f"No eligible samples for dataset {dataset.slug}")
-    build = Build(dataset_id=dataset.id, job_id=job_id)
+    build = Build(dataset_id=dataset.id, job_id=job_id, inputs_hash=inputs_hash(session, choices))
     session.add(build)
     session.flush()
     # Truyền danh sách dòng riêng để SQLAlchemy tự chia lô: một câu lệnh chỉ nhận tối đa 65.535 tham số.

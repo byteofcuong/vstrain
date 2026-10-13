@@ -1,6 +1,8 @@
 import datetime as dt
 import json
 import random
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -11,8 +13,10 @@ from app.accounts import service as accounts
 from app.config import settings
 from app.geo.seed import seed_geo
 from app.jobs import queue
-from app.jobs.handlers import HANDLERS, build_then_place
+from app.jobs.handlers import HANDLERS
+from app.jobs.schedule import enqueue_due_builds
 from app.jobs.steps import JobContext
+from app.jobs.worker import Worker
 from app.models import (
     Build,
     BuildSample,
@@ -69,7 +73,11 @@ def claimed(session, work_dir: Path) -> JobContext:
 
 def run_job(session, work_dir: Path, kind: str, params: dict):
     queue.enqueue(session, kind, params, priority=100)
-    return HANDLERS[kind](claimed(session, work_dir))
+    context = claimed(session, work_dir)
+    result = HANDLERS[kind](context)
+    # Worker ghi kết cục sau khi handler trả về; lịch build xét cả việc dataset còn job dựng cây chưa xong hay không.
+    assert queue.finish(session, context.job, result)
+    return result
 
 
 def check(session, lab, tmp_path, sequence: str, **fields) -> tuple[Sample, dict]:
@@ -255,11 +263,44 @@ def test_a_submitted_genome_becomes_a_provisional_tip_and_then_a_tip_of_the_next
     # Mẫu đã có chỗ trên build này thì lần chạy sau không gắn lại.
     assert run_job(session, tmp_path / "place-again", "place_pending", {"dataset": "dengue-denv1"})["placed"] == 0
 
-    # --- Build kế tiếp ---
-    second = build_then_place(claimed_build(session, tmp_path / "build-2"))
+    # --- Build kế tiếp, do lịch xếp: không ai gõ lệnh nào ---
+    dataset.build_interval_hours = 24
+    session.flush()
+    now = dt.datetime.now(dt.UTC)
+    # Lần build đầu vừa chạy xong: chưa tới hạn.
+    assert enqueue_due_builds(session, now) == []
+    tomorrow = now + dt.timedelta(hours=25)
+    stop = threading.Event()
+    placed_after_build = []
+
+    def place_then_stop(context: JobContext) -> dict:
+        placed_after_build.append(place_pending(context))
+        stop.set()
+        return placed_after_build[-1]
+
+    @contextmanager
+    def same_session():
+        yield session
+
+    worker = Worker(
+        same_session,
+        HANDLERS | {"place_pending": place_then_stop},
+        name="w1",
+        work_root=tmp_path / "scheduled",
+        heartbeat_seconds=None,
+        # Lịch được xét trước mỗi job, nên nó cũng được xét lại ngay sau khi build xong.
+        schedule=lambda session: enqueue_due_builds(session, tomorrow),
+        schedule_seconds=0,
+    )
+    worker.run_forever(poll_seconds=0.01, stop=stop)
+
     session.expire_all()
     second_build = session.scalars(select(Build).where(Build.is_current)).one()
-    assert second_build.id == second["build_id"] != first_build.id
+    build_jobs = session.scalars(select(Job).where(Job.kind == "build_dataset").order_by(Job.id)).all()
+    # Đúng một build do lịch xếp: lần xét ngay sau đó thấy tập mẫu không đổi.
+    assert [job.status for job in build_jobs] == ["succeeded", "succeeded"]
+    assert (second_build.job_id, second_build.id != first_build.id) == (build_jobs[-1].id, True)
+    assert second_build.inputs_hash and second_build.inputs_hash != first_build.inputs_hash
     assert session.get(BuildSample, (second_build.id, sample.id)).role == "home"
 
     # Trong bản publish, tip mang mã nội bộ còn tên hiển thị là đúng tên người nộp đã gõ.
@@ -269,10 +310,16 @@ def test_a_submitted_genome_becomes_a_provisional_tip_and_then_a_tip_of_the_next
     tip_names = [tree["name"][index] for index in tree["tipNode"]]
     assert names[tip_names.index(sample.internal_id)] == HOSTILE_NAME
 
-    # Build xong thì việc gắn lại được xếp hàng; mẫu đã là tip chính thức nên không còn là tip tạm.
-    queued = session.scalars(select(Job).where(Job.kind == "place_pending", Job.status == "queued")).one()
-    assert (queued.params, queued.priority) == ({"dataset": "dengue-denv1"}, queue.INTERACTIVE)
-    assert place_pending(claimed(session, tmp_path / "place-2"))["placed"] == 0
+    # Build xong thì việc gắn lại được xếp hàng và chạy; mẫu đã là tip chính thức nên không còn là tip tạm.
+    replaced = session.scalars(select(Job).where(Job.kind == "place_pending").order_by(Job.id.desc())).first()
+    assert (replaced.params, replaced.priority, replaced.status) == (
+        {"dataset": "dengue-denv1"},
+        queue.INTERACTIVE,
+        "succeeded",
+    )
+    assert placed_after_build == [{"dataset": "dengue-denv1", "build_id": second_build.id, "placed": 0, "unplaced": 0}]
+    # Một tuần sau vẫn không có gì để dựng lại: cây sẽ được dựng từ đúng những mẫu đó.
+    assert enqueue_due_builds(session, tomorrow + dt.timedelta(days=7)) == []
     # Job kiểm tra của mẫu có chạy lại cũng không gắn tạm một mẫu đã là tip chính thức.
     queue.enqueue(session, "ingest_sample", {"sample_id": sample.id}, priority=100)
     assert ingest_sample(claimed(session, tmp_path / "ingest-member"))["placed_on"] == []
@@ -288,8 +335,3 @@ def test_a_submitted_genome_becomes_a_provisional_tip_and_then_a_tip_of_the_next
         "in_tree",
         [{"dataset": "dengue-denv1", "title": "DENV1 Việt Nam"}],
     )
-
-
-def claimed_build(session, work_dir: Path) -> JobContext:
-    queue.enqueue(session, "build_dataset", {"dataset": "dengue-denv1"}, priority=100)
-    return claimed(session, work_dir)

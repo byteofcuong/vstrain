@@ -167,3 +167,15 @@ def log_out(session: Session, token: str) -> None:
     record(session, stored.user_id, "logout")
     session.delete(stored)
     session.flush()
+
+
+def purge_stale(session: Session, *, now: dt.datetime, audit_retention: dt.timedelta) -> dict[str, int]:
+    """Xoá phiên đã hết hạn và dòng nhật ký cũ hơn `audit_retention`; trả về số dòng đã xoá của mỗi loại.
+
+    Phiên hết hạn vốn đã không dùng được; trước đây chúng chỉ bị xoá khi chính tài khoản đó đăng nhập lại.
+    """
+    expired = or_(UserSession.last_seen_at < now - SESSION_IDLE, UserSession.created_at < now - SESSION_LIFETIME)
+    sessions = session.execute(delete(UserSession).where(expired)).rowcount
+    audit_rows = session.execute(delete(AuditLog).where(AuditLog.at < now - audit_retention)).rowcount
+    session.flush()
+    return {"sessions": sessions, "audit_rows": audit_rows}

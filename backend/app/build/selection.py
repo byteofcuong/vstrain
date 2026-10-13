@@ -7,7 +7,7 @@ mới chỉ làm đổi nhiều nhất một lựa chọn cũ. Nhờ vậy cây 
 
 import hashlib
 from collections import defaultdict
-from collections.abc import Hashable
+from collections.abc import Hashable, Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -73,3 +73,22 @@ def select_samples(session: Session, dataset: DatasetDef) -> list[Choice]:
     return [Choice(sample_id, "home") for sample_id in chosen_home] + [
         Choice(sample_id, "context") for sample_id in chosen_context
     ]
+
+
+def inputs_hash(session: Session, choices: Sequence[Choice]) -> str:
+    """Hash của những gì một cây được dựng từ: mẫu nào được chọn, ngày lấy mẫu và chuỗi của từng mẫu.
+
+    Hai lần chọn cho cùng hash thì dựng lại cũng ra cùng cây, nên lịch build bỏ qua. Địa danh và tên hiển thị không
+    nằm trong hash: chúng chỉ đổi các cột thuộc tính của bản publish, không đổi cây.
+    """
+    roles = {choice.sample_id: choice.role for choice in choices}
+    rows = session.execute(
+        select(Sample.id, Sample.date_min, Sample.date_max, SampleAlignment.sequence_sha256)
+        .join(SampleAlignment, SampleAlignment.sample_id == Sample.id)
+        .where(Sample.id.in_(roles))
+        .order_by(Sample.id)
+    )
+    digest = hashlib.sha256()
+    for sample_id, date_min, date_max, sequence in rows:
+        digest.update(f"{sample_id}|{roles[sample_id]}|{date_min}|{date_max}|{sequence}\n".encode())
+    return digest.hexdigest()

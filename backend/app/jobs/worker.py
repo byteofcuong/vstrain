@@ -18,13 +18,17 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.accounts import service as accounts
 from app.jobs import queue
 from app.jobs.cleanup import purge_work_dirs
+from app.jobs.schedule import BUILD_JOB, enqueue_due_builds
 from app.jobs.steps import Handler, JobContext
 
 log = logging.getLogger(__name__)
 
 SessionFactory = Callable[[], AbstractContextManager[Session]]
+# Việc định kỳ nhận một session; worker commit sau khi nó chạy xong.
+Chore = Callable[[Session], object]
 
 
 class Worker:
@@ -40,6 +44,9 @@ class Worker:
         work_retention: dt.timedelta | None = None,
         cleanup_seconds: float = 3600,
         kinds: frozenset[str] | None = None,
+        schedule: Chore | None = None,
+        schedule_seconds: float = 60,
+        housekeeping: Chore | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.handlers = handlers
@@ -50,7 +57,11 @@ class Worker:
         self.work_retention = work_retention  # `None`: không bao giờ xoá thư mục làm việc
         self.cleanup_seconds = cleanup_seconds
         self.kinds = kinds  # `None`: nhận mọi loại job
+        self.schedule = schedule  # xét lịch build; chạy giữa các job, kể cả khi hàng đợi không lúc nào trống
+        self.schedule_seconds = schedule_seconds
+        self.housekeeping = housekeeping  # dọn dữ liệu quá hạn; chạy lúc rảnh, cùng nhịp với dọn thư mục làm việc
         self._next_cleanup = 0.0
+        self._next_schedule = 0.0
 
     def run_one(self) -> bool:
         """Lấy và chạy một job; trả `False` khi hàng đợi trống."""
@@ -86,6 +97,7 @@ class Worker:
     def run_forever(self, *, poll_seconds: float = 1.0, stop: threading.Event | None = None) -> None:
         stop = stop or threading.Event()
         while not stop.is_set():
+            self._schedule_when_due()
             try:
                 worked = self.run_one()
             except Exception:
@@ -96,18 +108,38 @@ class Worker:
                 self._cleanup_when_due()
                 stop.wait(poll_seconds)
 
-    def _cleanup_when_due(self) -> None:
-        """Lúc rảnh, mỗi `cleanup_seconds` một lần, xoá thư mục làm việc của job đã kết thúc quá lâu."""
-        if self.work_retention is None or time.monotonic() < self._next_cleanup:
+    def _schedule_when_due(self) -> None:
+        """Mỗi `schedule_seconds` một lần, xét lịch build. Lỗi ở đây không được làm worker ngừng nhận job."""
+        if self.schedule is None or time.monotonic() < self._next_schedule:
             return
-        self._next_cleanup = time.monotonic() + self.cleanup_seconds
+        self._next_schedule = time.monotonic() + self.schedule_seconds
         try:
             with self.session_factory() as session:
-                removed = purge_work_dirs(session, self.work_root, self.work_retention)
-            if removed:
-                log.info("Removed %s old work directories", removed)
+                self.schedule(session)
+                session.commit()
         except Exception:
-            log.exception("Cleaning up work directories failed")
+            log.exception("Checking the build schedule failed")
+
+    def _cleanup_when_due(self) -> None:
+        """Lúc rảnh, mỗi `cleanup_seconds` một lần: xoá thư mục làm việc của job đã kết thúc quá lâu, rồi dọn dẹp."""
+        if time.monotonic() < self._next_cleanup:
+            return
+        self._next_cleanup = time.monotonic() + self.cleanup_seconds
+        if self.work_retention is not None:
+            try:
+                with self.session_factory() as session:
+                    removed = purge_work_dirs(session, self.work_root, self.work_retention)
+                if removed:
+                    log.info("Removed %s old work directories", removed)
+            except Exception:
+                log.exception("Cleaning up work directories failed")
+        if self.housekeeping is not None:
+            try:
+                with self.session_factory() as session:
+                    self.housekeeping(session)
+                    session.commit()
+            except Exception:
+                log.exception("Housekeeping failed")
 
     @contextmanager
     def _heartbeat(self, job_id: int) -> Iterator[None]:
@@ -145,6 +177,20 @@ def selected_kinds(only: list[str] | None, handlers: Mapping[str, object]) -> fr
     return frozenset(only)
 
 
+def builds_trees(kinds: frozenset[str] | None) -> bool:
+    """Worker có nhận job dựng cây không. Chỉ worker như vậy mới xét lịch build và làm việc dọn dẹp chung."""
+    return kinds is None or BUILD_JOB in kinds
+
+
+def _housekeeping(audit_retention: dt.timedelta) -> Chore:
+    def purge(session: Session) -> None:
+        removed = accounts.purge_stale(session, now=dt.datetime.now(dt.UTC), audit_retention=audit_retention)
+        if any(removed.values()):
+            log.info("Removed %(sessions)s expired sessions and %(audit_rows)s old audit rows", removed)
+
+    return purge
+
+
 def main(argv: list[str] | None = None) -> None:
     # Import ở đây để module này dùng được trong test mà không cần kết nối database chính.
     from app.config import settings
@@ -159,6 +205,7 @@ def main(argv: list[str] | None = None) -> None:
     except ValueError as error:
         parser.error(str(error))
 
+    general = builds_trees(kinds)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     stop = threading.Event()
     for signal_number in (signal.SIGTERM, signal.SIGINT):
@@ -171,6 +218,8 @@ def main(argv: list[str] | None = None) -> None:
         work_root=Path(settings.work_dir),
         work_retention=dt.timedelta(days=settings.work_retention_days),
         kinds=kinds,
+        schedule=(lambda session: enqueue_due_builds(session, dt.datetime.now(dt.UTC))) if general else None,
+        housekeeping=_housekeeping(dt.timedelta(days=settings.audit_retention_days)) if general else None,
     )
     log.info("Worker %s waiting for jobs: %s", worker.name, ", ".join(sorted(kinds or HANDLERS)))
     worker.run_forever(stop=stop)

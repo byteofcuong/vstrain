@@ -224,3 +224,86 @@ def test_the_kinds_a_worker_is_limited_to_must_be_ones_it_can_run():
     assert selected_kinds(["quick"], handlers) == frozenset({"quick"})
     with pytest.raises(ValueError, match="no-such-kind"):
         selected_kinds(["quick", "no-such-kind"], handlers)
+
+
+# --- Việc định kỳ: xét lịch build và dọn dẹp ---
+
+
+def test_the_worker_checks_the_schedule_between_jobs_and_runs_what_it_queued(session, tmp_path):
+    import threading
+
+    stop = threading.Event()
+    ran = []
+
+    def schedule(session) -> None:
+        # Lịch chỉ xếp một lần, như khi tới hạn; job nó xếp phải được commit thì worker mới lấy được.
+        if not ran and not session.scalars(select(Job)).all():
+            queue.enqueue(session, "build")
+
+    def build(_context: JobContext) -> None:
+        ran.append("build")
+        stop.set()
+
+    worker = make_worker(session, tmp_path, {"build": build}, schedule=schedule, schedule_seconds=0)
+
+    worker.run_forever(poll_seconds=0.01, stop=stop)
+
+    assert ran == ["build"]
+
+
+def test_the_schedule_is_checked_no_more_often_than_asked(session, tmp_path):
+    import threading
+
+    stop = threading.Event()
+    checks = []
+    worker = make_worker(session, tmp_path, {}, schedule=lambda _session: checks.append(1), schedule_seconds=3600)
+
+    threading.Timer(0.2, stop.set).start()
+    worker.run_forever(poll_seconds=0.01, stop=stop)
+
+    assert checks == [1]
+
+
+def test_a_schedule_check_that_breaks_does_not_stop_the_worker(session, tmp_path):
+    import threading
+
+    stop = threading.Event()
+
+    def broken(_session) -> None:
+        raise RuntimeError("selection failed")
+
+    job = queue.enqueue(session, "once")
+    worker = make_worker(session, tmp_path, {"once": lambda _context: stop.set()}, schedule=broken, schedule_seconds=0)
+
+    worker.run_forever(poll_seconds=0.01, stop=stop)
+
+    session.expire_all()
+    assert job.status == "succeeded"
+
+
+def test_an_idle_worker_does_its_housekeeping_and_keeps_what_it_changed(session, tmp_path):
+    import threading
+
+    stop = threading.Event()
+    done = []
+
+    def housekeeping(session) -> None:
+        done.append(1)
+        queue.enqueue(session, "marker")
+        stop.set()
+
+    worker = make_worker(session, tmp_path, {}, housekeeping=housekeeping, kinds=frozenset({"nothing"}))
+
+    worker.run_forever(poll_seconds=0.01, stop=stop)
+    session.rollback()  # thứ việc dọn dẹp đã ghi phải được commit, không mất khi session bị huỷ
+
+    assert done == [1]
+    assert [job.kind for job in session.scalars(select(Job))] == ["marker"]
+
+
+def test_only_a_worker_that_builds_trees_checks_the_build_schedule():
+    from app.jobs.worker import builds_trees
+
+    assert builds_trees(None)
+    assert builds_trees(frozenset({"build_dataset", "place_pending"}))
+    assert not builds_trees(frozenset({"ingest_sample"}))
