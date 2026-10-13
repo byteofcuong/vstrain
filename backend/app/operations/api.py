@@ -82,7 +82,8 @@ class JobRef(ApiModel):
 
 class ScheduleIn(ApiModel):
     # Bắt buộc phải có trường này: `null` là tắt lịch, còn thiếu trường là request sai.
-    build_interval_hours: Annotated[int | None, Field(ge=1, le=8760)]
+    # Chỉ số nguyên thật: `true`, 1.5 hay "24" là request sai, không được ép thành một số giờ.
+    build_interval_hours: Annotated[int | None, Field(ge=1, le=8760, strict=True)]
 
 
 class ScheduleOut(ApiModel):

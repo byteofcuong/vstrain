@@ -1,9 +1,12 @@
 import datetime as dt
 import json
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from app.accounts import passwords
 from app.accounts import service as accounts
@@ -13,7 +16,8 @@ from app.config import settings
 from app.geo.seed import seed_geo
 from app.jobs import queue
 from app.jobs.steps import JobContext
-from app.models import AuditLog, Build, DatasetDef, Job, JobStep, PlaceAlias, Sample, Submission
+from app.models import AppUser, AuditLog, Build, DatasetDef, Job, JobStep, PlaceAlias, Sample, Submission
+from app.operations import jobs
 from tests.support import add_sample, make_build
 
 PASSWORD = "mật khẩu đủ dài"
@@ -104,6 +108,26 @@ def test_the_operations_endpoints_are_for_administrators_only(session, client, m
     assert session.scalar(select(func.count()).select_from(Job)) == 1
     assert session.scalar(select(func.count()).select_from(PlaceAlias).where(PlaceAlias.source == "admin")) == 0
     assert session.get(DatasetDef, session.scalar(select(DatasetDef.id))).build_interval_hours is None
+
+
+@pytest.mark.parametrize(("method", "path"), [pair for pair in ADMIN_ENDPOINTS if pair[0] != "GET"])
+def test_a_write_without_the_header_a_browser_form_cannot_send_is_refused_even_from_an_administrator(
+    session, client, admin, method, path
+):
+    make_dataset(session)
+    failed = queue.enqueue(session, "tool_versions")
+    failed.status = "failed"
+    session.flush()
+    path = path.replace("/jobs/1", f"/jobs/{failed.id}")
+
+    response = client.request(
+        method, path, json={"buildIntervalHours": 24, "text": "Thu Duc", "unitCode": "vn63:ha-noi"}
+    )
+
+    assert (response.status_code, error_code(response)) == (403, "CSRF_HEADER_REQUIRED")
+    assert session.scalar(select(func.count()).select_from(Job)) == 1
+    assert session.scalar(select(func.count()).select_from(PlaceAlias).where(PlaceAlias.source == "admin")) == 0
+    assert session.scalar(select(DatasetDef.build_interval_hours)) is None
 
 
 # --- Job ---
@@ -271,6 +295,48 @@ def test_a_failed_build_is_not_retried_while_another_build_of_the_dataset_is_wai
     assert client.post(f"/api/admin/jobs/{broken.id}/retry", headers=BROWSER).status_code == 201
 
 
+def test_two_administrators_retrying_the_same_job_at_once_get_one_new_job(committed, engine, monkeypatch):
+    # Hai lần bấm cùng lúc đều thấy "chưa ai chạy lại job này". Không khoá dòng của job thì cả hai cùng xếp job mới,
+    # và ràng buộc duy nhất của `retry_of` biến lần thứ hai thành một lỗi 500 thay vì một lời từ chối.
+    with committed.begin() as session:
+        boss = accounts.create_user(session, email="boss@example.org", display_name="Quản trị", password=PASSWORD)
+        failed = queue.enqueue(session, "tool_versions")
+        failed.status = "failed"
+        boss_id, failed_id = boss.id, failed.id
+    enqueue = queue.enqueue
+
+    def slow_enqueue(*arguments, **options):
+        time.sleep(0.2)  # nới khoảng giữa lúc xét và lúc xếp job, để cuộc đua lộ ra chắc chắn
+        return enqueue(*arguments, **options)
+
+    monkeypatch.setattr(queue, "enqueue", slow_enqueue)
+    start = threading.Barrier(4)
+
+    def attempt(_: int) -> str:
+        with committed() as session:
+            actor = session.get(AppUser, boss_id)
+            start.wait()
+            try:
+                jobs.retry(session, actor, failed_id)
+            except jobs.AlreadyRetried:
+                session.rollback()
+                return "already retried"
+            session.commit()
+            return "queued"
+
+    try:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            outcomes = sorted(pool.map(attempt, range(4)))
+        with committed() as session:
+            retries = session.scalars(select(Job.id).where(Job.retry_of == failed_id)).all()
+
+        assert outcomes == ["already retried"] * 3 + ["queued"]
+        assert len(retries) == 1
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text("TRUNCATE job, app_user, audit_log CASCADE"))
+
+
 # --- Lịch của dataset ---
 
 
@@ -293,7 +359,18 @@ def test_an_administrator_sets_and_clears_the_build_schedule_of_a_dataset(sessio
 
 
 @pytest.mark.parametrize(
-    "body", [{"buildIntervalHours": 0}, {"buildIntervalHours": 8761}, {"buildIntervalHours": "x"}, {}]
+    "body",
+    [
+        {"buildIntervalHours": 0},
+        {"buildIntervalHours": -24},
+        {"buildIntervalHours": 8761},
+        {"buildIntervalHours": "x"},
+        # Những thứ một bộ đọc dễ dãi sẽ ép thành số giờ: chuỗi chứa số, số lẻ, `true`.
+        {"buildIntervalHours": "24"},
+        {"buildIntervalHours": 1.5},
+        {"buildIntervalHours": True},
+        {},
+    ],
 )
 def test_a_schedule_that_makes_no_sense_is_refused(session, client, admin, body):
     dataset = make_dataset(session, build_interval_hours=12)
@@ -491,6 +568,23 @@ def test_a_tree_already_waiting_to_be_republished_is_not_queued_twice(session, c
     session.expire_all()
     # Gán cho một vùng: mẫu có vùng, không có tỉnh.
     assert (second.geo_status, second.admin_unit_code, second.region_code) == ("region", None, "vnr:southeast")
+
+
+def test_a_tree_waiting_to_be_republished_does_not_stand_in_for_another_tree(
+    session, client, admin, data_dir, tmp_path
+):
+    first, second = unresolved(session, "Thu Duc"), unresolved(session, "Cu Chi")
+    south = make_build(session, make_dataset(session, "dengue-denv1"), [first], builds_root(), tmp_path)
+    north = make_build(session, make_dataset(session, "dengue-denv1-north"), [second], builds_root(), tmp_path)
+    publish_build(session, south)
+    publish_build(session, north)
+
+    add_alias(client, "Thu Duc", "vn63:ho-chi-minh")
+    response = add_alias(client, "Cu Chi", "vnr:southeast")
+
+    # Job đang chờ là của cây kia; cây này vẫn phải được publish lại.
+    assert response.json()["republished"] == ["dengue-denv1-north"]
+    assert publish_jobs(session) == [{"build_id": south.id}, {"build_id": north.id}]
 
 
 def test_an_alias_added_by_an_administrator_can_be_taken_back_but_a_seeded_one_cannot(session, client, admin):

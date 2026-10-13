@@ -1,13 +1,14 @@
 import datetime as dt
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from sqlalchemy import select, text
 
 from app.build.inputs import start_build
-from app.build.selection import inputs_hash, select_samples
-from app.jobs import queue
+from app.build.selection import Choice, inputs_hash, select_samples
+from app.jobs import queue, schedule
 from app.jobs.schedule import BuildAlreadyWaiting, enqueue_due_builds, request_build
 from app.models import Build, DatasetDef, Job, SampleAlignment
 from tests.test_build_selection import add_genome, make_dataset
@@ -79,6 +80,16 @@ def test_the_inputs_hash_follows_which_samples_are_chosen_their_dates_and_their_
     after_sample = current_hash(session, dataset)
 
     assert len({before, after_date, after_sequence, after_sample}) == 4
+
+
+def test_two_samples_that_look_alike_still_give_different_hashes(session):
+    # Trong một ổ dịch, nhiều mẫu có cùng ngày lấy mẫu và cùng chuỗi. Thay mẫu này bằng mẫu kia vẫn là một cây khác:
+    # tip mang mã khác, và tỉnh của nó có thể khác.
+    one, other = add_genome(session, "Vietnam", 2019), add_genome(session, "Vietnam", 2019)
+
+    assert inputs_hash(session, [Choice(one.id, "home")]) != inputs_hash(session, [Choice(other.id, "home")])
+    # Vai trò của mẫu trong build cũng là đầu vào.
+    assert inputs_hash(session, [Choice(one.id, "home")]) != inputs_hash(session, [Choice(one.id, "context")])
 
 
 def test_a_build_records_the_hash_of_what_it_was_built_from(session):
@@ -162,13 +173,36 @@ def test_a_build_that_is_waiting_or_running_is_not_doubled(session, status):
     add_genome(session, "Vietnam", 2019)
     add_genome(session, "Vietnam", 2019, lineage="denv2")
     waiting = queue.enqueue(session, "build_dataset", {"dataset": dataset.slug})
-    waiting.status = status
+    # Job đã chờ từ lâu (hàng đợi nghẽn): hạn đã qua, nên chỉ còn việc nó chưa xong là thứ cản lần build mới.
+    waiting.status, waiting.created_at = status, hours_ago(240)
     session.flush()
 
     queued = enqueue_due_builds(session, NOW)
 
     # Job đang chờ của một dataset không cản dataset khác.
     assert [session.get(Job, job_id).params for job_id in queued] == [{"dataset": other.slug}]
+
+
+def test_other_kinds_of_job_on_the_same_dataset_neither_block_a_build_nor_count_as_one(session):
+    dataset = scheduled(session)
+    add_genome(session, "Vietnam", 2019)
+    # Sau mỗi build có một job gắn lại mẫu tạm mang cùng tham số `dataset`; nó có thể đang chờ, hoặc vừa chạy xong.
+    queue.enqueue(session, "place_pending", {"dataset": dataset.slug})
+    done = queue.enqueue(session, "place_pending", {"dataset": dataset.slug})
+    done.status = "succeeded"
+    session.flush()
+
+    assert len(enqueue_due_builds(session, NOW)) == 1
+
+
+def test_a_build_whose_job_is_gone_still_starts_the_interval(session):
+    dataset = scheduled(session, hours=24)
+    add_genome(session, "Vietnam", 2019)
+    build = past_build(session, dataset, started=hours_ago(1), inputs="0" * 64)
+    session.delete(session.get(Job, build.job_id))
+    session.flush()
+
+    assert enqueue_due_builds(session, NOW) == []
 
 
 def test_a_build_that_failed_is_tried_again_at_the_next_interval(session):
@@ -215,12 +249,20 @@ def test_a_build_asked_for_by_hand_ignores_the_schedule_but_not_a_build_already_
     assert len([job for job in build_jobs(session) if job.status == "queued"]) == 1
 
 
-def test_two_workers_checking_the_schedule_at_once_queue_one_build(committed, engine):
+def test_two_workers_checking_the_schedule_at_once_queue_one_build(committed, engine, monkeypatch):
     with committed.begin() as session:
         dataset = scheduled(session, slug="dengue-denv1-twice")
         add_genome(session, "Vietnam", 2019)
         slug = dataset.slug
     start = threading.Barrier(4)
+
+    def slow_selection(session, dataset):
+        # Giữ mọi bên ở giữa việc xét, sau khi đã thấy "chưa có job nào" và trước khi xếp job: không có khoá dòng
+        # của dataset thì cả bốn bên cùng xếp.
+        time.sleep(0.3)
+        return select_samples(session, dataset)
+
+    monkeypatch.setattr(schedule, "select_samples", slow_selection)
 
     def check(_: int) -> list[int]:
         with committed() as session:

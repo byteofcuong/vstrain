@@ -97,6 +97,8 @@ describe("adminErrorMessage", () => {
     ];
     const keys = codes.map(adminErrorMessage);
     expect(new Set(keys).size).toBe(codes.length);
+    // Không mã nào trong số này được rơi về lời chung: một mã rơi về vẫn cho đủ số lời khác nhau.
+    expect(keys).not.toContain("actionFailed");
     for (const key of keys) expect(MESSAGE_KEYS).toContain(key);
     expect(new Set(keys.map((key) => translate("vi", key))).size).toBe(codes.length);
     expect(adminErrorMessage("SOMETHING_NEW")).toBe("actionFailed");

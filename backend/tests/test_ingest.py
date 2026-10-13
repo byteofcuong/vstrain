@@ -292,7 +292,12 @@ def test_a_submitted_genome_becomes_a_provisional_tip_and_then_a_tip_of_the_next
         schedule=lambda session: enqueue_due_builds(session, tomorrow),
         schedule_seconds=0,
     )
+    # Lịch không xếp build thì vòng lặp không bao giờ tự dừng: giới hạn thời gian để test hỏng chứ không treo.
+    limit = threading.Timer(600, stop.set)
+    limit.daemon = True
+    limit.start()
     worker.run_forever(poll_seconds=0.01, stop=stop)
+    limit.cancel()
 
     session.expire_all()
     second_build = session.scalars(select(Build).where(Build.is_current)).one()

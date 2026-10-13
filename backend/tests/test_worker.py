@@ -229,6 +229,15 @@ def test_the_kinds_a_worker_is_limited_to_must_be_ones_it_can_run():
 # --- Việc định kỳ: xét lịch build và dọn dẹp ---
 
 
+def give_up_after(seconds: float, stop) -> None:
+    """Giới hạn thời gian cho một vòng lặp của worker: điều test chờ không xảy ra thì test hỏng, không treo."""
+    import threading
+
+    timer = threading.Timer(seconds, stop.set)
+    timer.daemon = True
+    timer.start()
+
+
 def test_the_worker_checks_the_schedule_between_jobs_and_runs_what_it_queued(session, tmp_path):
     import threading
 
@@ -246,6 +255,7 @@ def test_the_worker_checks_the_schedule_between_jobs_and_runs_what_it_queued(ses
 
     worker = make_worker(session, tmp_path, {"build": build}, schedule=schedule, schedule_seconds=0)
 
+    give_up_after(5, stop)
     worker.run_forever(poll_seconds=0.01, stop=stop)
 
     assert ran == ["build"]
@@ -275,6 +285,7 @@ def test_a_schedule_check_that_breaks_does_not_stop_the_worker(session, tmp_path
     job = queue.enqueue(session, "once")
     worker = make_worker(session, tmp_path, {"once": lambda _context: stop.set()}, schedule=broken, schedule_seconds=0)
 
+    give_up_after(5, stop)
     worker.run_forever(poll_seconds=0.01, stop=stop)
 
     session.expire_all()
@@ -294,6 +305,7 @@ def test_an_idle_worker_does_its_housekeeping_and_keeps_what_it_changed(session,
 
     worker = make_worker(session, tmp_path, {}, housekeeping=housekeeping, kinds=frozenset({"nothing"}))
 
+    give_up_after(5, stop)
     worker.run_forever(poll_seconds=0.01, stop=stop)
     session.rollback()  # thứ việc dọn dẹp đã ghi phải được commit, không mất khi session bị huỷ
 

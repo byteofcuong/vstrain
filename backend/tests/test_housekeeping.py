@@ -1,9 +1,12 @@
 import datetime as dt
 
-from sqlalchemy import select
+import pytest
+from pydantic import ValidationError
+from sqlalchemy import func, select
 
 from app.accounts import passwords
 from app.accounts import service as accounts
+from app.config import Settings
 from app.models import AuditLog, UserSession
 
 NOW = dt.datetime(2026, 10, 13, 12, 0, tzinfo=dt.UTC)
@@ -39,3 +42,19 @@ def test_expired_sessions_and_old_audit_rows_are_removed_and_the_rest_is_kept(se
     assert sorted(session.scalars(select(AuditLog.action))) == ["kept", "recent"]
     # Chạy lần nữa không còn gì để xoá.
     assert accounts.purge_stale(session, now=NOW, audit_retention=YEAR) == {"sessions": 0, "audit_rows": 0}
+
+
+def test_a_retention_of_nothing_is_refused_instead_of_erasing_the_audit_log(session, monkeypatch):
+    monkeypatch.setattr(passwords, "N", 2**10)
+    user = accounts.create_user(session, email="lab@example.org", display_name="Phòng A", password="mật khẩu đủ dài")
+    before = session.scalar(select(func.count()).select_from(AuditLog))
+    assert before > 0 and user.id
+
+    for retention in (dt.timedelta(0), dt.timedelta(days=-1)):
+        with pytest.raises(ValueError, match="retention"):
+            accounts.purge_stale(session, now=NOW, audit_retention=retention)
+    assert session.scalar(select(func.count()).select_from(AuditLog)) == before
+    # Cấu hình cũng không nhận giá trị đó.
+    with pytest.raises(ValidationError):
+        Settings(audit_retention_days=0)
+    assert Settings(audit_retention_days=1).audit_retention_days == 1
