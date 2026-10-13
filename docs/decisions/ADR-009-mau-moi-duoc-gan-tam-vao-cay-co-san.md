@@ -50,5 +50,6 @@ Build của hệ thống này đã xuất cây ở dạng Nextclade dùng đư�
 - Vị trí của tip tạm là ước lượng: theo prototype A, khoảng một phần mười số mẫu sẽ có hàng xóm gần nhất khác đi sau khi cây được dựng lại. Giao diện gọi nó là "tạm" ở mọi nơi nó xuất hiện. Độ chính xác trên chính ứng dụng chưa được đo (mốc M7).
 - Có một khoảng thời gian mẫu ở hai trạng thái nối tiếp nhau trong cùng một job: đã được nhận, rồi mới được gắn. API coi mẫu là "đang xử lý" cho tới khi job thử gắn xong.
 - Tip tạm không có mặt trong các cột thuộc tính của build, nên chưa lọc được theo thuộc tính và chưa lên bản đồ.
-- Mỗi build mới phải gắn lại các mẫu còn đứng ngoài; mỗi mẫu là một lần chạy Nextclade (khoảng 0,4 giây).
+- Mỗi build mới phải gắn lại các mẫu còn đứng ngoài; mỗi mẫu là một lần chạy Nextclade (khoảng 0,4 giây). Số mẫu tạm vì thế phải có trần: một tài khoản nộp được nhiều nhất 200 mẫu trong 24 giờ.
+- Một lần gắn bị lỗi không được chặn các lần gắn khác: job thử hết rồi mới kết thúc là hỏng. Mẫu đạt kiểm tra mà chưa gắn được vẫn công khai và vẫn vào lần build kế tiếp.
 - Mẫu bị ẩn sau khi đã nằm trong một build đã publish vẫn còn trong file của build đó cho tới lần build kế tiếp.

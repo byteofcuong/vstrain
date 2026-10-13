@@ -415,6 +415,45 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 **Chưa làm (đã ghi trong ADR-008):** giới hạn tần suất theo IP ở nginx, HTTPS, đổi và đặt lại mật khẩu, giao diện admin để khoá tài khoản, dọn định kỳ phiên hết hạn và nhật ký.
 
+## Phase 9: `submission` (mốc M5, phần nộp mẫu)
+
+Đặc tả: `specs/SPEC-submission.md`; quyết định: ADR-009. Không thêm dependency nào.
+
+- [x] T9.1 Kiểm tra một lần nộp: FASTA, tên, ngày, vật chủ; mọi lỗi báo trong một lượt. Kiểm chứng: `tests/test_submission_validate.py`
+- [x] T9.2 `sample.status`, bảng `submission` và `sample_placement` (migration 0009); API nộp, xem mẫu của mình, tip tạm của dataset, admin ẩn và hiện; trần số mẫu đang chờ. Kiểm chứng: `tests/test_submissions_api.py`, `tests/test_submissions_commit.py`
+- [x] T9.3 Job `ingest_sample` (tự tìm serotype, nhận hoặc từ chối, gắn tạm bằng Nextclade) và `place_pending` sau mỗi build; worker riêng cho mẫu nộp. Kiểm chứng: `tests/test_ingest.py` với công cụ thật, `tests/test_placement_read.py`
+- [x] T9.4 Trang nộp mẫu, trang "Mẫu của tôi", tip tạm trên cây (hình thoi rỗng, tooltip, bảng chi tiết, công tắc). Kiểm chứng: `frontend/e2e/submission.spec.ts` trên stack thật
+- [x] T9.5 Đo tiêu chí 1 và thử việc tự tìm serotype trên stack thật. Số liệu ở `do-dac/results/W7-nop-mau/`
+- [x] T9.6 Review độc lập hai bước (23 điều kiểm: 18 đạt, 2 không đạt, 3 không xác định được), sửa theo review, reviewer đọc lại bản sửa (chấp nhận). Chi tiết ở mục "Review độc lập" của đặc tả
+
+## Checkpoint G (hết mốc M5)
+
+| Tiêu chí | Ngưỡng | Kết quả | Nguồn |
+|---|---|---|---|
+| 1 | nộp tới tip tạm công khai ≤ 30 giây, dataset ≤ 5.000 tip | đạt ở cây 1.964 tip: trung vị 1,07 giây, chậm nhất 1,18 (20 lần, qua nginx); khi worker chung bị dừng, trung vị 1,13 giây (5 lần). **Chưa đo ở 5.000 tip** | `do-dac/results/W7-nop-mau/` |
+| 1b | hàng xóm gần nhất trùng cây dựng lại ≥ 85% | **chưa đo trên ứng dụng**, để mốc M7 | |
+| 5 | tên "Hà_Nội/01/2024" đi trọn luồng | đạt, cả với tên có `; touch pwned`: không file nào của job chứa tên, tên có trong bản publish của build kế tiếp | `test_ingest.py`; `submission.spec.ts` |
+| S1 | file sai bị từ chối 422, không tạo job | đạt; request trên 4 MB nhận 413 thay vì 422 (có chủ ý) | `test_submissions_api.py` |
+| S2 | genome khác serotype được gán đúng hoặc bị từ chối | đạt: 20 trong 20 genome GenBank gán đúng, 3 trong 3 chuỗi ngẫu nhiên bị từ chối | `test_ingest.py`; `serotype.json` |
+| S3 | người nộp chỉ thấy và sửa được mẫu của mình | **đạt phần "thấy"; phần "sửa" chưa làm** | `test_submissions_api.py` |
+
+**Kiểm chứng lúc đóng checkpoint (2026-10-13):** backend `pytest` trong image api → 525 passed, 17 skipped; trong image worker (công cụ thật) → 542 passed. Frontend: `npm run test` → 268 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 42 passed; `npm run e2e:web` → 48 passed. Mutation check: kiểm tra lúc nộp 47 chỗ sửa thử, luồng nộp và gắn 103, các chỗ sửa sau review 25; tất cả bị test bắt (4 chỗ ở lượt đầu sống sót, đã bổ sung test).
+
+**Lỗi tìm ra trong lúc làm, đã sửa:**
+- **Mẫu đạt kiểm tra nhưng chưa gắn xong bị báo là "chưa có cây"**, làm trang "Mẫu của tôi" ngừng tự tải lại. Test đầu-cuối tìm ra.
+- **Tám lần nộp gửi cùng lúc đều lọt qua trần số mẫu đang chờ.** Nay dòng tài khoản được khoá trong lúc đếm và ghi.
+- **nginx trả 502 cho mọi request API sau khi container `api` khởi động lại** (nó giữ địa chỉ cũ). Nay tên `api` được phân giải lúc chạy.
+- **nginx từ chối file FASTA trên 1 MB bằng một trang HTML**, trong khi API nhận tới 2 MB. Nay giới hạn của nginx rộng hơn của API.
+- **Bảng bên cuộn cả trang** (có từ mốc M3, lộ ra trên ảnh chụp màn hình thấp).
+- **Do review tìm ra:** mẫu có job hỏng chiếm chỗ trong trần mãi mãi; một mẫu không gắn được chặn mọi mẫu đứng sau nó; lùi migration làm lộ mẫu chưa công khai.
+
+**Điều cần biết:**
+- Sửa mẫu đã nộp chưa có. Muốn sửa thì admin ẩn mẫu và người nộp nộp lại.
+- Job kiểm tra đã hỏng không tự chạy lại và chưa có nút xếp lại; thuộc mốc M6.
+- Mẫu bị ẩn sau khi đã vào một build vẫn nằm trong file của build đó cho tới lần build kế tiếp.
+- Dữ liệu công khai không có genome Việt Nam nào đứng ngoài build, nên phép đo dùng genome GenBank của nước khác.
+- 261 trong 2.633 genome Việt Nam đã gióng dài hơn 10.000 nucleotide nhưng có dưới 10.000 vị trí đọc được: chúng qua kiểm tra lúc nộp rồi bị từ chối ở bước gióng, với lý do nói rõ.
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.
