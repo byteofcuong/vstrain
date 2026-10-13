@@ -1,5 +1,6 @@
 import datetime as dt
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -504,12 +505,39 @@ def test_the_provisional_tips_of_a_dataset_are_public_and_carry_what_the_viewer_
         "unitCode": "vn63:ha-noi",
         "host": "Homo sapiens",
         "parentNode": "NODE_0000000",
+        "parentIndex": 0,
         "branchNode": None,
+        "branchIndex": None,
         "attachDiv": 0.0,
         "div": 0.004,
         "privateMutations": 3,
         "clade": "DENV1/I",
     }
+
+
+def test_a_provisional_tip_points_at_its_nodes_by_their_place_in_the_published_tree(session, client, lab, data_dir):
+    # Viewer giữ cây dưới dạng mảng số, không giữ tên node trong: API đổi tên node thành chỉ số trong tree.json
+    # của đúng bản publish đang được phát.
+    dataset = make_dataset(session)
+    members = [dated_sample(session), dated_sample(session), dated_sample(session)]
+    build = published(session, dataset, data_dir, members)
+    tree = json.loads((data_dir / "builds" / build.path / "tree.json").read_text())
+    on_a_tip = submitted(session, client)
+    aligned(session, on_a_tip)
+    place(session, on_a_tip, build, parent_node="NODE_0000000", branch_node=members[2].internal_id)
+    lost = submitted(session, client)
+    aligned(session, lost)
+    place(session, lost, build, parent_node="no-such-node")
+
+    items = client.get("/api/datasets/dengue-denv1/placements").json()["items"]
+
+    # Chỗ đặt trỏ tới node mà bản publish không có thì không được trả về: viewer không vẽ được nó.
+    (tip,) = items
+    assert tip["internalId"] == on_a_tip.internal_id
+    assert (tree["name"][tip["parentIndex"]], tree["name"][tip["branchIndex"]]) == (
+        "NODE_0000000",
+        members[2].internal_id,
+    )
 
 
 def test_only_accepted_samples_outside_the_current_build_are_provisional_tips(session, client, lab, data_dir):

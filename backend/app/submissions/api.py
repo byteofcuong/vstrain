@@ -1,7 +1,10 @@
 """API nộp mẫu: nộp, xem mẫu của mình, tip tạm của một dataset, và việc admin ẩn một mẫu."""
 
 import datetime as dt
+import functools
+import json
 import re
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
@@ -12,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.accounts.api import AdminUser, CurrentUser
 from app.accounts.service import record
 from app.apimodel import ApiModel
+from app.build.publish import builds_root
 from app.db import SessionDep
 from app.errors import INVALID_PARAMETERS, ApiError
 from app.models import AppUser, Build, BuildSample, DatasetDef, Sample, SamplePlacement, SampleStatus, UserRole
@@ -90,6 +94,9 @@ class ProvisionalTip(ApiModel):
     host: str | None
     parent_node: str
     branch_node: str | None
+    # Chỉ số của hai node đó trong `tree.json` của bản publish hiện hành: viewer giữ cây bằng mảng số.
+    parent_index: int
+    branch_index: int | None
     attach_div: float
     div: float
     private_mutations: int
@@ -100,6 +107,16 @@ class ProvisionalTip(ApiModel):
 class PlacementList(ApiModel):
     build_id: int | None  # build mà các tên node thuộc về; `None` khi dataset chưa có build nào
     items: list[ProvisionalTip]
+
+
+@functools.lru_cache(maxsize=8)
+def _node_indices(tree_file: Path) -> dict[str, int]:
+    """Chỉ số của từng node trong `tree.json` của một bản publish.
+
+    Bản publish không bao giờ bị sửa, nên kết quả được giữ lại giữa các request.
+    """
+    names = json.loads(tree_file.read_text(encoding="utf-8"))["name"]
+    return {name: index for index, name in enumerate(names)}
 
 
 def _not_found(internal_id: str) -> ApiError:
@@ -175,9 +192,11 @@ def list_placements(slug: str, session: SessionDep) -> PlacementList:
     dataset = session.scalars(select(DatasetDef).filter_by(slug=slug)).one_or_none()
     if dataset is None:
         raise ApiError(404, "DATASET_NOT_FOUND", f"No dataset with slug {slug[:60]}")
-    build_id = session.scalar(select(Build.id).where(Build.dataset_id == dataset.id, Build.is_current))
-    if build_id is None:
+    build = session.scalars(select(Build).where(Build.dataset_id == dataset.id, Build.is_current)).one_or_none()
+    if build is None or build.path is None:
         return PlacementList(build_id=None, items=[])
+    build_id = build.id
+    index_of = _node_indices(builds_root() / build.path / "tree.json")
     in_build = select(BuildSample.sample_id).where(BuildSample.build_id == build_id)
     rows = session.execute(
         select(Sample, SamplePlacement)
@@ -200,6 +219,8 @@ def list_placements(slug: str, session: SessionDep) -> PlacementList:
             host=sample.host,
             parent_node=placement.parent_node,
             branch_node=placement.branch_node,
+            parent_index=index_of[placement.parent_node],
+            branch_index=index_of[placement.branch_node] if placement.branch_node else None,
             attach_div=placement.attach_div,
             div=placement.div,
             private_mutations=placement.private_mutations,
@@ -207,6 +228,8 @@ def list_placements(slug: str, session: SessionDep) -> PlacementList:
             placed_at=placement.placed_at,
         )
         for sample, placement in rows
+        # Chỗ đặt trỏ tới node mà bản publish này không có (không nên xảy ra) thì viewer không vẽ được: bỏ qua.
+        if placement.parent_node in index_of and (placement.branch_node is None or placement.branch_node in index_of)
     ]
     return PlacementList(build_id=build_id, items=items)
 
