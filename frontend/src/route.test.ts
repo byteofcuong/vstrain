@@ -14,6 +14,8 @@ describe("parseRoute", () => {
     expect(parseRoute("#/admin/jobs")).toEqual({ page: "admin", section: "jobs" });
     expect(parseRoute("#/admin/datasets")).toEqual({ page: "admin", section: "datasets" });
     expect(parseRoute("#/admin/places")).toEqual({ page: "admin", section: "places" });
+    expect(parseRoute("#/admin/users")).toEqual({ page: "admin", section: "users" });
+    expect(parseRoute("#/account")).toEqual({ page: "account" });
   });
 
   it("reads the provisional tip a dataset address points at", () => {
@@ -49,7 +51,9 @@ describe("parseRoute", () => {
       "#/toString",
       "#/admin",
       "#/admin/",
-      "#/admin/users",
+      "#/admin/accounts",
+      "#/account/",
+      "#/account/password",
       "#/admin/jobs/7",
     ]) {
       expect(parseRoute(hash), hash).toEqual({ page: "list" });

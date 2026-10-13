@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { DatasetList } from "./components/DatasetList";
 import { DatasetView } from "./components/DatasetView";
 import { LoginPage } from "./components/LoginPage";
+import { AccountPage } from "./components/AccountPage";
 import { EditSamplePage } from "./components/EditSamplePage";
 import { MySamplesPage } from "./components/MySamplesPage";
 import { SubmitPage } from "./components/SubmitPage";
@@ -84,7 +85,9 @@ export function App() {
           )}
           {user && (
             <span className="masthead__account">
-              <span>{user.displayName}</span>
+              <a href="#/account" aria-current={route.page === "account" ? "page" : undefined}>
+                {user.displayName}
+              </a>
               {/* Đăng xuất không thành thì phiên còn sống ở server: tên vẫn hiện, để không ai tưởng mình đã ra. */}
               <button type="button" onClick={() => void logOut().catch((error: unknown) => console.error(error))}>
                 {t("logOut")}
@@ -105,6 +108,7 @@ export function App() {
       {route.page === "submit" && <SubmitPage />}
       {route.page === "mine" && <MySamplesPage />}
       {route.page === "editSample" && <EditSamplePage internalId={route.internalId} />}
+      {route.page === "account" && <AccountPage />}
       {route.page === "admin" && (
         <Suspense fallback={<main className="page" />}>
           <AdminPage section={route.section} />

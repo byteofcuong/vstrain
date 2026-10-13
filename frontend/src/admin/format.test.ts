@@ -95,6 +95,10 @@ describe("adminErrorMessage", () => {
       "UNKNOWN_UNIT",
       "SEED_ALIAS",
       "FORBIDDEN",
+      "EMAIL_TAKEN",
+      "CANNOT_LOCK_SELF",
+      "USE_OWN_PASSWORD_FORM",
+      "USER_NOT_FOUND",
     ];
     const keys = codes.map(adminErrorMessage);
     expect(new Set(keys).size).toBe(codes.length);

@@ -5,15 +5,17 @@ import { useT } from "../../state/store";
 import { DatasetsPanel } from "./DatasetsPanel";
 import { JobsPanel } from "./JobsPanel";
 import { PlacesPanel } from "./PlacesPanel";
+import { UsersPanel } from "./UsersPanel";
 
 const SECTIONS: [AdminSection, MessageKey][] = [
   ["jobs", "adminJobs"],
   ["datasets", "adminDatasets"],
   ["places", "adminPlaces"],
+  ["users", "adminUsers"],
 ];
 
 /**
- * Khung của ba trang quản trị. Việc ẩn trang với người không phải admin chỉ để họ khỏi thấy một trang toàn lỗi:
+ * Khung của các trang quản trị. Việc ẩn trang với người không phải admin chỉ để họ khỏi thấy một trang toàn lỗi:
  * quyền thật được kiểm ở từng endpoint của API.
  */
 export function AdminPage({ section }: { section: AdminSection }) {
@@ -53,6 +55,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
       {section === "jobs" && <JobsPanel />}
       {section === "datasets" && <DatasetsPanel />}
       {section === "places" && <PlacesPanel />}
+      {section === "users" && <UsersPanel />}
     </main>
   );
 }

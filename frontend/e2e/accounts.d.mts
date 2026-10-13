@@ -11,6 +11,8 @@ export interface Account {
 export function sql(text: string): string;
 export function createAccount(role?: "submitter" | "admin"): Account;
 export function removeAccount(email: string): void;
+export function temporaryEmail(): string;
+export function temporaryPassword(words: string): string;
 
 /** Một genome thật kèm ngày lấy mẫu của nó (YYYY-MM-DD). */
 export interface Genome {

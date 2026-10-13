@@ -1277,3 +1277,74 @@ div.notice {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Tên người đang đăng nhập dẫn tới trang tài khoản. */
+.masthead__account a {
+  color: inherit;
+}
+
+.masthead__account a[aria-current="page"] {
+  color: #fff;
+}
+
+/* Lời báo thành công nằm trong một form (trang tài khoản), không chỉ ngay dưới tiêu đề trang. */
+.form > .notice--good {
+  color: var(--accent);
+}
+
+.page > h2 {
+  margin-top: 2.5rem;
+  font-size: var(--step-2);
+  font-weight: 650;
+}
+
+/* Form nằm trong một trang rộng (trang quản trị) giữ bề ngang của một cột đọc được. */
+.page--wide > .form {
+  max-width: 34rem;
+}
+
+/* Vài dòng "nhãn: giá trị" về một thứ. */
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1.25rem;
+  margin-top: 1rem;
+}
+
+.facts dt {
+  color: var(--ink-soft);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Form ngắn nằm ngay trong một ô của bảng (đặt lại mật khẩu của một tài khoản). */
+.inline-form {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 22rem;
+  white-space: normal;
+}
+
+.inline-form label {
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.inline-form input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.inline-form input[aria-invalid="true"] {
+  border-color: var(--warn);
+}
+
+.inline-form button {
+  justify-self: start;
+}

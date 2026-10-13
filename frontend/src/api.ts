@@ -339,3 +339,41 @@ export function addAlias(text: string, unitCode: string): Promise<AliasChange> {
 export function removeAlias(key: string): Promise<AliasChange> {
   return send<AliasChange>("DELETE", `/api/admin/places/aliases/${encodeURIComponent(key)}`);
 }
+
+/** Một tài khoản như admin thấy nó. */
+export interface Account {
+  id: number;
+  email: string;
+  displayName: string;
+  role: "submitter" | "admin";
+  isLocked: boolean;
+  createdAt: string;
+}
+
+export interface AccountInput {
+  email: string;
+  displayName: string;
+  role: "submitter" | "admin";
+  password: string;
+}
+
+/** Đổi mật khẩu của chính mình; server đòi mật khẩu hiện tại và kết thúc các phiên khác của tài khoản. */
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return send<void>("POST", "/api/auth/password", { currentPassword, newPassword });
+}
+
+export async function listAccounts(signal?: AbortSignal): Promise<Account[]> {
+  return (await get<{ items: Account[] }>("/api/admin/users", signal)).items;
+}
+
+export function createAccount(input: AccountInput): Promise<Account> {
+  return send<Account>("POST", "/api/admin/users", input);
+}
+
+export function setAccountLocked(id: number, locked: boolean): Promise<void> {
+  return send<void>("POST", `/api/admin/users/${id}/${locked ? "lock" : "unlock"}`);
+}
+
+export function resetAccountPassword(id: number, password: string): Promise<void> {
+  return send<void>("POST", `/api/admin/users/${id}/password`, { password });
+}

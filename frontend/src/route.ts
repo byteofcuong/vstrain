@@ -7,25 +7,30 @@ export type Route =
   | { page: "mine" }
   /** Form sửa một mẫu mình đã nộp. */
   | { page: "editSample"; internalId: string }
+  /** Tài khoản của người đang đăng nhập: đổi mật khẩu. */
+  | { page: "account" }
   /** Ba trang quản trị. Địa chỉ ai cũng gõ được; quyền được kiểm ở API, trang chỉ báo khi không có quyền. */
   | { page: "admin"; section: AdminSection };
 
-export type AdminSection = "jobs" | "datasets" | "places";
+export type AdminSection = "jobs" | "datasets" | "places" | "users";
 
 const PAGES: Record<string, Route> = {
   "#/login": { page: "login" },
   "#/submit": { page: "submit" },
   "#/mine": { page: "mine" },
+  "#/account": { page: "account" },
   "#/admin/jobs": { page: "admin", section: "jobs" },
   "#/admin/datasets": { page: "admin", section: "datasets" },
   "#/admin/places": { page: "admin", section: "places" },
+  "#/admin/users": { page: "admin", section: "users" },
 };
 
 /**
  * Đường dẫn trong phần `#` của URL: `#/` là danh sách, `#/d/<slug>` là một dataset (thêm `/t/<mã mẫu>` để chỉ vào
  * một tip tạm), `#/login` là trang đăng nhập, `#/submit` là form nộp mẫu, `#/mine` là các mẫu đã nộp,
  * `#/mine/<mã mẫu>/edit` là form sửa một mẫu,
- * `#/admin/jobs`, `#/admin/datasets` và `#/admin/places` là ba trang quản trị.
+ * `#/account` là tài khoản của mình, `#/admin/jobs`, `#/admin/datasets`, `#/admin/places` và `#/admin/users` là
+ * các trang quản trị.
  * Slug chỉ gồm chữ thường, số và gạch nối (cùng ràng buộc với cột `slug` trong DB), mã mẫu là chữ S và các chữ số;
  * thứ gì khác đều đưa về trang danh sách, nên không chuỗi lạ nào từ URL đi tiếp vào lời gọi API.
  */

@@ -14,6 +14,16 @@ function docker(args, input) {
   return run.stdout.trim();
 }
 
+/** Email cho một tài khoản tạm do chính test tạo qua giao diện; `removeAccount` nhận ra và xoá được nó. */
+export function temporaryEmail() {
+  return `e2e-${randomBytes(6).toString("hex")}@example.org`;
+}
+
+/** Một mật khẩu ngẫu nhiên có dấu tiếng Việt, bắt đầu bằng `words` để các mật khẩu của một test dễ phân biệt. */
+export function temporaryPassword(words) {
+  return `${words} ${randomBytes(9).toString("base64url")}`;
+}
+
 /** Chạy một câu SQL trên database của stack; chỉ dùng với chuỗi do chính các file test này dựng. */
 export function sql(text) {
   return docker(["exec", "-T", "db", "psql", "-U", "vietstrain", "-d", "vietstrain", "-At", "-F", "\t", "-c", text]);

@@ -85,6 +85,10 @@ const ADMIN_ERRORS: ReadonlyMap<string, MessageKey> = new Map([
   ["UNKNOWN_UNIT", "adminError_UNKNOWN_UNIT"],
   ["SEED_ALIAS", "adminError_SEED_ALIAS"],
   ["FORBIDDEN", "adminError_FORBIDDEN"],
+  ["EMAIL_TAKEN", "adminError_EMAIL_TAKEN"],
+  ["CANNOT_LOCK_SELF", "adminError_CANNOT_LOCK_SELF"],
+  ["USE_OWN_PASSWORD_FORM", "adminError_USE_OWN_PASSWORD_FORM"],
+  ["USER_NOT_FOUND", "adminError_USER_NOT_FOUND"],
 ]);
 
 /** Lời báo cho một lần bị API vận hành từ chối; mã chưa biết dùng lời chung. */
