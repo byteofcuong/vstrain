@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { createAccount, removeAccount, type Account } from "./accounts.mjs";
+import { SLUG } from "./support";
 
 /**
  * Test đầu-cuối của đăng nhập, trên stack thật. Mỗi worker tạo một tài khoản tạm bằng lệnh quản trị và xoá nó
@@ -24,6 +25,23 @@ async function logIn(page: Page, email = account.email, password = account.passw
 }
 
 const masthead = (page: Page) => page.locator(".masthead");
+
+test("a guest opens a tree without one failed request or one line of error in the console", async ({ page }) => {
+  const problems: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") problems.push(`console: ${message.text()}`);
+  });
+  page.on("pageerror", (error) => problems.push(`page: ${error.message}`));
+  page.on("response", (response) => {
+    if (response.status() >= 400) problems.push(`${response.status()} ${new URL(response.url()).pathname}`);
+  });
+
+  await page.goto(`/#/d/${SLUG}`);
+  await page.waitForFunction(() => (window.__vietstrain?.frames ?? 0) > 0 && window.__vietstrain!.stats !== null);
+  await expect(masthead(page).getByRole("link", { name: "Đăng nhập" })).toBeVisible();
+
+  expect(problems).toEqual([]);
+});
 
 test("a guest finds the way to log in, and the page says who gets an account", async ({ page }) => {
   await page.goto("/");

@@ -72,11 +72,12 @@ describe("getMe", () => {
     const fetch = answer(200, { user: USER });
 
     expect(await getMe()).toEqual(USER);
-    expect(fetch.mock.calls[0][0]).toBe("/api/auth/me");
+    // Endpoint này trả 200 cả cho khách, nên trình duyệt không ghi một dòng lỗi mỗi lần trang mở.
+    expect(fetch.mock.calls[0][0]).toBe("/api/auth/session");
   });
 
   it("returns null for a guest, which is not an error", async () => {
-    answer(401, { error: { code: "NOT_AUTHENTICATED", message: "Log in to use this" } });
+    answer(200, { user: null });
 
     expect(await getMe()).toBeNull();
   });

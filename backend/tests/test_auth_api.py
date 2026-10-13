@@ -7,7 +7,7 @@ import types
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.orm import sessionmaker
 
 from app.accounts import passwords, service
@@ -85,6 +85,39 @@ def test_the_session_cookie_is_marked_secure_when_configured(client, user, monke
 
     assert "Secure" in log_in(client).headers["set-cookie"]
     assert "Secure" in client.post("/api/auth/logout", headers=BROWSER).headers["set-cookie"]
+
+
+def test_a_page_can_ask_who_is_using_it_without_that_being_an_error_for_a_guest(client, user):
+    # Trang nào mở ra cũng hỏi câu này. Trả 401 cho khách thì console của mọi người xem đều có một dòng lỗi.
+    guest = client.get("/api/auth/session")
+    assert (guest.status_code, guest.json()) == (200, {"user": None})
+    assert guest.headers["cache-control"] == "no-store"
+
+    logged_in = log_in(client).json()
+    assert client.get("/api/auth/session").json() == logged_in
+
+    token = client.cookies[COOKIE]
+    client.post("/api/auth/logout", headers=BROWSER)
+    assert client.get("/api/auth/session").json() == {"user": None}
+    # Cookie của phiên đã kết thúc, hoặc một chuỗi bịa ra, cũng chỉ là khách.
+    for stale in (token, "khong-phai-token", "x" * 500):
+        client.cookies.set(COOKIE, stale)
+        assert client.get("/api/auth/session").json() == {"user": None}
+    # Câu hỏi này không thay cho việc kiểm tra quyền: endpoint cần đăng nhập vẫn từ chối khách.
+    assert error_of(client.get("/api/auth/me")) == (401, "NOT_AUTHENTICATED")
+
+
+def test_asking_who_is_using_the_page_counts_as_using_the_session(session, client, user):
+    log_in(client)
+    # Lần dùng gần nhất là hai giờ trước: phiên còn sống, và đủ lâu để lần dùng mới được ghi lại.
+    earlier = dt.datetime.now(dt.UTC) - dt.timedelta(hours=2)
+    session.execute(update(UserSession).values(last_seen_at=earlier))
+    session.flush()
+
+    assert client.get("/api/auth/session").json()["user"]["email"] == EMAIL
+
+    session.expire_all()
+    assert session.scalars(select(UserSession.last_seen_at)).one() > earlier + dt.timedelta(hours=1)
 
 
 def test_nobody_is_logged_in_without_a_cookie(client):

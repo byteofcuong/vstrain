@@ -39,7 +39,7 @@ export interface SampleDetail {
   meta: Record<string, unknown>;
 }
 
-/** Tài khoản đang đăng nhập, như `GET /api/auth/me` trả về. */
+/** Tài khoản đang đăng nhập, như `GET /api/auth/session` trả về. */
 export interface User {
   email: string;
   displayName: string;
@@ -113,14 +113,12 @@ export function getSample(internalId: string, signal?: AbortSignal): Promise<Sam
   return get<SampleDetail>(`/api/samples/${encodeURIComponent(internalId)}`, signal);
 }
 
-/** Tài khoản đang đăng nhập, hoặc `null` với khách. Lỗi khác của server vẫn là lỗi, không coi là khách. */
+/**
+ * Tài khoản đang đăng nhập, hoặc `null` với khách. Server trả 200 cho cả hai, nên trình duyệt không ghi dòng lỗi
+ * nào khi một người khách mở trang. Lỗi của server vẫn là lỗi, không coi là khách.
+ */
 export async function getMe(signal?: AbortSignal): Promise<User | null> {
-  try {
-    return (await get<{ user: User }>("/api/auth/me", signal)).user;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) return null;
-    throw error;
-  }
+  return (await get<{ user: User | null }>("/api/auth/session", signal)).user;
 }
 
 export async function logIn(email: string, password: string): Promise<User> {

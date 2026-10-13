@@ -33,6 +33,10 @@ class Me(ApiModel):
     user: UserOut
 
 
+class WhoIsHere(ApiModel):
+    user: UserOut | None  # `null` là khách
+
+
 class Credentials(ApiModel):
     email: str = Field(max_length=254)
     # Giới hạn ngay ở đây: chuỗi dài hơn mọi mật khẩu được nhận (kể cả ở dạng dấu rời) không tới được bước băm.
@@ -47,11 +51,16 @@ def _now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
 
 
-def current_user(session: SessionDep, token: SessionToken = None) -> AppUser:
-    """Tài khoản đang đăng nhập; 401 nếu không có phiên còn hiệu lực."""
+def _session_user(session: SessionDep, token: str | None) -> AppUser | None:
     user = service.session_user(session, token, now=_now()) if token else None
     # Lưu lại lần dùng phiên vừa ghi nhận.
     session.commit()
+    return user
+
+
+def current_user(session: SessionDep, token: SessionToken = None) -> AppUser:
+    """Tài khoản đang đăng nhập; 401 nếu không có phiên còn hiệu lực."""
+    user = _session_user(session, token)
     if user is None:
         raise ApiError(401, "NOT_AUTHENTICATED", "Log in to use this")
     return user
@@ -110,6 +119,18 @@ def logout(response: Response, session: SessionDep, token: SessionToken = None) 
 @router.get("/me")
 def me(user: CurrentUser) -> Me:
     return Me(user=UserOut.model_validate(user))
+
+
+@router.get("/session")
+def who_is_here(session: SessionDep, token: SessionToken = None) -> WhoIsHere:
+    """Ai đang dùng trang: tài khoản đang đăng nhập, hoặc `null` với khách.
+
+    Trang nào mở ra cũng hỏi câu này, và với khách thì không có gì sai: câu trả lời là 200. Dùng `/me` cho việc
+    đó thì trình duyệt ghi một dòng lỗi 401 vào console của mọi người xem. Endpoint này không thay cho việc kiểm
+    tra quyền; mỗi endpoint cần đăng nhập vẫn tự kiểm tra.
+    """
+    user = _session_user(session, token)
+    return WhoIsHere(user=UserOut.model_validate(user) if user else None)
 
 
 @admin_router.get("/users")

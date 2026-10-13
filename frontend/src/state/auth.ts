@@ -4,7 +4,7 @@ import { getMe, logIn, logOut, type User } from "../api";
 
 /**
  * Ai đang dùng trang: `undefined` khi chưa hỏi xong server, `null` là khách, còn lại là tài khoản đang đăng nhập.
- * Phiên đăng nhập nằm trong một cookie mà JavaScript không đọc được; trang chỉ biết nó qua `GET /api/auth/me`.
+ * Phiên đăng nhập nằm trong một cookie mà JavaScript không đọc được; trang chỉ biết nó qua `GET /api/auth/session`.
  */
 interface AuthState {
   user: User | null | undefined;
