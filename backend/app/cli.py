@@ -52,11 +52,13 @@ def run_geo_report(_args: argparse.Namespace) -> None:
     print()
 
 
-def enqueue_job(session: Session, kind: str, params: dict[str, Any], *, priority: int) -> Job:
+def enqueue_job(session: Session, kind: str, params: Any, *, priority: int) -> Job:
     """Xếp một job từ dòng lệnh. Job dựng cây đi qua `request_build`, như nút "Dựng ngay" và như lịch.
 
     Nhờ vậy lệnh này không xếp được job dựng cây thứ hai cho một dataset đang có một job chưa xong.
     """
+    if not isinstance(params, dict):
+        raise ValueError("--params must be a JSON object")
     if kind == BUILD_JOB:
         slug = params.get("dataset")
         if not isinstance(slug, str):
@@ -70,7 +72,7 @@ def run_enqueue(args: argparse.Namespace) -> None:
         with SessionLocal.begin() as session:
             job = enqueue_job(session, args.kind, json.loads(args.params), priority=args.priority)
             print(job.id)
-    except (LookupError, BuildAlreadyWaiting) as refused:
+    except (LookupError, ValueError, BuildAlreadyWaiting) as refused:
         raise SystemExit(str(refused)) from None
 
 

@@ -262,6 +262,9 @@ def test_the_enqueue_command_cannot_double_a_build_either(session):
     for params in ({"dataset": "no-such-dataset"}, {}, {"dataset": 7}):
         with pytest.raises(LookupError):
             cli.enqueue_job(session, "build_dataset", params, priority=0)
+    for kind in ("build_dataset", "tool_versions"):
+        with pytest.raises(ValueError, match="JSON object"):
+            cli.enqueue_job(session, kind, ["dataset", dataset.slug], priority=0)
     assert len(build_jobs(session)) == 1
     other = cli.enqueue_job(session, "tool_versions", {"note": "x"}, priority=3)
     assert (other.kind, other.params, other.priority) == ("tool_versions", {"note": "x"}, 3)
