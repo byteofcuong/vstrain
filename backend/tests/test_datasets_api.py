@@ -51,6 +51,7 @@ def test_list_shows_each_dataset_with_its_current_build_and_manifest_address(ses
         "pathogen": "dengue",
         "lineage": "denv1",
         "maxSamples": 2000,
+        "buildIntervalHours": None,
         "currentBuild": {
             "id": build.id,
             "sampleCount": 2,

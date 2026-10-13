@@ -14,6 +14,7 @@ from app.build.api import router as datasets_router
 from app.db import SessionDep
 from app.errors import error_response, install_error_handlers, internal_error
 from app.geo.api import router as units_router
+from app.operations.api import router as operations_router
 from app.samples.api import router as samples_router
 from app.submissions.api import admin_router as sample_admin_router
 from app.submissions.api import placements_router
@@ -40,6 +41,7 @@ install_error_handlers(app)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(sample_admin_router)
+app.include_router(operations_router)
 app.include_router(submissions_router)
 app.include_router(samples_router)
 app.include_router(datasets_router)

@@ -36,6 +36,7 @@ class DatasetInfo(ApiModel):
     pathogen: str
     lineage: str
     max_samples: int
+    build_interval_hours: int | None  # số giờ giữa hai lần build tự động; `null` là không có lịch
     current_build: CurrentBuild | None
 
 
@@ -79,6 +80,7 @@ def _dataset_info(dataset: DatasetDef, current: Build | None) -> dict:
         "pathogen": dataset.pathogen,
         "lineage": dataset.lineage,
         "max_samples": dataset.max_samples,
+        "build_interval_hours": dataset.build_interval_hours,
         "current_build": _current_build(current),
     }
 
