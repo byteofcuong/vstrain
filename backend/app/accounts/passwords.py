@@ -97,12 +97,24 @@ def _text(raw: bytes) -> str:
     return base64.b64encode(raw).decode("ascii")
 
 
-def hash_password(password: str) -> str:
+def check_policy(password: str) -> bytes:
+    """Dạng byte đã chuẩn hoá của một mật khẩu đạt quy tắc; ném `WeakPassword` nếu không đạt. Không băm gì."""
     normalized = _normalized(password)
     if normalized is None or not MIN_LENGTH <= normalized[0] <= MAX_LENGTH:
         raise WeakPassword(f"Password must have between {MIN_LENGTH} and {MAX_LENGTH} characters")
+    return normalized[1]
+
+
+def same_password(one: str, other: str) -> bool:
+    """Hai chuỗi có là cùng một mật khẩu sau khi chuẩn hoá không."""
+    first, second = _normalized(one), _normalized(other)
+    return first is not None and second is not None and hmac.compare_digest(first[1], second[1])
+
+
+def hash_password(password: str) -> str:
+    raw = check_policy(password)
     salt = secrets.token_bytes(SALT_BYTES)
-    return f"scrypt$n={N},r={R},p={P}${_text(salt)}${_text(_key(normalized[1], salt, N, R, P, KEY_BYTES))}"
+    return f"scrypt$n={N},r={R},p={P}${_text(salt)}${_text(_key(raw, salt, N, R, P, KEY_BYTES))}"
 
 
 def verify_password(password: str, encoded: str) -> bool:

@@ -42,6 +42,58 @@ Không: tự đăng ký, đăng nhập qua bên thứ ba, đặt lại hay đổ
 | A6 | Phần này có reviewer độc lập đọc lại trước khi gộp | mục "Review độc lập" bên dưới |
 | A7 | Trang đăng nhập: đăng nhập, đăng xuất, một lời báo cho mọi kiểu thất bại, dùng được chỉ bằng bàn phím, có tiếng Anh | `frontend/e2e/auth.spec.ts`, chạy trên stack thật |
 
+## Đổi mật khẩu và quản lý tài khoản (bổ sung sau mốc M7)
+
+Trạng thái: **đang làm**.
+
+Tới mốc M7, tài khoản chỉ được tạo bằng dòng lệnh trong container, mật khẩu không đổi được, và muốn khoá một tài khoản phải sửa thẳng database. Phần này đưa ba việc đó lên giao diện. Hệ thống không có dịch vụ gửi thư, nên không có "quên mật khẩu" qua email: người quên mật khẩu nhờ admin đặt lại.
+
+### Người dùng tự đổi mật khẩu
+
+- `POST /api/auth/password` với `currentPassword` và `newPassword`; cần đăng nhập. Thành công trả 204.
+- Phải nhập đúng mật khẩu hiện tại, kể cả khi đã đăng nhập: người cầm được một phiên (máy để mở, cookie bị lấy) không vì thế mà chiếm được tài khoản.
+- Nhập sai mật khẩu hiện tại trả 403 `WRONG_PASSWORD` và **được đếm vào cùng bộ đếm với đăng nhập sai**: năm lần trong 15 phút thì tài khoản bị khoá 15 phút, và trong lúc khoá mọi lần đổi mật khẩu nhận 429 `TOO_MANY_ATTEMPTS`, kể cả với mật khẩu đúng. Không có bộ đếm này thì endpoint thành chỗ dò mật khẩu không giới hạn cho người cầm một phiên.
+- Mật khẩu mới theo đúng quy tắc của lúc tạo tài khoản (10 tới 200 ký tự sau chuẩn hoá NFKC): sai thì 422 với mã `WEAK_PASSWORD`; trùng mật khẩu hiện tại thì 422 với mã `SAME_PASSWORD`.
+- Đổi xong, **mọi phiên khác của tài khoản bị kết thúc**; phiên đang dùng được giữ. Nhật ký `password_changed`.
+- Việc băm nằm trong cùng trần số lần băm đồng thời với đăng nhập; vượt trần thì 503 `LOGIN_BUSY`.
+
+### Admin quản lý tài khoản
+
+| Endpoint | Việc |
+|---|---|
+| `GET /api/admin/users` | danh sách tài khoản: mã, email, tên, vai trò, có đang bị khoá không, ngày tạo |
+| `POST /api/admin/users` | tạo tài khoản với `email`, `displayName`, `role`, `password`; 409 `EMAIL_TAKEN`; 422 với mã riêng cho từng trường |
+| `POST /api/admin/users/{id}/lock` | khoá: tài khoản không đăng nhập được, và mọi phiên của nó kết thúc ngay |
+| `POST /api/admin/users/{id}/unlock` | mở khoá; cũng xoá luôn việc khoá tạm vì nhập sai nhiều lần |
+| `POST /api/admin/users/{id}/password` | đặt mật khẩu mới cho tài khoản khác; mọi phiên của tài khoản đó kết thúc |
+
+- Mọi endpoint chỉ dành cho admin (401, 403), và mọi endpoint ghi cần header chống CSRF như các endpoint khác.
+- Admin **không tự khoá mình** (409 `CANNOT_LOCK_SELF`): nếu không, admin duy nhất có thể tự nhốt mình ngoài hệ thống.
+- Admin **không đặt lại mật khẩu của chính mình** qua endpoint quản trị (409 `USE_OWN_PASSWORD_FORM`): đổi mật khẩu của mình phải qua form cần mật khẩu hiện tại, nên một phiên admin bị lấy không đủ để chiếm tài khoản đó.
+- Mật khẩu do admin đặt là mật khẩu tạm: admin đưa nó cho người dùng qua một kênh khác, và người dùng tự đổi sau lần đăng nhập đầu. Hệ thống **không ép** việc đổi này.
+- Không response và không dòng nhật ký nào chứa mật khẩu hay chuỗi băm. Nhật ký: `user_created` (ghi cả admin đã tạo), `user_locked`, `user_unlocked`, `password_reset`.
+- Mã tài khoản không tồn tại trả 404 `USER_NOT_FOUND`.
+
+### Giao diện
+
+- `#/account`: email và vai trò của người đang đăng nhập, và form đổi mật khẩu (mật khẩu hiện tại, mật khẩu mới, nhập lại). Tên người dùng ở thanh đầu trang dẫn tới trang này.
+- `#/admin/users`: tab thứ tư của trang quản trị. Bảng tài khoản với nút khoá, mở khoá và đặt lại mật khẩu; form tạo tài khoản.
+
+### Tiêu chí nghiệm thu
+
+| # | Tiêu chí | Ngưỡng |
+|---|---|---|
+| U1 | Đổi mật khẩu: mật khẩu cũ không còn đăng nhập được, mật khẩu mới thì được; phiên đang dùng còn, các phiên khác hết | Có test |
+| U2 | Sai mật khẩu hiện tại bị từ chối và bị đếm; đủ năm lần thì bị khoá, kể cả với mật khẩu đúng | Có test |
+| U3 | Mật khẩu mới yếu hoặc trùng mật khẩu cũ bị từ chối, và mật khẩu không đổi | Có test |
+| U4 | Mọi endpoint quản lý tài khoản: 401 khi chưa đăng nhập, 403 với người nộp, 403 khi thiếu header chống CSRF | Có test cho từng endpoint |
+| U5 | Khoá một tài khoản làm phiên đang mở của nó hết hiệu lực ngay, và nó không đăng nhập lại được; mở khoá thì đăng nhập được | Có test |
+| U6 | Admin không tự khoá mình và không đặt lại mật khẩu của mình qua endpoint quản trị | Có test |
+| U7 | Đặt lại mật khẩu của người khác: mật khẩu cũ hết dùng được, mọi phiên của người đó kết thúc | Có test |
+| U8 | Mật khẩu và chuỗi băm không có trong response hay nhật ký nào của các endpoint mới | Có test |
+| U9 | Trên stack thật: admin tạo tài khoản, người mới đăng nhập và đổi mật khẩu, admin khoá rồi mở khoá | Test đầu-cuối |
+| U10 | Phần này có reviewer độc lập đọc lại trước khi gộp | mục review |
+
 ## Tạo tài khoản
 
 Từ thư mục gốc của repo, khi stack đang chạy:

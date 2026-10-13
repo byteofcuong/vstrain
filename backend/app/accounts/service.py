@@ -14,7 +14,7 @@ from typing import Any
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from app.accounts.passwords import hash_password, verify_password
+from app.accounts.passwords import WeakPassword, check_policy, hash_password, same_password, verify_password
 from app.models import AppUser, AuditLog, UserRole, UserSession
 
 # Phiên hết hạn sau 7 ngày không dùng, và muộn nhất 30 ngày sau lúc đăng nhập dù vẫn đang dùng.
@@ -35,6 +35,30 @@ class EmailTaken(ValueError):
     """Đã có tài khoản dùng email này."""
 
 
+class WrongPassword(ValueError):
+    """Mật khẩu hiện tại nhập không đúng."""
+
+
+class TooManyAttempts(RuntimeError):
+    """Tài khoản đang bị khoá tạm vì nhập sai mật khẩu quá nhiều lần."""
+
+
+class SamePassword(ValueError):
+    """Mật khẩu mới chính là mật khẩu đang dùng."""
+
+
+class UserNotFound(LookupError):
+    """Không có tài khoản mang mã này."""
+
+
+class CannotLockSelf(RuntimeError):
+    """Admin không tự khoá tài khoản mình đang dùng."""
+
+
+class UseOwnPasswordForm(RuntimeError):
+    """Mật khẩu của chính mình chỉ đổi được qua form cần mật khẩu hiện tại."""
+
+
 def normalize_email(email: str) -> str:
     return email.strip().lower()
 
@@ -53,23 +77,54 @@ def record(session: Session, actor_id: int | None, action: str, subject: str | N
     session.add(AuditLog(actor_id=actor_id, action=action, subject=subject, detail=detail))
 
 
+def _is_name(name: str) -> bool:
+    return 0 < len(name) <= 100 and name.isprintable()
+
+
+def _is_role(role: str) -> bool:
+    return role in {known.value for known in UserRole}
+
+
+def account_problems(*, email: str, display_name: str, role: str, password: str) -> list[tuple[str, str]]:
+    """Mọi lý do một tài khoản với các giá trị này không tạo được, mỗi lý do là (trường, mã). Không băm gì."""
+    problems = []
+    if not _is_email(normalize_email(email)):
+        problems.append(("email", "INVALID_EMAIL"))
+    if not _is_name(display_name.strip()):
+        problems.append(("displayName", "INVALID_NAME"))
+    if not _is_role(role):
+        problems.append(("role", "UNKNOWN_ROLE"))
+    try:
+        check_policy(password)
+    except WeakPassword:
+        problems.append(("password", "WEAK_PASSWORD"))
+    return problems
+
+
 def create_user(
-    session: Session, *, email: str, display_name: str, password: str, role: str = UserRole.SUBMITTER.value
+    session: Session,
+    *,
+    email: str,
+    display_name: str,
+    password: str,
+    role: str = UserRole.SUBMITTER.value,
+    created_by: int | None = None,
 ) -> AppUser:
+    """Tạo một tài khoản. `created_by` là admin đã tạo nó; để trống khi tạo từ dòng lệnh."""
     email = normalize_email(email)
     name = display_name.strip()
     if not _is_email(email):
         raise ValueError("Not an email address")
-    if role not in {known.value for known in UserRole}:
+    if not _is_role(role):
         raise ValueError(f"Unknown role {role!r}")
-    if not 0 < len(name) <= 100 or not name.isprintable():
+    if not _is_name(name):
         raise ValueError("The display name must be 1 to 100 characters of readable text")
     if session.scalar(select(AppUser.id).where(AppUser.email == email)) is not None:
         raise EmailTaken(f"There is already an account for {email}")
     user = AppUser(email=email, display_name=name, password_hash=hash_password(password), role=role)
     session.add(user)
     session.flush()
-    record(session, None, "user_created", f"user:{user.id}", role=role)
+    record(session, created_by, "user_created", f"user:{user.id}", role=role)
     session.flush()
     return user
 
@@ -86,6 +141,26 @@ def unknown_email_hash() -> str:
     thì lần đó tốn hai lần băm, và độ chậm ấy nói rằng email không có tài khoản.
     """
     return hash_password(secrets.token_urlsafe(32))
+
+
+def _count_wrong_password(
+    session: Session, user: AppUser, now: dt.datetime, action: str, subject: str | None = None
+) -> None:
+    """Ghi nhận một lần nhập sai mật khẩu của `user`; đủ số lần trong cửa sổ thì khoá tài khoản một lúc.
+
+    Đăng nhập và form đổi mật khẩu dùng chung bộ đếm này: người cầm được một phiên không có chỗ nào để dò mật
+    khẩu mà không bị đếm.
+    """
+    if user.failed_since is None or now - user.failed_since > FAILURE_WINDOW:
+        user.failed_since, user.failed_logins = now, 0
+    user.failed_logins += 1
+    if user.failed_logins >= MAX_FAILURES:
+        user.locked_until = now + LOCK_TIME
+        user.failed_since, user.failed_logins = None, 0
+        record(session, user.id, "login_locked", subject)
+    else:
+        record(session, user.id, action, subject)
+    session.flush()
 
 
 def log_in(session: Session, email: str, password: str, *, now: dt.datetime) -> tuple[AppUser, str] | None:
@@ -114,16 +189,7 @@ def log_in(session: Session, email: str, password: str, *, now: dt.datetime) -> 
         session.flush()
         return None
     if not correct:
-        if user.failed_since is None or now - user.failed_since > FAILURE_WINDOW:
-            user.failed_since, user.failed_logins = now, 0
-        user.failed_logins += 1
-        if user.failed_logins >= MAX_FAILURES:
-            user.locked_until = now + LOCK_TIME
-            user.failed_since, user.failed_logins = None, 0
-            record(session, user.id, "login_locked")
-        else:
-            record(session, user.id, "login_failed")
-        session.flush()
+        _count_wrong_password(session, user, now, "login_failed")
         return None
     if user.is_locked:
         record(session, user.id, "login_refused")
@@ -181,3 +247,81 @@ def purge_stale(session: Session, *, now: dt.datetime, audit_retention: dt.timed
     audit_rows = session.execute(delete(AuditLog).where(AuditLog.at < now - audit_retention)).rowcount
     session.flush()
     return {"sessions": sessions, "audit_rows": audit_rows}
+
+
+def change_password(
+    session: Session, user_id: int, keep_token: str | None, *, current: str, new: str, now: dt.datetime
+) -> None:
+    """Người dùng tự đổi mật khẩu: phải đưa đúng mật khẩu hiện tại. Chỉ flush.
+
+    Đổi xong, mọi phiên khác của tài khoản bị kết thúc; phiên mang `keep_token` được giữ. Ném `TooManyAttempts`,
+    `WrongPassword` (lần sai đã được đếm: bên gọi phải commit), `WeakPassword` hoặc `SamePassword`.
+    Bên gọi giữ `passwords.hashing_slot()` quanh lời gọi này, như với `log_in`.
+    """
+    user = session.scalar(select(AppUser).where(AppUser.id == user_id).with_for_update())
+    if user is None:
+        raise UserNotFound(f"No account with id {user_id}")
+    subject = f"user:{user.id}"
+    if user.locked_until is not None and user.locked_until > now:
+        # Đang khoá vì nhập sai nhiều lần: không thử mật khẩu, không đếm thêm, không kéo dài thời gian khoá.
+        record(session, user.id, "password_change_refused", subject)
+        session.flush()
+        raise TooManyAttempts("Too many wrong passwords; try again later")
+    if not verify_password(current, user.password_hash):
+        _count_wrong_password(session, user, now, "password_change_failed", subject)
+        raise WrongPassword("The current password is wrong")
+    check_policy(new)
+    if same_password(new, current):
+        raise SamePassword("The new password is the one already in use")
+
+    user.password_hash = hash_password(new)
+    user.failed_since, user.failed_logins, user.locked_until = None, 0, None
+    others = delete(UserSession).where(UserSession.user_id == user.id)
+    if keep_token:
+        others = others.where(UserSession.token_hash != _token_hash(keep_token))
+    session.execute(others)
+    record(session, user.id, "password_changed", subject)
+    session.flush()
+
+
+def _account(session: Session, user_id: int) -> AppUser:
+    user = session.scalar(select(AppUser).where(AppUser.id == user_id).with_for_update())
+    if user is None:
+        raise UserNotFound(f"No account with id {user_id}")
+    return user
+
+
+def set_locked(session: Session, actor: AppUser, user_id: int, *, locked: bool) -> None:
+    """Admin khoá hoặc mở khoá một tài khoản. Chỉ flush.
+
+    Khoá thì mọi phiên của tài khoản kết thúc ngay. Mở khoá cũng gỡ luôn việc khoá tạm vì nhập sai mật khẩu.
+    Làm lại việc đã làm rồi thì không ghi thêm nhật ký.
+    """
+    user = _account(session, user_id)
+    if locked and user.id == actor.id:
+        raise CannotLockSelf("An administrator cannot lock the account in use")
+    if locked:
+        session.execute(delete(UserSession).where(UserSession.user_id == user.id))
+        if not user.is_locked:
+            user.is_locked = True
+            record(session, actor.id, "user_locked", f"user:{user.id}")
+    elif user.is_locked or user.locked_until is not None or user.failed_logins:
+        user.is_locked = False
+        user.failed_since, user.failed_logins, user.locked_until = None, 0, None
+        record(session, actor.id, "user_unlocked", f"user:{user.id}")
+    session.flush()
+
+
+def reset_password(session: Session, actor: AppUser, user_id: int, password: str) -> None:
+    """Admin đặt mật khẩu mới cho một tài khoản khác; mọi phiên của tài khoản đó kết thúc. Chỉ flush.
+
+    Việc khoá tạm vì nhập sai được gỡ, để mật khẩu mới dùng được ngay; việc khoá do admin thì giữ nguyên.
+    """
+    user = _account(session, user_id)
+    if user.id == actor.id:
+        raise UseOwnPasswordForm("Change your own password with the form that asks for the current one")
+    user.password_hash = hash_password(password)
+    user.failed_since, user.failed_logins, user.locked_until = None, 0, None
+    session.execute(delete(UserSession).where(UserSession.user_id == user.id))
+    record(session, actor.id, "password_reset", f"user:{user.id}")
+    session.flush()
