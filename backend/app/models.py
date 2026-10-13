@@ -81,6 +81,13 @@ class PlaceAlias(Base):
     example: Mapped[str] = mapped_column(String(200))  # một cách viết gốc của khoá, để người đọc hiểu khoá
 
 
+class SampleStatus(StrEnum):
+    RECEIVED = "received"  # vừa nộp, chưa qua kiểm tra chất lượng
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"  # không qua kiểm tra chất lượng; lý do nằm ở `sample_alignment.error`
+    HIDDEN = "hidden"  # admin ẩn
+
+
 class Sample(Base):
     """Một mẫu: bản ghi GenBank hoặc mẫu do phòng xét nghiệm nộp.
 
@@ -96,6 +103,7 @@ class Sample(Base):
             "(date_min IS NULL) = (date_max IS NULL) AND (date_min IS NULL OR date_min <= date_max)",
             name="date_range_valid",
         ),
+        CheckConstraint("status IN ('received', 'accepted', 'rejected', 'hidden')", name="status_known"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
@@ -109,6 +117,9 @@ class Sample(Base):
     display_name: Mapped[str] = mapped_column(String(300))  # tên hiển thị, không bao giờ đưa cho công cụ ngoài
     pathogen: Mapped[str] = mapped_column(String(40))
     source: Mapped[str] = mapped_column(String(20))  # 'genbank' | 'submission'
+    # Chỉ mẫu 'accepted' là công khai và được vào build. Mẫu nộp bắt đầu ở 'received', rồi thành 'accepted' hoặc
+    # 'rejected' sau bước kiểm tra chất lượng; admin đổi được giữa 'accepted' và 'hidden'.
+    status: Mapped[str] = mapped_column(String(20), server_default=SampleStatus.ACCEPTED.value)
     accession: Mapped[str | None] = mapped_column(String(40), unique=True)
 
     collection_date_raw: Mapped[str | None] = mapped_column(String(40))
@@ -303,6 +314,40 @@ class UserSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_seen_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Submission(Base):
+    """Một lần nộp mẫu: ai nộp, và job nào đang xử lý nó. Mỗi lần nộp là đúng một mẫu."""
+
+    __tablename__ = "submission"
+
+    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), primary_key=True)
+    # Không xoá được tài khoản đã nộp mẫu: admin khoá tài khoản chứ không xoá, để mẫu luôn có người chịu trách nhiệm.
+    submitter_id: Mapped[int] = mapped_column(ForeignKey("app_user.id"), index=True)
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
+    # Vì sao mẫu không qua kiểm tra chất lượng: một mã để giao diện dịch, và một câu cho người đọc log.
+    reject_code: Mapped[str | None] = mapped_column(String(40))
+    reject_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SamplePlacement(Base):
+    """Chỗ một mẫu được Nextclade gắn tạm vào cây của một build, trong lúc chờ lần build có mẫu đó.
+
+    Các tên node là tên trong cây của chính build ấy; build khác thì phải đặt lại.
+    """
+
+    __tablename__ = "sample_placement"
+
+    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), primary_key=True)
+    build_id: Mapped[int] = mapped_column(ForeignKey("build.id", ondelete="CASCADE"), primary_key=True, index=True)
+    parent_node: Mapped[str] = mapped_column(String(100))  # node gần nhất phía trên mẫu mà cây của build có
+    branch_node: Mapped[str | None] = mapped_column(String(100))  # node mà cành dẫn tới nó bị chẻ để gắn mẫu
+    attach_div: Mapped[float] = mapped_column(Float)  # độ phân kỳ tại điểm gắn
+    div: Mapped[float] = mapped_column(Float)  # độ phân kỳ của mẫu
+    private_mutations: Mapped[int] = mapped_column(Integer)  # số thay thế nucleotide riêng của mẫu so với chỗ gắn
+    clade: Mapped[str | None] = mapped_column(String(60))
+    placed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class AuditLog(Base):

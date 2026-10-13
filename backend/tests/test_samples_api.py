@@ -210,3 +210,16 @@ def test_an_unknown_route_uses_the_same_error_shape(client):
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+@pytest.mark.parametrize("status", ["received", "rejected", "hidden"])
+def test_a_sample_that_is_not_accepted_is_not_public(session, client, status):
+    # Mẫu vừa nộp, mẫu không qua kiểm tra chất lượng và mẫu bị admin ẩn chỉ người nộp và admin thấy.
+    private = add_sample(session, display_name="chưa công khai", status=status)
+    add_sample(session, display_name="công khai")
+
+    listing = client.get("/api/samples")
+
+    assert names(listing) == ["công khai"]
+    assert listing.json()["total"] == 1
+    assert client.get(f"/api/samples/{private.internal_id}").status_code == 404

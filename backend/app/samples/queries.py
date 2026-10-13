@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import Row, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import AdminUnit, Sample, SampleSequence
+from app.models import AdminUnit, Sample, SampleSequence, SampleStatus
 
 _SUMMARY = (
     Sample.internal_id,
@@ -28,6 +28,10 @@ _SUMMARY = (
     Sample.host,
     SampleSequence.length.label("sequence_length"),
 )
+
+
+# Mẫu vừa nộp, mẫu không qua kiểm tra chất lượng và mẫu bị admin ẩn không nằm trong dữ liệu công khai.
+PUBLIC = Sample.status == SampleStatus.ACCEPTED.value
 
 
 class UnknownUnit(LookupError):
@@ -65,8 +69,8 @@ def list_samples(
     limit: int,
     offset: int,
 ) -> tuple[Sequence[Row[Any]], int]:
-    """Một trang mẫu, mới nhất trước, và tổng số mẫu khớp điều kiện."""
-    conditions = []
+    """Một trang mẫu công khai, mới nhất trước, và tổng số mẫu khớp điều kiện."""
+    conditions = [PUBLIC]
     if unit is not None:
         scope = unit_scope(session, unit)
         conditions.append(or_(Sample.admin_unit_code.in_(scope), Sample.region_code.in_(scope)))
@@ -92,5 +96,5 @@ def get_sample(session: Session, internal_id: str) -> Row[Any] | None:
     return session.execute(
         select(*_SUMMARY, Sample.meta)
         .outerjoin(SampleSequence, SampleSequence.sample_id == Sample.id)
-        .where(Sample.internal_id == internal_id)
+        .where(Sample.internal_id == internal_id, PUBLIC)
     ).one_or_none()

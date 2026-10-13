@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import DatasetDef, Sample, SampleAlignment
+from app.models import DatasetDef, Sample, SampleAlignment, SampleStatus
 from app.pathogens import get_lineage
 
 
@@ -51,6 +51,7 @@ def select_samples(session: Session, dataset: DatasetDef) -> list[Choice]:
         .join(SampleAlignment, SampleAlignment.sample_id == Sample.id)
         .where(
             Sample.pathogen == dataset.pathogen,
+            Sample.status == SampleStatus.ACCEPTED.value,
             SampleAlignment.lineage == dataset.lineage,
             SampleAlignment.status == "aligned",
             SampleAlignment.valid_nt >= lineage.min_valid_nt,

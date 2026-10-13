@@ -160,3 +160,13 @@ def test_a_dataset_slug_must_be_safe_to_use_as_a_folder_name(session, slug):
 
     with pytest.raises(IntegrityError):
         session.flush()
+
+
+@pytest.mark.parametrize("status", ["received", "rejected", "hidden"])
+def test_only_accepted_samples_are_chosen(session, status):
+    kept = add_genome(session, "Vietnam", 2019)
+    left_out = add_genome(session, "Vietnam", 2019)
+    left_out.status = status
+    session.flush()
+
+    assert set(picked(session, make_dataset(session))) == {kept.id}
