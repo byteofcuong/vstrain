@@ -180,3 +180,16 @@ def test_an_error_text_with_nul_bytes_can_be_stored(session):
 
     session.expire_all()
     assert job.error == "crashed with binary output"
+
+
+def test_a_claim_limited_to_some_kinds_leaves_the_other_jobs_in_the_queue(session):
+    build = queue.enqueue(session, "build_dataset", priority=5)
+    check = queue.enqueue(session, "ingest_sample")
+    only_checks = frozenset({"ingest_sample"})
+
+    # Job dựng cây đứng trước trong hàng, nhưng worker này không nhận loại đó.
+    assert queue.claim(session, "fast", kinds=only_checks).id == check.id
+    assert queue.claim(session, "fast", kinds=only_checks) is None
+    session.refresh(build)
+    assert build.status == "queued"
+    assert queue.claim(session, "general").id == build.id

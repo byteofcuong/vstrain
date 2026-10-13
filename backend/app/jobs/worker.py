@@ -1,5 +1,10 @@
-"""Worker: lấy job từ hàng đợi và chạy handler tương ứng. Chạy bằng `python -m app.jobs.worker`."""
+"""Worker: lấy job từ hàng đợi và chạy handler tương ứng. Chạy bằng `python -m app.jobs.worker`.
 
+Thêm `--only <loại job>...` để worker chỉ nhận vài loại job. Bản triển khai chạy hai worker: một cái nhận mọi
+loại, một cái chỉ nhận việc kiểm tra mẫu vừa nộp, để người nộp không phải chờ một lần dựng cây đang chạy.
+"""
+
+import argparse
 import datetime as dt
 import logging
 import os
@@ -34,6 +39,7 @@ class Worker:
         stale_after: dt.timedelta = dt.timedelta(seconds=90),
         work_retention: dt.timedelta | None = None,
         cleanup_seconds: float = 3600,
+        kinds: frozenset[str] | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.handlers = handlers
@@ -43,6 +49,7 @@ class Worker:
         self.stale_after = stale_after
         self.work_retention = work_retention  # `None`: không bao giờ xoá thư mục làm việc
         self.cleanup_seconds = cleanup_seconds
+        self.kinds = kinds  # `None`: nhận mọi loại job
         self._next_cleanup = 0.0
 
     def run_one(self) -> bool:
@@ -50,7 +57,7 @@ class Worker:
         with self.session_factory() as session:
             # Job mà worker trước bỏ dở (container bị dừng giữa chừng) không bao giờ tự kết thúc.
             queue.fail_stale(session, self.stale_after)
-            job = queue.claim(session, self.name)
+            job = queue.claim(session, self.name, self.kinds)
             if job is None:
                 return False
 
@@ -128,11 +135,29 @@ class Worker:
             thread.join()
 
 
-def main() -> None:
+def selected_kinds(only: list[str] | None, handlers: Mapping[str, object]) -> frozenset[str] | None:
+    """Các loại job mà `--only` chọn; `None` khi không giới hạn. Loại không có handler là lỗi gõ nhầm."""
+    if only is None:
+        return None
+    unknown = sorted(set(only) - set(handlers))
+    if unknown:
+        raise ValueError(f"No handler for job kind: {', '.join(unknown)}")
+    return frozenset(only)
+
+
+def main(argv: list[str] | None = None) -> None:
     # Import ở đây để module này dùng được trong test mà không cần kết nối database chính.
     from app.config import settings
     from app.db import SessionLocal
     from app.jobs.handlers import HANDLERS
+
+    parser = argparse.ArgumentParser(prog="python -m app.jobs.worker", description="Worker chạy job nền")
+    parser.add_argument("--only", nargs="+", metavar="KIND", help="chỉ nhận các loại job này")
+    arguments = parser.parse_args(argv)
+    try:
+        kinds = selected_kinds(arguments.only, HANDLERS)
+    except ValueError as error:
+        parser.error(str(error))
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     stop = threading.Event()
@@ -145,8 +170,9 @@ def main() -> None:
         name=f"{socket.gethostname()}:{os.getpid()}",
         work_root=Path(settings.work_dir),
         work_retention=dt.timedelta(days=settings.work_retention_days),
+        kinds=kinds,
     )
-    log.info("Worker %s waiting for jobs: %s", worker.name, ", ".join(sorted(HANDLERS)))
+    log.info("Worker %s waiting for jobs: %s", worker.name, ", ".join(sorted(kinds or HANDLERS)))
     worker.run_forever(stop=stop)
     log.info("Worker %s stopped", worker.name)
 

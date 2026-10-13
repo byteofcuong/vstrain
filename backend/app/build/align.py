@@ -8,10 +8,11 @@ phụ thuộc các mẫu khác và lưu lại được.
 import csv
 import re
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.jobs.steps import JobContext
@@ -72,28 +73,41 @@ def nextclade_version(context: JobContext) -> str:
     return context.run_tool("nextclade-version", ["nextclade", "--version"], timeout=60).log_tail.strip()
 
 
-def align_batch(
-    context: JobContext,
-    lineage: Lineage,
-    sample_ids: Sequence[int],
-    *,
-    name: str = "align",
-    tool_version: str | None = None,
-) -> dict[str, int]:
-    """Gióng một lô mẫu và ghi kết quả vào `sample_alignment`; trả về số mẫu gióng được và không gióng được."""
-    session = context.session
-    samples = session.execute(
+class RawSequence(Protocol):
+    """Thứ cần biết về một mẫu để gióng nó: một dòng của truy vấn `raw_sequences`."""
+
+    id: int
+    internal_id: str
+    sequence: str
+    sha256: str
+
+
+def raw_sequences(session: Session, sample_ids: Sequence[int]) -> Sequence[RawSequence]:
+    return session.execute(
         select(Sample.id, Sample.internal_id, SampleSequence.sequence, SampleSequence.sha256)
         .join(SampleSequence, SampleSequence.sample_id == Sample.id)
         .where(Sample.id.in_(sample_ids))
         .order_by(Sample.id)
     ).all()
-    if not samples:
-        return {"aligned": 0, "failed": 0}
 
+
+def is_nucleotide_text(sequence: str) -> bool:
+    """Chuỗi chỉ gồm mã nucleotide, tức ghi ra file FASTA được mà không tạo ra dòng tiêu đề giả."""
+    return _NUCLEOTIDES.fullmatch(sequence) is not None
+
+
+def align_sequences(
+    context: JobContext,
+    lineage: Lineage,
+    samples: Sequence[RawSequence],
+    *,
+    name: str = "align",
+    tool_version: str | None = None,
+) -> list[dict[str, Any]]:
+    """Gióng một lô chuỗi theo reference của `lineage`; trả về một dòng `sample_alignment` cho mỗi mẫu, chưa ghi."""
     # Chuỗi có ký tự không phải mã nucleotide (xuống dòng, dấu ">", chữ ngoài ASCII) không được ghi ra file:
     # nó có thể tạo ra một dòng tiêu đề giả, hoặc làm hỏng cả lô.
-    usable = [sample for sample in samples if _NUCLEOTIDES.fullmatch(sample.sequence)]
+    usable = [sample for sample in samples if is_nucleotide_text(sample.sequence)]
     aligned: dict[str, str] = {}
     stats: dict[str, dict[str, str]] = {}
     version = tool_version or "nextclade (not run)"
@@ -127,7 +141,7 @@ def align_batch(
             stats = {row["seqName"]: row for row in csv.DictReader(handle, delimiter="\t")}
 
     usable_ids = {sample.id for sample in usable}
-    rows = [
+    return [
         {
             "sample_id": sample.id,
             "lineage": lineage.key,
@@ -144,11 +158,31 @@ def align_batch(
         }
         for sample in samples
     ]
-    statement = insert(SampleAlignment).values(rows)
+
+
+def store_alignments(session: Session, rows: Sequence[dict[str, Any]]) -> None:
+    """Ghi kết quả gióng; mẫu đã có kết quả thì được thay bằng kết quả mới. Chỉ flush."""
+    statement = insert(SampleAlignment).values(list(rows))
     replaced = {column: statement.excluded[column] for column in rows[0] if column != "sample_id"}
     replaced["aligned_at"] = statement.excluded.aligned_at
     session.execute(statement.on_conflict_do_update(index_elements=[SampleAlignment.sample_id], set_=replaced))
-    session.commit()
+
+
+def align_batch(
+    context: JobContext,
+    lineage: Lineage,
+    sample_ids: Sequence[int],
+    *,
+    name: str = "align",
+    tool_version: str | None = None,
+) -> dict[str, int]:
+    """Gióng một lô mẫu và ghi kết quả vào `sample_alignment`; trả về số mẫu gióng được và không gióng được."""
+    samples = raw_sequences(context.session, sample_ids)
+    if not samples:
+        return {"aligned": 0, "failed": 0}
+    rows = align_sequences(context, lineage, samples, name=name, tool_version=tool_version)
+    store_alignments(context.session, rows)
+    context.session.commit()
 
     aligned_count = sum(1 for row in rows if row["status"] == "aligned")
     return {"aligned": aligned_count, "failed": len(rows) - aligned_count}

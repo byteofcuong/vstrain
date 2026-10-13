@@ -50,7 +50,7 @@ services:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
   # Chạy job nền (gióng mẫu, dựng cây). Image riêng vì cần Augur, Nextclade, IQ-TREE.
-  worker:
+  worker: &worker
     <<: *backend
     image: vietstrain-worker
     build:
@@ -65,6 +65,12 @@ services:
         condition: service_completed_successfully
     command: ["python", "-m", "app.jobs.worker"]
     restart: on-failure            # worker tự bắt lỗi trong vòng lặp; đây là lớp dự phòng nếu tiến trình vẫn chết
+
+  # Worker thứ hai, chỉ nhận việc kiểm tra mẫu vừa nộp (vài giây mỗi mẫu). Không có nó, một mẫu nộp trong lúc
+  # `worker` đang dựng cây phải chờ tới khi cây dựng xong, tức hàng chục phút.
+  ingest:
+    <<: *worker
+    command: ["python", "-m", "app.jobs.worker", "--only", "ingest_sample"]
 
   # Cổng vào của bản triển khai (http://127.0.0.1:8080): frontend đã build, file publish, và /api chuyển sang `api`.
   # Frontend được build trên máy (`npm run build` trong frontend/) rồi mount vào; chưa build thì trang trả 404.

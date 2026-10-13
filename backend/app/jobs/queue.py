@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session
 from app.models import Job, JobStatus
 
 _ERROR_LIMIT = 4000
+# Độ ưu tiên của việc có người đang chờ kết quả (kiểm tra một mẫu vừa nộp, gắn mẫu vào cây mới): đứng trước
+# việc chạy theo lịch như dựng cây, vốn có độ ưu tiên 0.
+INTERACTIVE = 10
 
 
 def enqueue(session: Session, kind: str, params: dict[str, Any] | None = None, *, priority: int = 0) -> Job:
@@ -24,20 +27,22 @@ def enqueue(session: Session, kind: str, params: dict[str, Any] | None = None, *
     return job
 
 
-def lock_next(session: Session) -> Job | None:
-    """Khoá job đang chờ đứng đầu hàng; job mà worker khác đang khoá được bỏ qua chứ không chờ."""
+def lock_next(session: Session, kinds: frozenset[str] | None = None) -> Job | None:
+    """Khoá job đang chờ đứng đầu hàng; job mà worker khác đang khoá được bỏ qua chứ không chờ.
+
+    `kinds` giới hạn ở một số loại job; `None` là mọi loại.
+    """
+    waiting = select(Job).where(Job.status == JobStatus.QUEUED.value)
+    if kinds is not None:
+        waiting = waiting.where(Job.kind.in_(kinds))
     return session.scalars(
-        select(Job)
-        .where(Job.status == JobStatus.QUEUED.value)
-        .order_by(Job.priority.desc(), Job.id)
-        .limit(1)
-        .with_for_update(skip_locked=True)
+        waiting.order_by(Job.priority.desc(), Job.id).limit(1).with_for_update(skip_locked=True)
     ).first()
 
 
-def claim(session: Session, worker: str) -> Job | None:
-    """Lấy một job về cho worker và đánh dấu đang chạy; trả `None` khi không còn job nào chờ."""
-    job = lock_next(session)
+def claim(session: Session, worker: str, kinds: frozenset[str] | None = None) -> Job | None:
+    """Lấy một job về cho worker và đánh dấu đang chạy; trả `None` khi không còn job nào (thuộc `kinds`) chờ."""
+    job = lock_next(session, kinds)
     if job is None:
         session.rollback()
         return None

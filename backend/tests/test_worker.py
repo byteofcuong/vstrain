@@ -200,3 +200,27 @@ def test_a_job_with_an_unknown_parameter_is_rejected(session, tmp_path):
     assert [job.status for job in jobs] == ["failed"] * 4
     assert "tree_builder_args" in jobs[0].error and "Unknown job parameter" in jobs[0].error
     assert not list(tmp_path.rglob("pwned"))
+
+
+def test_a_worker_limited_to_some_kinds_does_not_touch_the_others(session, tmp_path):
+    ran = []
+    handlers = {"quick": lambda _context: ran.append("quick"), "slow": lambda _context: ran.append("slow")}
+    slow = queue.enqueue(session, "slow", priority=5)
+    queue.enqueue(session, "quick")
+    worker = make_worker(session, tmp_path, handlers, kinds=frozenset({"quick"}))
+
+    assert [worker.run_one(), worker.run_one()] == [True, False]
+
+    session.refresh(slow)
+    assert (ran, slow.status) == (["quick"], "queued")
+
+
+def test_the_kinds_a_worker_is_limited_to_must_be_ones_it_can_run():
+    from app.jobs.worker import selected_kinds
+
+    handlers = {"quick": None, "slow": None}
+
+    assert selected_kinds(None, handlers) is None
+    assert selected_kinds(["quick"], handlers) == frozenset({"quick"})
+    with pytest.raises(ValueError, match="no-such-kind"):
+        selected_kinds(["quick", "no-such-kind"], handlers)

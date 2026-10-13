@@ -45,8 +45,6 @@ from app.submissions.validate import (
 PATHOGEN = "dengue"
 HOME_COUNTRY = "Vietnam"
 INGEST_JOB = "ingest_sample"
-# Cao hơn job dựng cây (0): mẫu vừa nộp được kiểm tra trước khi tới lượt một build đang chờ.
-INGEST_PRIORITY = 10
 # Số mẫu của một người được nằm chờ kiểm tra cùng lúc, để một tài khoản không lấp đầy hàng đợi.
 MAX_PENDING = 20
 
@@ -164,7 +162,8 @@ def submit(
             sha256=hashlib.sha256(cleaned.sequence.encode("ascii")).hexdigest(),
         )
     )
-    job = queue.enqueue(session, INGEST_JOB, {"sample_id": sample.id}, priority=INGEST_PRIORITY)
+    # Đứng trước job dựng cây trong hàng đợi: người nộp đang chờ kết quả.
+    job = queue.enqueue(session, INGEST_JOB, {"sample_id": sample.id}, priority=queue.INTERACTIVE)
     session.add(Submission(sample_id=sample.id, submitter_id=user.id, job_id=job.id))
     record(session, user.id, "sample_submitted", f"sample:{sample.internal_id}")
     session.flush()
