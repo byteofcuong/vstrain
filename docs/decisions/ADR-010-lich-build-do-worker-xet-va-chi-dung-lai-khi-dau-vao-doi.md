@@ -21,7 +21,7 @@ Cùng mốc này có một câu hỏi gần kề: admin sửa một địa danh 
 - **Một lần build chỉ được xếp khi tập đầu vào đã đổi.** Mỗi build ghi `inputs_hash`: hash của danh sách mẫu được chọn, vai trò, ngày lấy mẫu và hash chuỗi của từng mẫu. Tới hạn, worker chọn mẫu thử rồi so hash với build đang được phát; bằng nhau thì bỏ qua.
 - **So với cây đang được phát, không so với lần thử gần nhất.** Một lần build hỏng không thành build hiện hành, nên nó được thử lại ở chu kỳ sau mà không cần ai bấm gì.
 - **Khoảng cách tính từ lần thử gần nhất, kể cả lần hỏng** và kể cả job hỏng trước khi kịp tạo dòng build. Một lỗi lặp lại vì thế tốn nhiều nhất một lần thử mỗi chu kỳ.
-- **Mỗi dataset có nhiều nhất một job dựng cây chưa xong.** Việc xét lịch, nút "Dựng ngay" và việc chạy lại một job dựng cây đều khoá dòng của dataset rồi mới kiểm tra điều này.
+- **Mỗi dataset có nhiều nhất một job dựng cây chưa xong.** Việc xét lịch, nút "Dựng ngay", việc chạy lại một job dựng cây và lệnh quản trị `enqueue build_dataset` đều khoá dòng của dataset rồi mới kiểm tra điều này. Bảo đảm này nằm ở code (một hàm duy nhất xếp job dựng cây), không phải ở một ràng buộc của database.
 - **Địa danh và tên hiển thị không nằm trong hash.** Chúng không đổi cây, chỉ đổi các cột thuộc tính của bản publish. Sửa địa danh vì thế xếp một job `publish_build` (viết lại các cột từ database, dùng lại cây đã dựng) chứ không xếp job dựng cây.
 - **Job hỏng không tự chạy lại; admin chạy lại bằng một job mới**, job cũ giữ nguyên. Quy tắc này có từ ADR-004; mốc này thêm nút bấm và cột `retry_of`.
 
@@ -35,7 +35,7 @@ Cùng mốc này có một câu hỏi gần kề: admin sửa một địa danh 
 ### Dựng lại theo giờ cố định, không xét đầu vào
 - Ưu: không cần hash; hành vi dễ đoán.
 - Nhược: mỗi lần là 682 giây máy cho một cây giống hệt, và trong lúc đó việc gắn lại mẫu tạm phải chờ.
-- Loại: chi phí của việc xét (một lần chọn mẫu và một câu truy vấn hash) nhỏ hơn nhiều so với một lần build thừa.
+- Loại: chi phí của việc xét (một lần chọn mẫu và một câu truy vấn hash) nhỏ hơn nhiều so với một lần build thừa: 19 tới 64 ms mỗi dataset trên database thật (trung vị 7 lần, chậm nhất 121 ms), so với 682 giây.
 
 ### Dựng lại ngay khi có mẫu mới được nhận
 - Ưu: tip tạm thành tip chính thức sớm nhất có thể.
@@ -54,7 +54,8 @@ Cùng mốc này có một câu hỏi gần kề: admin sửa một địa danh 
 
 ## Consequences
 - Mẫu nộp thành tip chính thức mà không ai gõ lệnh: test với công cụ thật chạy vòng lặp của worker, lịch xếp đúng một build, và lần xét ngay sau đó không xếp thêm.
-- Sửa một địa danh trên database thật: lời gọi API mất 71 ms (trung vị 5 lần, phân giải lại 4.306 bản ghi GenBank trong nước); job publish lại cây 1.964 tip mất 0,17 giây (trung vị 3 lần), so với 682 giây của lần dựng cây gần nhất. `tree.json` giữ nguyên từng byte. Số đo ở `do-dac/results/W8-van-hanh/sua_dia_danh.json`.
+- Sửa một địa danh trên database thật, cho một mẫu đang nằm trong cây DENV1 (1.964 tip): lời gọi API mất 83 ms (trung vị 3 lần; phân giải lại 4.305 bản ghi GenBank trong nước và xếp job publish), và bản publish mới tới được người xem sau 0,64 giây kể từ lúc gọi (0,60 tới 0,92), so với 682 giây của lần dựng cây gần nhất. Không job dựng cây nào được xếp; `tree.json` giữ nguyên hash. Riêng job publish chạy 0,17 giây. Số đo ở `do-dac/results/W8-van-hanh/sua_dia_danh_tron_luong.json` và `sua_dia_danh.json`.
+- Khi một dataset đã tới hạn mà đầu vào không đổi, không có lần thử nào được ghi, nên việc xét lặp lại mỗi phút cho tới khi đầu vào đổi. Mỗi lần giữ khoá dòng của dataset trong lúc chọn mẫu và tính hash: 19 tới 64 ms mỗi dataset (`do-dac/results/W8-van-hanh/xet_lich.json`). Với bốn dataset, đó là dưới 0,3 giây mỗi phút của worker.
 - Hash không thấy những thay đổi làm cây khác đi mà không đổi mẫu, ngày hay chuỗi: đổi phiên bản công cụ, đổi tham số của pipeline, đổi định nghĩa clade. Sau những thay đổi đó admin phải bấm "Dựng ngay".
 - Build có từ trước mốc này không có hash. Dataset nào được bật lịch sẽ được dựng lại một lần ở chu kỳ đầu.
 - Lịch chỉ được xét khi worker chung đang chạy và không kẹt trong một job dài; một lần build đang chạy làm việc xét của các dataset khác trễ tới khi nó xong. Với một worker chung thì đằng nào chúng cũng phải chờ.

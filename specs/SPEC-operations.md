@@ -19,7 +19,7 @@ Ba việc này hiện đều phải làm bằng dòng lệnh trong container (`p
   3. **tập đầu vào sẽ được chọn khác với tập đầu vào của cây đang được phát.** Mỗi build ghi `inputs_hash`: hash của danh sách mẫu nó chọn, vai trò, ngày lấy mẫu và hash chuỗi của từng mẫu. Việc chọn mẫu là tất định (`selection.py`), nên so hash là đủ để biết dựng lại có cho cây khác hay không. Phép so là với build hiện hành, không phải với lần thử gần nhất: một lần build hỏng không thành build hiện hành, nên nó được thử lại ở chu kỳ sau. Địa danh và tên hiển thị không nằm trong hash, vì chúng không đổi cây.
 - Không có mẫu nào đủ điều kiện thì không xếp hàng.
 - Worker chung gọi việc xét lịch mỗi phút. Worker chỉ nhận `ingest_sample` thì không xét lịch. Việc xét khoá dòng của dataset, nên hai worker cùng xét không xếp hai job.
-- Admin bấm "Dựng ngay" thì bỏ qua điều kiện 2 và 3, giữ điều kiện 1.
+- Admin bấm "Dựng ngay" thì bỏ qua điều kiện 2 và 3, giữ điều kiện 1. Lệnh quản trị `enqueue build_dataset` đi qua cùng hàm đó, nên cũng không xếp được job thứ hai.
 
 ### Theo dõi job
 
@@ -33,7 +33,7 @@ Ba việc này hiện đều phải làm bằng dòng lệnh trong container (`p
 - Admin gán một cách viết cho một đơn vị (tỉnh của bộ 63 hoặc 34, vùng, miền). Hệ thống thêm một dòng `place_alias` (nguồn `admin`), rồi **phân giải lại địa danh của mọi bản ghi GenBank trong nước** bằng đúng bộ phân giải dùng lúc nhập. Mẫu do phòng xét nghiệm nộp không bị đụng tới: tỉnh của nó do người nộp chọn.
 - Build hiện hành nào có mẫu vừa đổi thì được **publish lại** (job `publish_build`): cột tỉnh và vùng của bản publish được viết lại từ database, cây không bị dựng lại. Đây là chỗ bản publish theo hash (ADR-006) trả công: sửa một địa danh tốn vài giây thay vì một lần build.
 - Admin xoá được alias do admin thêm (alias của seed thì không); việc phân giải lại và publish lại chạy như trên.
-- Khoá của alias là `place_key(cách viết)`. Khoá rỗng, khoá đã có, đơn vị không tồn tại đều bị từ chối.
+- Khoá của alias là `place_key(cách viết)`: chữ và số của bất kỳ bảng chữ nào, đã bỏ dấu. Khoá rỗng, khoá dài hơn 80 ký tự (`PLACE_TOO_LONG`), khoá đã có, đơn vị không tồn tại đều bị từ chối.
 
 ### Dọn định kỳ
 
