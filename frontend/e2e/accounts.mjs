@@ -24,6 +24,12 @@ export function temporaryPassword(words) {
   return `${words} ${randomBytes(9).toString("base64url")}`;
 }
 
+/** Các tiến trình đang chạy trong một service của stack, mỗi dòng một tiến trình kèm dòng lệnh của nó. */
+export function processesOf(service) {
+  if (!/^[a-z]+$/.test(service)) throw new Error(`Not a service name: ${service}`);
+  return docker(["top", service]);
+}
+
 /** Chạy một câu SQL trên database của stack; chỉ dùng với chuỗi do chính các file test này dựng. */
 export function sql(text) {
   return docker(["exec", "-T", "db", "psql", "-U", "vietstrain", "-d", "vietstrain", "-At", "-F", "\t", "-c", text]);

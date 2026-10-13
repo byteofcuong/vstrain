@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
+  cancelJob,
   getJob,
   listJobs,
   retryJob,
@@ -10,7 +11,15 @@ import {
   type JobPage,
   type JobStatus,
 } from "../../api";
-import { adminErrorMessage, duration, jobKindLabel, jobSubject, queueIsBusy, when } from "../../admin/format";
+import {
+  adminErrorMessage,
+  duration,
+  jobActions,
+  jobKindLabel,
+  jobSubject,
+  queueIsBusy,
+  when,
+} from "../../admin/format";
 import type { MessageKey } from "../../i18n";
 import { useT, useUi } from "../../state/store";
 import { Choice } from "../Choice";
@@ -22,12 +31,18 @@ type Notice = { tone: "good" | "bad"; key: MessageKey; values?: Record<string, s
 /** Trong lúc còn việc chờ hoặc đang chạy, danh sách tự tải lại theo nhịp này, nhiều nhất bấy nhiêu lần (một giờ). */
 const REFRESH_MILLISECONDS = 2000;
 const REFRESH_LIMIT = 1800;
+/**
+ * Một việc đang chạy vừa bị huỷ còn chạy thêm tới một nhịp báo của worker (15 giây). Trong khoảng đó danh sách vẫn
+ * tự tải lại, dù hàng đợi đã không còn việc nào chờ hay chạy, để bước đang chạy hiện ra là đã dừng.
+ */
+const SETTLE_MILLISECONDS = 25_000;
 
 const FILTERS: [Filter, MessageKey][] = [
   ["all", "jobsAll"],
   ["queued", "jobStatus_queued"],
   ["running", "jobStatus_running"],
   ["failed", "jobStatus_failed"],
+  ["cancelled", "jobStatus_cancelled"],
   ["succeeded", "jobStatus_succeeded"],
 ];
 
@@ -42,6 +57,7 @@ export function JobsPanel() {
   // hiện dần ra.
   const [version, setVersion] = useState(0);
   const refreshes = useRef(0);
+  const [settleUntil, setSettleUntil] = useState(0);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -67,14 +83,15 @@ export function JobsPanel() {
   }, [load]);
 
   const busy = loaded.state === "ready" && queueIsBusy(loaded.page.counts);
+  const settling = loaded.state === "ready" && Date.now() < settleUntil;
   useEffect(() => {
-    if (!busy || refreshes.current >= REFRESH_LIMIT) return;
+    if (!(busy || settling) || refreshes.current >= REFRESH_LIMIT) return;
     const timer = window.setTimeout(() => {
       refreshes.current += 1;
       void load();
     }, REFRESH_MILLISECONDS);
     return () => window.clearTimeout(timer);
-  }, [busy, loaded, load]);
+  }, [busy, settling, loaded, load]);
 
   const retry = async (job: Job) => {
     setNotice(null);
@@ -86,6 +103,23 @@ export function JobsPanel() {
     } catch (error) {
       console.error(error);
       setNotice({ tone: "bad", key: error instanceof ApiError ? adminErrorMessage(error.code) : "actionFailed" });
+    }
+  };
+
+  const cancel = async (job: Job) => {
+    setNotice(null);
+    try {
+      await cancelJob(job.id);
+      const key = job.status === "running" ? "jobCancelledRunning" : "jobCancelledWaiting";
+      setNotice({ tone: "good", key, values: { id: String(job.id) } });
+      if (job.status === "running") setSettleUntil(Date.now() + SETTLE_MILLISECONDS);
+      refreshes.current = 0;
+      await load();
+    } catch (error) {
+      console.error(error);
+      setNotice({ tone: "bad", key: error instanceof ApiError ? adminErrorMessage(error.code) : "actionFailed" });
+      // Thường là vì việc vừa tự kết thúc: tải lại để dòng của nó nói đúng tình trạng.
+      await load();
     }
   };
 
@@ -165,7 +199,12 @@ export function JobsPanel() {
                 {open === job.id && (
                   <tr className="records__detail">
                     <td colSpan={7}>
-                      <JobDetails id={job.id} version={version} onRetry={() => void retry(job)} />
+                      <JobDetails
+                        id={job.id}
+                        version={version}
+                        onRetry={() => void retry(job)}
+                        onCancel={() => void cancel(job)}
+                      />
                     </td>
                   </tr>
                 )}
@@ -178,11 +217,20 @@ export function JobsPanel() {
   );
 }
 
-function JobDetails({ id, version, onRetry }: { id: number; version: number; onRetry(): void }) {
+interface JobDetailsProps {
+  id: number;
+  version: number;
+  onRetry(): void;
+  onCancel(): void;
+}
+
+function JobDetails({ id, version, onRetry, onCancel }: JobDetailsProps) {
   const t = useT();
   const lang = useUi((state) => state.lang);
   const [detail, setDetail] = useState<JobDetail | null>(null);
   const [failed, setFailed] = useState(false);
+  // Huỷ là việc không hoàn lại được, nên nút đầu chỉ mở câu hỏi; nút thứ hai mới huỷ.
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -201,6 +249,7 @@ function JobDetails({ id, version, onRetry }: { id: number; version: number; onR
 
   if (failed && detail === null) return <p className="notice">{t("jobDetailsFailed")}</p>;
   if (detail === null) return <p className="hint">{t("loading")}</p>;
+  const can = jobActions(detail.status, detail.retriedBy);
 
   return (
     <div className="job">
@@ -208,12 +257,34 @@ function JobDetails({ id, version, onRetry }: { id: number; version: number; onR
         {detail.worker && <span>{t("jobWorker", { worker: detail.worker })}</span>}
         {detail.retryOf !== null && <span>{t("jobRetryOf", { id: String(detail.retryOf) })}</span>}
         {detail.retriedBy !== null && <span>{t("jobRetriedBy", { id: String(detail.retriedBy) })}</span>}
-        {detail.status === "failed" && detail.retriedBy === null && (
+        {can.retry && (
           <button type="button" onClick={onRetry}>
             {t("jobRetry")}
           </button>
         )}
+        {can.cancel && !asking && (
+          <button type="button" onClick={() => setAsking(true)}>
+            {t("jobCancel")}
+          </button>
+        )}
       </p>
+      {can.cancel && asking && (
+        <div className="job__ask" role="group" aria-label={t("jobCancel")}>
+          <p>{t("jobCancelAsk", { id: String(id) })}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setAsking(false);
+              onCancel();
+            }}
+          >
+            {t("jobCancelConfirm", { id: String(id) })}
+          </button>{" "}
+          <button type="button" className="quiet" onClick={() => setAsking(false)}>
+            {t("jobCancelKeep")}
+          </button>
+        </div>
+      )}
       {detail.error && (
         <>
           <h3>{t("jobError")}</h3>

@@ -1,12 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { createAccount, removeAccount, type Account } from "./accounts.mjs";
+import { createAccount, removeAccount, sql, type Account } from "./accounts.mjs";
 import {
   buildJobs,
   createEmptyDataset,
+  createSmallDataset,
   createUnresolvedSample,
   placeOf,
+  removeDataset,
   removeOperationsData,
+  stepsOf,
+  treeToolsRunning,
   type TempDataset,
   type TempPlace,
 } from "./operations.mjs";
@@ -21,17 +25,19 @@ test.describe.configure({ mode: "serial" });
 let admin: Account;
 let lab: Account;
 let dataset: TempDataset;
+let small: TempDataset;
 let place: TempPlace;
 
 test.beforeAll(() => {
   admin = createAccount("admin");
   lab = createAccount();
   dataset = createEmptyDataset();
+  small = createSmallDataset();
   place = createUnresolvedSample();
 });
 
 test.afterAll(() => {
-  const left = removeOperationsData(dataset, place);
+  const left = removeOperationsData(dataset, place) + removeDataset(small);
   removeAccount(admin.email);
   removeAccount(lab.email);
   expect(left).toBe(0);
@@ -167,4 +173,67 @@ test("an administrator maps an unknown spelling to a province, and takes it back
   await expect(alias).toHaveCount(0);
   await expect(row).toContainText(place.text);
   expect(placeOf(place)).toEqual({ status: "unresolved", unit: null });
+});
+
+test("an administrator cancels a build while it runs; the tools stop and the worker takes the next job", async ({
+  page,
+}) => {
+  // Một lần dựng cây thật trên vài trăm mẫu: bước `tree` chạy IQ-TREE qua Augur trong hơn một phút.
+  test.setTimeout(240_000);
+  await logIn(page, admin);
+  await page.goto("/#/admin/datasets");
+  await page.getByRole("button", { name: `Dựng ngay: ${small.title}` }).click();
+  await expect(notice(page)).toContainText("Đã xếp việc dựng cây");
+  const [first] = buildJobs(small);
+
+  await page.goto("/#/admin/jobs");
+  const row = jobRow(page, first.id);
+  await row.getByRole("button", { name: `Chi tiết công việc ${first.id}` }).click();
+  const details = page.locator(".job");
+  const tree = details.getByRole("row", { name: /^tree/ });
+  await expect(tree).toContainText("Đang chạy", { timeout: 90_000 });
+  await expect.poll(() => treeToolsRunning(), { timeout: 15_000 }).toBe(true);
+
+  // Nút đầu chỉ hỏi lại; "Để nó chạy" thì không có gì bị huỷ.
+  await details.getByRole("button", { name: "Huỷ việc này" }).click();
+  await expect(details).toContainText(`Huỷ việc ${first.id}? Phần đã ghi xong không được hoàn lại.`);
+  await details.getByRole("button", { name: "Để nó chạy" }).click();
+  await expect(row.locator(".state")).toHaveText("Đang chạy");
+
+  await details.getByRole("button", { name: "Huỷ việc này" }).click();
+  await details.getByRole("button", { name: `Huỷ việc ${first.id}` }).click();
+
+  await expect(notice(page)).toHaveText(`Đã huỷ việc ${first.id}. Phần đang chạy sẽ dừng trong vòng 15 giây.`);
+  await expect(row.locator(".state")).toHaveText("Đã huỷ");
+  // Không ai bấm gì: trang tự tải lại cho tới khi bước đang chạy hiện ra là đã dừng.
+  await expect(tree).toContainText("Đã huỷ", { timeout: 30_000 });
+  expect(treeToolsRunning()).toBe(false);
+  expect(buildJobs(small).map((job) => job.status)).toEqual(["cancelled"]);
+  expect(stepsOf(first.id).at(-1)).toEqual({ name: "tree", status: "cancelled" });
+  await expect(details.getByRole("button", { name: "Huỷ việc này" })).toHaveCount(0);
+
+  // Việc đã huỷ chạy lại được, và worker đã rảnh để nhận nó.
+  await details.getByRole("button", { name: "Chạy lại" }).click();
+  await expect(notice(page)).toContainText("để chạy lại");
+  const [, second] = buildJobs(small);
+  const again = jobRow(page, second.id);
+  await expect(again.locator(".state")).toHaveText("Đang chạy", { timeout: 20_000 });
+
+  // Dọn: huỷ luôn việc chạy lại, và chờ worker dừng hẳn trước khi dữ liệu tạm bị xoá.
+  await again.getByRole("button", { name: `Chi tiết công việc ${second.id}` }).click();
+  await page.locator(".job").getByRole("button", { name: "Huỷ việc này" }).click();
+  await page
+    .locator(".job")
+    .getByRole("button", { name: `Huỷ việc ${second.id}` })
+    .click();
+  await expect(again.locator(".state")).toHaveText("Đã huỷ");
+  await expect.poll(() => treeToolsRunning(), { timeout: 30_000 }).toBe(false);
+  await filter(page, "Đã huỷ").click();
+  await expect(jobRow(page, first.id)).toBeVisible();
+  await expect(jobRow(page, second.id)).toBeVisible();
+  await expect
+    .poll(() => Number(sql("SELECT count(*) FROM job WHERE status = 'running' AND kind = 'build_dataset'")), {
+      timeout: 30_000,
+    })
+    .toBe(0);
 });

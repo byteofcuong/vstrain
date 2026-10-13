@@ -2,7 +2,7 @@
 // Mọi chuỗi đưa vào SQL ở đây đều do file này sinh ra (chữ thường và số), không có chuỗi nào từ bên ngoài.
 import { randomBytes } from "node:crypto";
 
-import { sql } from "./accounts.mjs";
+import { processesOf, sql } from "./accounts.mjs";
 
 const TAG = /^[0-9a-f]{8}$/;
 
@@ -23,6 +23,50 @@ export function createEmptyDataset() {
      VALUES ('${dataset.slug}', '${dataset.title}', 'dengue', 'denv1', 0)`,
   );
   return dataset;
+}
+
+/**
+ * Một dataset tạm chọn được vài trăm mẫu DENV1 thật. Dựng nó thì worker chạy công cụ thật trong vài phút: đủ lâu để
+ * huỷ giữa chừng, đủ nhỏ để không chiếm máy. Nó không bao giờ được dựng tới cùng trong test.
+ */
+export function createSmallDataset() {
+  const tag = randomBytes(4).toString("hex");
+  const dataset = { tag, slug: `e2e-${tag}`, title: `Bộ nhỏ ${tag}` };
+  sql(
+    `INSERT INTO dataset_def (slug, title, pathogen, lineage, max_samples)
+     VALUES ('${dataset.slug}', '${dataset.title}', 'dengue', 'denv1', 400)`,
+  );
+  return dataset;
+}
+
+/** Worker chung có đang chạy công cụ dựng cây nào không (Augur, IQ-TREE và các tiến trình con của chúng). */
+export function treeToolsRunning() {
+  const [, ...processes] = processesOf("worker").split("\n");
+  return /\b(augur|iqtree\w*|mafft|fasttree)\b/i.test(processes.join("\n"));
+}
+
+/** Tình trạng các bước của một job, theo thứ tự chạy. */
+export function stepsOf(jobId) {
+  if (!Number.isInteger(jobId)) throw new Error("Unexpected job id");
+  return sql(`SELECT name, status FROM job_step WHERE job_id = ${jobId} ORDER BY position`)
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.split("\t"))
+    .map(([name, status]) => ({ name, status }));
+}
+
+/** Xoá một dataset tạm cùng các job và build của nó; trả về số dòng còn sót (phải là 0). */
+export function removeDataset(dataset) {
+  const slug = `e2e-${checked(dataset.tag)}`;
+  sql(`DELETE FROM job WHERE params->>'dataset' = '${slug}'`);
+  sql(`DELETE FROM dataset_def WHERE slug = '${slug}'`);
+  sql(`DELETE FROM audit_log WHERE subject = 'dataset:${slug}'`);
+  return Number(
+    sql(
+      `SELECT (SELECT count(*) FROM job WHERE params->>'dataset' = '${slug}')
+            + (SELECT count(*) FROM dataset_def WHERE slug = '${slug}')`,
+    ),
+  );
 }
 
 /** Một bản ghi GenBank tạm trong nước, mang một cách viết địa danh mà không tên thay thế nào khớp. */

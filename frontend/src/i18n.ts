@@ -513,9 +513,10 @@ const MESSAGES = {
   jobStatus_running: { vi: "Đang chạy", en: "Running" },
   jobStatus_succeeded: { vi: "Xong", en: "Done" },
   jobStatus_failed: { vi: "Hỏng", en: "Failed" },
+  jobStatus_cancelled: { vi: "Đã huỷ", en: "Cancelled" },
   queueSummary: {
-    vi: "{queued} đang chờ, {running} đang chạy, {failed} hỏng, {succeeded} xong.",
-    en: "{queued} waiting, {running} running, {failed} failed, {succeeded} done.",
+    vi: "{queued} đang chờ, {running} đang chạy, {failed} hỏng, {cancelled} đã huỷ, {succeeded} xong.",
+    en: "{queued} waiting, {running} running, {failed} failed, {cancelled} cancelled, {succeeded} done.",
   },
   queueOldest: {
     vi: "Việc chờ lâu nhất đã chờ {time}.",
@@ -544,6 +545,18 @@ const MESSAGES = {
   jobLog: { vi: "Cuối log của bước {name}", en: "End of the log of step {name}" },
   jobWorker: { vi: "Chạy bởi {worker}", en: "Run by {worker}" },
   jobRetry: { vi: "Chạy lại", en: "Run again" },
+  jobCancel: { vi: "Huỷ việc này", en: "Cancel this job" },
+  jobCancelAsk: {
+    vi: "Huỷ việc {id}? Phần đã ghi xong không được hoàn lại.",
+    en: "Cancel job {id}? What it has already written is not undone.",
+  },
+  jobCancelConfirm: { vi: "Huỷ việc {id}", en: "Cancel job {id}" },
+  jobCancelKeep: { vi: "Để nó chạy", en: "Let it run" },
+  jobCancelledWaiting: { vi: "Đã huỷ việc {id}.", en: "Job {id} has been cancelled." },
+  jobCancelledRunning: {
+    vi: "Đã huỷ việc {id}. Phần đang chạy sẽ dừng trong vòng 15 giây.",
+    en: "Job {id} has been cancelled. What is running stops within 15 seconds.",
+  },
   jobRetried: { vi: "Đã xếp việc {id} để chạy lại.", en: "Job {id} has been queued to run it again." },
   jobRetryOf: { vi: "Chạy lại của việc {id}", en: "A rerun of job {id}" },
   jobRetriedBy: { vi: "Đã được chạy lại bằng việc {id}", en: "Run again as job {id}" },
@@ -611,8 +624,12 @@ const MESSAGES = {
   unitsMacroRegions: { vi: "Miền", en: "Macro-regions" },
 
   adminError_JOB_NOT_FAILED: {
-    vi: "Chỉ việc đã hỏng mới chạy lại được.",
-    en: "Only a failed job can be run again.",
+    vi: "Chỉ việc đã hỏng hoặc đã huỷ mới chạy lại được.",
+    en: "Only a failed or cancelled job can be run again.",
+  },
+  adminError_JOB_ALREADY_FINISHED: {
+    vi: "Việc này đã kết thúc, không còn gì để huỷ.",
+    en: "This job has already ended; there is nothing left to cancel.",
   },
   adminError_JOB_ALREADY_RETRIED: {
     vi: "Việc này đã được chạy lại rồi.",

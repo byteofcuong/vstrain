@@ -224,7 +224,7 @@ export function setSampleHidden(internalId: string, hidden: boolean): Promise<vo
 
 // --- Vận hành (chỉ admin) ---
 
-export type JobStatus = "queued" | "running" | "succeeded" | "failed";
+export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
 
 export interface Job {
   id: number;
@@ -246,7 +246,7 @@ export interface Job {
 export interface JobStep {
   position: number;
   name: string;
-  status: "running" | "succeeded" | "failed";
+  status: "running" | "succeeded" | "failed" | "cancelled";
   startedAt: string;
   finishedAt: string | null;
   seconds: number | null;
@@ -280,6 +280,11 @@ export function getJob(id: number, signal?: AbortSignal): Promise<JobDetail> {
 /** Chạy lại một job hỏng; trả về mã của job mới. */
 export async function retryJob(id: number): Promise<number> {
   return (await send<{ id: number }>("POST", `/api/admin/jobs/${id}/retry`)).id;
+}
+
+/** Huỷ một job đang chờ hoặc đang chạy; trả về job với tình trạng mới. */
+export function cancelJob(id: number): Promise<Job> {
+  return send<Job>("POST", `/api/admin/jobs/${id}/cancel`);
 }
 
 export async function setBuildInterval(slug: string, hours: number | null): Promise<number | null> {

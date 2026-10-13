@@ -1227,6 +1227,28 @@ div.notice {
   background: var(--warn);
 }
 
+/* Đã huỷ: người vận hành chủ động dừng, không phải một lỗi. Dấu là một gạch ngang, chữ nhạt hơn. */
+.state[data-status="cancelled"] {
+  color: var(--ink-soft);
+}
+
+.state[data-status="cancelled"]::before {
+  height: 0;
+  border-width: 1.5px 0 0;
+  border-radius: 0;
+  vertical-align: middle;
+}
+
+/* Câu hỏi lại trước khi huỷ một việc. */
+.job__ask {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.job__ask p {
+  margin: 0 0 0.4rem;
+  font-weight: 600;
+}
+
 .records .records__detail > td {
   padding: 0 0 1.25rem;
   border-top: 0;

@@ -1,4 +1,4 @@
-import type { AdminUnit, JobCounts } from "../api";
+import type { AdminUnit, JobCounts, JobStatus } from "../api";
 import { translate, type Lang, type MessageKey } from "../i18n";
 
 /** Phần tính toán của các trang quản trị, tách khỏi component để thử được mà không cần trình duyệt. */
@@ -75,9 +75,21 @@ export function queueIsBusy(counts: JobCounts): boolean {
   return counts.queued + counts.running > 0;
 }
 
+/**
+ * Việc admin làm được với một job: huỷ khi nó chưa kết thúc; chạy lại khi nó hỏng hoặc bị huỷ và chưa được chạy lại
+ * (`retriedBy` là mã của job chạy lại, nếu có).
+ */
+export function jobActions(status: JobStatus, retriedBy: number | null): { cancel: boolean; retry: boolean } {
+  return {
+    cancel: status === "queued" || status === "running",
+    retry: (status === "failed" || status === "cancelled") && retriedBy === null,
+  };
+}
+
 const ADMIN_ERRORS: ReadonlyMap<string, MessageKey> = new Map([
   ["JOB_NOT_FAILED", "adminError_JOB_NOT_FAILED"],
   ["JOB_ALREADY_RETRIED", "adminError_JOB_ALREADY_RETRIED"],
+  ["JOB_ALREADY_FINISHED", "adminError_JOB_ALREADY_FINISHED"],
   ["BUILD_ALREADY_WAITING", "adminError_BUILD_ALREADY_WAITING"],
   ["ALIAS_EXISTS", "adminError_ALIAS_EXISTS"],
   ["EMPTY_PLACE", "adminError_EMPTY_PLACE"],

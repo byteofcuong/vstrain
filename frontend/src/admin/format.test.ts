@@ -7,6 +7,7 @@ import {
   duration,
   intervalLabel,
   intervalOptions,
+  jobActions,
   jobKindLabel,
   jobSubject,
   queueIsBusy,
@@ -77,9 +78,34 @@ describe("jobs", () => {
   });
 
   it("knows the queue is busy while anything waits or runs", () => {
-    expect(queueIsBusy({ queued: 0, running: 0, succeeded: 9, failed: 2 })).toBe(false);
-    expect(queueIsBusy({ queued: 1, running: 0, succeeded: 0, failed: 0 })).toBe(true);
-    expect(queueIsBusy({ queued: 0, running: 1, succeeded: 0, failed: 0 })).toBe(true);
+    expect(queueIsBusy({ queued: 0, running: 0, succeeded: 9, failed: 2, cancelled: 3 })).toBe(false);
+    expect(queueIsBusy({ queued: 1, running: 0, succeeded: 0, failed: 0, cancelled: 0 })).toBe(true);
+    expect(queueIsBusy({ queued: 0, running: 1, succeeded: 0, failed: 0, cancelled: 0 })).toBe(true);
+  });
+
+  it("offers to cancel a job that has not ended, and to run again one that stopped short", () => {
+    expect(jobActions("queued", null)).toEqual({ cancel: true, retry: false });
+    expect(jobActions("running", null)).toEqual({ cancel: true, retry: false });
+    expect(jobActions("succeeded", null)).toEqual({ cancel: false, retry: false });
+    expect(jobActions("failed", null)).toEqual({ cancel: false, retry: true });
+    expect(jobActions("cancelled", null)).toEqual({ cancel: false, retry: true });
+    // Mỗi việc chỉ được chạy lại một lần.
+    expect(jobActions("failed", 12)).toEqual({ cancel: false, retry: false });
+    expect(jobActions("cancelled", 12)).toEqual({ cancel: false, retry: false });
+  });
+
+  it("has a name in both languages for every status a job or a step can have", () => {
+    const statuses = ["queued", "running", "succeeded", "failed", "cancelled"] as const;
+    for (const lang of ["vi", "en"] as const) {
+      const names = statuses.map((status) => translate(lang, `jobStatus_${status}`));
+      expect(new Set(names).size).toBe(statuses.length);
+    }
+    // Dòng đếm của hàng đợi nói cả số việc đã huỷ.
+    const counts = { queued: 1, running: 2, succeeded: 3, failed: 4, cancelled: 5 };
+    for (const lang of ["vi", "en"] as const) {
+      const line = translate(lang, "queueSummary", counts);
+      for (const count of Object.values(counts)) expect(line).toContain(String(count));
+    }
   });
 });
 
@@ -88,6 +114,7 @@ describe("adminErrorMessage", () => {
     const codes = [
       "JOB_NOT_FAILED",
       "JOB_ALREADY_RETRIED",
+      "JOB_ALREADY_FINISHED",
       "BUILD_ALREADY_WAITING",
       "ALIAS_EXISTS",
       "EMPTY_PLACE",
