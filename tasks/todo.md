@@ -548,6 +548,13 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 **Điều cần biết:** chuỗi không sửa được; admin không sửa hộ; hai lần sửa cùng lúc thì lần ghi sau thắng; sửa ngày của một tip chính thức chỉ đổi vị trí trên trục thời gian ở lần dựng cây kế tiếp.
 
+## Phase 13: khách mở trang không còn dòng lỗi 401 (sau mốc M7)
+
+- [x] T13.1 `GET /api/auth/session` trả 200 với `user: null` cho khách; giao diện hỏi endpoint này thay cho `/me`. `/me` không đổi. Kiểm chứng: `tests/test_auth_api.py` (2 test mới), `frontend/src/api.test.ts`
+- [x] T13.2 Test đầu-cuối: khách mở một cây không có request nào trả mã từ 400 trở lên, không dòng lỗi nào trong console. Test này hỏng trên bản cũ (`401 /api/auth/me` và một dòng console) và qua trên bản mới. Kiểm chứng: `frontend/e2e/auth.spec.ts`
+
+**Kiểm chứng (2026-10-13):** backend `pytest` trong image api → 633 passed, 17 skipped; trong image worker → 650 passed; `ruff` sạch. Frontend: `npm run test` → 282 passed; `typecheck`, `lint` sạch; `npm run e2e` → 49 passed; `npm run e2e:web` → 55 passed.
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.

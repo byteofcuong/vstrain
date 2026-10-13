@@ -106,7 +106,7 @@ Chromium headless qua Playwright, cửa sổ 1920 × 1080, cache tắt, mỗi l�
 
 - Số 0,31 giây đo trên máy chủ thử của Vite; số 0,47 giây đo qua nginx, có nén và có thêm bản đồ, phiên đăng nhập và tip tạm trong trang. Hai số không cùng điều kiện; số nên trích là 0,47 giây.
 - Mỗi thao tác chỉ chạy một lần cho mỗi lần tải trang, nên đây là số của lần dùng đầu tiên. Việc ghi trace làm trình duyệt chậm đi; các số là cận trên.
-- Từ khi có đăng nhập, console của trình duyệt ghi một dòng `401` mỗi lần khách mở trang: đó là câu trả lời của `GET /api/auth/me` cho người chưa đăng nhập, không phải lỗi JavaScript.
+- Lúc đo, console của trình duyệt ghi một dòng `401` mỗi lần khách mở trang (câu trả lời của `GET /api/auth/me` cho người chưa đăng nhập), và harness đếm nó là một lỗi. Sau mốc M7 giao diện hỏi `GET /api/auth/session`, trả 200 cho cả khách; một test đầu-cuối nay kiểm tra khách mở cây không có request hỏng hay dòng lỗi nào.
 - Tiêu chí 3c là một test đầu-cuối: rê chuột và bấm vào 100 tip ngẫu nhiên của cây DENV1 thật, so tên hiện ra với file của bản publish (`frontend/e2e/viewer.spec.ts`).
 - Số liệu: `viewer_35000_tip.json` (bản cuối), `viewer_100000_tip.json` (mốc viewer).
 

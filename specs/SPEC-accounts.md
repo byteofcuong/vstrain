@@ -11,6 +11,7 @@ Phân biệt ba loại người dùng để module `submission` và `operations`
 Có:
 - Bảng `app_user` (email, tên hiển thị, chuỗi băm mật khẩu, vai trò `submitter` hoặc `admin`, cờ khoá, bộ đếm đăng nhập sai), `user_session` và `audit_log`.
 - `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
+- `GET /api/auth/session` (bổ sung sau mốc M7): ai đang dùng trang, trả 200 với `user: null` cho khách. Giao diện hỏi endpoint này mỗi lần mở trang; hỏi `/me` thì mỗi người khách nhận một dòng lỗi 401 trong console của trình duyệt. `/me` giữ nguyên: 401 khi chưa đăng nhập.
 - `GET /api/admin/users` (chỉ admin): danh sách tài khoản.
 - Lệnh `python -m app.cli create-user` để tạo tài khoản.
 - Hai dependency kiểm tra quyền dùng chung: `CurrentUser` (đã đăng nhập) và `AdminUser` (là admin).
