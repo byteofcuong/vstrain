@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { AdminUnit } from "../api";
+import type { AdminUnit, SubmissionStage } from "../api";
 import { translate, type MessageKey } from "../i18n";
-import { problemMessage, provincesOn, readCollectionDate, rejectionMessage } from "./form";
+import { limitMessage, problemMessage, provincesOn, readCollectionDate, rejectionMessage } from "./form";
 
 describe("readCollectionDate", () => {
   it("reads a day, a month or a year, with the days each one could mean", () => {
@@ -142,5 +142,30 @@ describe("problemMessage and rejectionMessage", () => {
     expect(rejectionMessage(null)).toBe("reject_OTHER");
     const keys: MessageKey[] = ["reject_NOT_THIS_PATHOGEN", "reject_TOO_FEW_VALID_SITES", "reject_OTHER"];
     expect(new Set(keys.map((key) => translate("vi", key))).size).toBe(3);
+  });
+
+  it("tells waiting a moment from waiting until tomorrow when the server takes no more samples", () => {
+    expect(limitMessage("TOO_MANY_PENDING")).toBe("submitTooMany");
+    expect(limitMessage("TOO_MANY_TODAY")).toBe("submitTooManyToday");
+    // Một trần mà giao diện chưa biết: lời khuyên chờ rồi nộp lại vẫn đúng.
+    expect(limitMessage("SOMETHING_NEW")).toBe("submitTooMany");
+    expect(translate("vi", "submitTooManyToday")).not.toBe(translate("vi", "submitTooMany"));
+  });
+
+  it("has words for every stage a submitted sample can be in", () => {
+    const stages: SubmissionStage[] = [
+      "processing",
+      "failed",
+      "rejected",
+      "hidden",
+      "accepted",
+      "placement_failed",
+      "placed",
+      "in_tree",
+    ];
+    for (const lang of ["vi", "en"] as const) {
+      const words = stages.map((stage) => translate(lang, `stage_${stage}`));
+      expect(new Set(words).size).toBe(stages.length);
+    }
   });
 });

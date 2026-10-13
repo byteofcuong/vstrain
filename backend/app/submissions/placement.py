@@ -30,6 +30,15 @@ from app.pathogens import Lineage, get_lineage
 _TIMEOUT_SECONDS = 600
 
 
+class PlacementFailed(RuntimeError):
+    """Có lần gắn bị hỏng (công cụ lỗi, cây không đọc được). Chỉ được ném sau khi mọi lần gắn còn lại đã được thử."""
+
+    def __init__(self, attempted: int, failures: list[str]) -> None:
+        # Lỗi của job chỉ giữ phần cuối của thông báo, nên con số đứng trước và danh sách được cắt ngắn ở đây.
+        listed = "; ".join(failures[:5]) + (f"; and {len(failures) - 5} more" if len(failures) > 5 else "")
+        super().__init__(f"{len(failures)} of {attempted} placements failed: {listed}")
+
+
 @dataclass(frozen=True)
 class Placement:
     """Chỗ một mẫu được gắn vào cây, nói bằng tên các node của cây gốc để viewer tìm lại được."""
@@ -174,7 +183,8 @@ def _current_builds(context: JobContext, pathogen: str, lineage: str, slug: str 
 def place_sample(context: JobContext, sample_id: int) -> list[str]:
     """Đặt một mẫu đã qua kiểm tra lên mọi dataset của lineage của nó; trả về slug các dataset đã đặt được.
 
-    Dataset mà build hiện hành đã có mẫu thì bỏ qua: ở đó mẫu là một tip chính thức.
+    Dataset mà build hiện hành đã có mẫu thì bỏ qua: ở đó mẫu là một tip chính thức. Một dataset làm lần gắn hỏng
+    không chặn các dataset sau nó; `PlacementFailed` được ném khi đã thử hết.
     """
     session = context.session
     found = session.execute(
@@ -192,13 +202,28 @@ def place_sample(context: JobContext, sample_id: int) -> list[str]:
     (sample,) = raw_sequences(session, [sample_id])
 
     placed: list[str] = []
+    failures: list[str] = []
+    attempted = 0
     for dataset, build in _current_builds(context, found.pathogen, found.lineage):
+        slug = dataset.slug
         if session.get(BuildSample, (build.id, sample_id)) is not None:
             continue
-        if place_on_build(context, lineage, dataset, build, sample, name=f"place-{dataset.slug}") is not None:
-            placed.append(dataset.slug)
-        session.commit()
+        attempted += 1
+        try:
+            if place_on_build(context, lineage, dataset, build, sample, name=f"place-{slug}") is not None:
+                placed.append(slug)
+            session.commit()
+        except Exception as error:
+            session.rollback()  # bỏ phần ghi dở của lần gắn hỏng; các lần trước đã commit
+            failures.append(_failure(slug, error))
+    if failures:
+        raise PlacementFailed(attempted, failures)
     return placed
+
+
+def _failure(what: str, error: Exception) -> str:
+    first_line = next(iter(str(error).splitlines()), "")
+    return f"{what}: {type(error).__name__}: {first_line[:200]}"
 
 
 def place_pending(context: JobContext) -> dict[str, Any]:
@@ -206,6 +231,9 @@ def place_pending(context: JobContext) -> dict[str, Any]:
 
     Chạy sau mỗi lần build: mẫu đã vào build thành tip chính thức, mẫu chưa vào (nộp sau khi build chọn mẫu, hoặc
     bị bước lọc đồng hồ phân tử loại) được gắn tạm vào cây mới, vì chỗ gắn trên cây cũ không còn nghĩa.
+
+    Một mẫu làm lần gắn hỏng không chặn các mẫu sau nó: job này không tự chạy lại, nên dừng ở mẫu đó thì những mẫu
+    đứng sau không bao giờ thành mẫu tạm. `PlacementFailed` được ném khi đã thử hết, để job vẫn được ghi là hỏng.
     """
     context.check_params("dataset")
     session = context.session
@@ -237,9 +265,16 @@ def place_pending(context: JobContext) -> dict[str, Any]:
     ).all()
 
     placed = 0
+    failures: list[str] = []
     for number, sample in enumerate(raw_sequences(session, waiting), start=1):
         # Mỗi mẫu một lần chạy: đặt cả lô thì Nextclade gắn các mẫu mới vào nhau, không còn là vị trí so với build.
-        if place_on_build(context, lineage, dataset, build, sample, name=f"place-{number:04d}") is not None:
-            placed += 1
-        session.commit()
+        try:
+            if place_on_build(context, lineage, dataset, build, sample, name=f"place-{number:04d}") is not None:
+                placed += 1
+            session.commit()
+        except Exception as error:
+            session.rollback()  # bỏ phần ghi dở của mẫu hỏng; các mẫu trước đã commit
+            failures.append(_failure(sample.internal_id, error))
+    if failures:
+        raise PlacementFailed(len(waiting), failures)
     return {"dataset": dataset.slug, "build_id": build.id, "placed": placed, "unplaced": len(waiting) - placed}

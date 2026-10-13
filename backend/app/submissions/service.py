@@ -47,6 +47,11 @@ HOME_COUNTRY = "Vietnam"
 INGEST_JOB = "ingest_sample"
 # Số mẫu của một người được nằm chờ kiểm tra cùng lúc, để một tài khoản không lấp đầy hàng đợi.
 MAX_PENDING = 20
+# Số mẫu một người được nộp trong 24 giờ. Mẫu được kiểm tra trong khoảng một giây rồi không còn là "đang chờ", nên
+# trần ở trên không giới hạn tổng số; mỗi mẫu được nhận là một mẫu tạm phải gắn lại sau từng lần build.
+MAX_PER_DAY = 200
+_DAY = dt.timedelta(days=1)
+_WAITING = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
 
 # Việt Nam không có giờ mùa hè, nên một độ lệch cố định là đủ.
 _VIETNAM_TIME = dt.timezone(dt.timedelta(hours=7))
@@ -55,6 +60,10 @@ _UNIT_CODE = re.compile(r"[a-z0-9]+:[a-z0-9-]+")
 
 class TooManyPending(RuntimeError):
     """Người nộp đang có quá nhiều mẫu chờ kiểm tra."""
+
+
+class TooManyToday(RuntimeError):
+    """Người nộp đã nộp hết số mẫu được phép trong 24 giờ."""
 
 
 def today_in_vietnam() -> dt.date:
@@ -100,19 +109,29 @@ def submit(
 ) -> Sample:
     """Lưu một mẫu vừa nộp ở trạng thái `received` và xếp job kiểm tra nó.
 
-    Ném `InvalidSubmission` kèm mọi lỗi tìm được, hoặc `TooManyPending`; khi đó chưa có gì được ghi.
+    Ném `InvalidSubmission` kèm mọi lỗi tìm được, `TooManyPending` hoặc `TooManyToday`; khi đó chưa có gì được ghi.
     """
     # Khoá dòng của tài khoản cho tới khi request này commit hoặc bị huỷ: các request cùng lúc của một người lần
-    # lượt đếm rồi ghi, nên không cùng lọt qua trần số mẫu đang chờ.
+    # lượt đếm rồi ghi, nên không cùng lọt qua hai trần bên dưới.
     session.execute(select(AppUser.id).where(AppUser.id == user.id).with_for_update())
+    # Đang chờ là có job còn trong hàng đợi hoặc đang chạy, không phải là mẫu chưa có kết luận: job hỏng không tự
+    # chạy lại và mẫu của nó ở lại trạng thái `received`, nên đếm theo trạng thái mẫu thì vài sự cố của worker đủ
+    # khoá một phòng xét nghiệm vĩnh viễn.
     pending = session.scalar(
         select(func.count())
         .select_from(Submission)
-        .join(Sample, Sample.id == Submission.sample_id)
-        .where(Submission.submitter_id == user.id, Sample.status == SampleStatus.RECEIVED.value)
+        .join(Job, Job.id == Submission.job_id)
+        .where(Submission.submitter_id == user.id, Job.status.in_(_WAITING))
     )
     if (pending or 0) >= MAX_PENDING:
         raise TooManyPending(f"{pending} submissions are still being checked")
+    recent = session.scalar(
+        select(func.count())
+        .select_from(Submission)
+        .where(Submission.submitter_id == user.id, Submission.created_at > func.now() - _DAY)
+    )
+    if (recent or 0) >= MAX_PER_DAY:
+        raise TooManyToday(f"{recent} submissions in the last 24 hours")
 
     problems: list[Problem] = []
     cleaned = unit = None
@@ -175,7 +194,7 @@ def submit(
 
 def _stage(status: str, job_status: str | None, in_tree: bool, placed: bool) -> str:
     """Mẫu đang ở đâu trên đường từ lúc nộp tới cây, nói bằng một từ cho giao diện."""
-    running = job_status in (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
+    running = job_status in _WAITING
     if status == SampleStatus.RECEIVED.value:
         # Job không còn, hoặc đã dừng mà mẫu vẫn chưa có kết luận: việc kiểm tra đã hỏng, cần người vận hành xem.
         return "processing" if running else "failed"
@@ -185,9 +204,12 @@ def _stage(status: str, job_status: str | None, in_tree: bool, placed: bool) -> 
         return "in_tree"
     if placed:
         return "placed"
-    # Job ghi kết luận "đạt" trước rồi mới gắn mẫu lên cây: khi job còn chạy thì mẫu vẫn đang được xử lý. Chỉ khi
-    # job đã xong mà không có chỗ gắn nào thì mới thật là chưa có cây để gắn.
-    return "processing" if running else "accepted"
+    # Job ghi kết luận "đạt" trước rồi mới gắn mẫu lên cây: khi job còn chạy thì mẫu vẫn đang được xử lý.
+    if running:
+        return "processing"
+    # Job hỏng sau khi mẫu đã đạt là hỏng ở bước gắn; mẫu được gắn lại sau lần build kế tiếp. Job xong êm mà không
+    # có chỗ gắn nào thì mới thật là chưa có cây để gắn.
+    return "placement_failed" if job_status == JobStatus.FAILED.value else "accepted"
 
 
 def describe(session: Session, sample_ids: Sequence[int]) -> list[dict[str, Any]]:

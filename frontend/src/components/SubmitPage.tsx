@@ -6,7 +6,14 @@ import type { MessageKey } from "../i18n";
 import { useAuth } from "../state/auth";
 import { useT, useUi } from "../state/store";
 import { useSubmissions } from "../state/submissions";
-import { MAX_FASTA_BYTES, problemMessage, provincesOn, readCollectionDate, type Precision } from "../submit/form";
+import {
+  MAX_FASTA_BYTES,
+  limitMessage,
+  problemMessage,
+  provincesOn,
+  readCollectionDate,
+  type Precision,
+} from "../submit/form";
 import { Choice } from "./Choice";
 
 type Field = "displayName" | "collectionDate" | "unitCode" | "host" | "fasta";
@@ -102,7 +109,7 @@ export function SubmitPage() {
         }
         fail(fromServer, "fixProblems");
       } else if (error instanceof ApiError && error.status === 429) {
-        fail({}, "submitTooMany");
+        fail({}, limitMessage(error.code));
       } else if (error instanceof ApiError && error.status === 413) {
         fail({ fasta: "problem_FASTA_TOO_LARGE" }, "fixProblems");
       } else {

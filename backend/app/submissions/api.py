@@ -146,6 +146,10 @@ def submit(body: SubmissionIn, user: CurrentUser, session: SessionDep) -> Submis
         raise ApiError(
             429, "TOO_MANY_PENDING", "Too many of your submissions are still being checked; try again shortly"
         ) from None
+    except service.TooManyToday:
+        raise ApiError(
+            429, "TOO_MANY_TODAY", f"No more than {service.MAX_PER_DAY} submissions are taken from one account in a day"
+        ) from None
     session.commit()
     return SubmissionOut.model_validate(service.describe(session, [sample.id])[0])
 

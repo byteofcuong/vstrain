@@ -156,7 +156,8 @@ export interface SubmissionInput {
 }
 
 /** Mẫu đang ở đâu trên đường từ lúc nộp tới cây. */
-export type SubmissionStage = "processing" | "failed" | "rejected" | "hidden" | "accepted" | "placed" | "in_tree";
+export type SubmissionStage =
+  "processing" | "failed" | "rejected" | "hidden" | "accepted" | "placement_failed" | "placed" | "in_tree";
 
 export interface Submission {
   internalId: string;

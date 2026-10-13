@@ -13,18 +13,21 @@ from app.build.publish import publish_build
 from app.config import settings
 from app.geo.seed import seed_geo
 from app.jobs import queue
+from app.jobs.steps import JobContext
 from app.models import (
     AuditLog,
     BuildSample,
     DatasetDef,
     Job,
+    JobStep,
     Sample,
     SampleAlignment,
     SamplePlacement,
     SampleSequence,
     Submission,
 )
-from app.submissions import service
+from app.submissions import placement, service
+from app.submissions.ingest import ingest_sample
 from app.submissions.validate import MAX_FASTA_CHARS
 from tests.support import add_sample, make_build
 
@@ -289,8 +292,8 @@ def test_one_lab_cannot_fill_the_queue(session, client, lab, monkeypatch):
 
     assert (refused.status_code, refused.json()["error"]["code"]) == (429, "TOO_MANY_PENDING")
     assert counts(session) == (2, 2, 2)
-    # Mẫu đã có kết luận không còn tính là đang chờ.
-    session.scalars(select(Sample)).first().status = "accepted"
+    # Mẫu mà job kiểm tra đã chạy xong không còn tính là đang chờ.
+    session.scalars(select(Job).order_by(Job.id)).first().status = "succeeded"
     session.flush()
     assert submit(client).status_code == 201
 
@@ -301,6 +304,55 @@ def test_another_labs_waiting_samples_do_not_count_against_me(session, client, l
     make_user(session, "other@example.org")
     log_in(client, "other@example.org")
 
+    assert submit(client).status_code == 201
+
+
+def test_a_sample_whose_check_broke_down_does_not_hold_a_place_in_the_queue(session, client, lab, monkeypatch):
+    # Job hỏng không tự chạy lại, và mẫu của nó ở lại trạng thái `received`. Nếu các mẫu đó vẫn bị tính là đang
+    # chờ thì sau vài sự cố của worker, phòng xét nghiệm không nộp được nữa và không có cách nào tự gỡ.
+    monkeypatch.setattr(service, "MAX_PENDING", 2)
+    assert submit(client).status_code == 201
+    assert submit(client).status_code == 201
+    first, second = session.scalars(select(Job).order_by(Job.id)).all()
+    first.status = "failed"
+    session.flush()
+
+    assert submit(client).status_code == 201
+    assert submit(client).status_code == 429
+
+    # Job đang chạy vẫn là đang chờ; job đã bị xoá khỏi hàng đợi thì không.
+    second.status = "running"
+    session.flush()
+    assert submit(client).status_code == 429
+    session.delete(second)
+    session.flush()
+    session.expire_all()
+    assert submit(client).status_code == 201
+
+
+def test_one_lab_cannot_submit_without_end_in_one_day(session, client, lab, monkeypatch):
+    # Trần số mẫu đang chờ chỉ giữ nhịp: mẫu được kiểm tra trong khoảng một giây rồi thôi không bị tính. Trần theo
+    # ngày chặn việc một tài khoản chất hàng nghìn mẫu tạm lên cây giữa hai lần build.
+    monkeypatch.setattr(service, "MAX_PER_DAY", 2)
+    assert submit(client).status_code == 201
+    assert submit(client).status_code == 201
+    session.execute(update(Sample).values(status="accepted"))
+
+    refused = submit(client)
+
+    assert (refused.status_code, refused.json()["error"]["code"]) == (429, "TOO_MANY_TODAY")
+    assert counts(session) == (2, 2, 2)
+    # Lần nộp cách đây 23 giờ vẫn được tính, cách đây 25 giờ thì không.
+    oldest = session.scalars(select(Submission).order_by(Submission.sample_id)).first()
+    oldest.created_at = func.now() - dt.timedelta(hours=23)
+    session.flush()
+    assert submit(client).status_code == 429
+    oldest.created_at = func.now() - dt.timedelta(hours=25)
+    session.flush()
+    assert submit(client).status_code == 201
+    # Trần là của từng tài khoản.
+    make_user(session, "other@example.org")
+    log_in(client, "other@example.org")
     assert submit(client).status_code == 201
 
 
@@ -560,6 +612,132 @@ def test_a_hidden_sample_is_reported_as_hidden_to_its_lab(session, client, lab):
     session.flush()
 
     assert stage_of(client, sample) == "hidden"
+
+
+def test_a_sample_that_passed_the_check_but_could_not_be_placed_says_so(session, client, lab, data_dir):
+    # Job ghi kết luận "đạt" rồi hỏng ở bước gắn. "Chưa có cây để gắn" sẽ là nói sai lý do.
+    sample = submitted(session, client)
+    aligned(session, sample)
+    job = session.scalars(select(Job)).one()
+    job.status = "failed"
+    session.flush()
+
+    assert stage_of(client, sample) == "placement_failed"
+
+    # Job đã bị dọn khỏi hàng đợi thì không còn gì nói rằng lần gắn đã hỏng.
+    session.delete(job)
+    session.flush()
+    session.expire_all()
+    assert stage_of(client, sample) == "accepted"
+
+    # Lần gắn lại sau build kế tiếp thành công: mẫu là một mẫu tạm như mọi mẫu khác.
+    build = published(session, make_dataset(session), data_dir, [dated_sample(session), dated_sample(session)])
+    place(session, sample, build)
+    assert stage_of(client, sample) == "placed"
+
+
+# --- Job gắn mẫu khi có mẫu không gắn được ---
+
+
+def placing(session, work_dir: Path, kind: str, params: dict) -> JobContext:
+    """Job `kind` vừa được worker lấy về, đứng trước mọi job kiểm tra còn chờ."""
+    queue.enqueue(session, kind, params, priority=100)
+    return JobContext(session=session, job=queue.claim(session, "w1"), work_dir=work_dir)
+
+
+def fake_placing(monkeypatch, refuse) -> None:
+    """Thay lần chạy Nextclade: ghi một chỗ gắn, trừ khi `refuse(dataset, sample)` đúng; khi đó hỏng giữa chừng."""
+
+    def place_on_build(context, lineage, dataset, build, sample, *, name):
+        if refuse(dataset, sample):
+            # Hỏng sau khi đã ghi dở vào database: transaction của session không dùng tiếp được nếu không rollback.
+            context.session.add(SamplePlacement(sample_id=sample.id, build_id=-1, parent_node="x", attach_div=0, div=0))
+            context.session.flush()
+        place(context.session, sample, build)
+        return placement.Placement(parent_node="NODE_0000000", branch_node=None, attach_div=0.01, div=0.02)
+
+    monkeypatch.setattr(placement, "place_on_build", place_on_build)
+
+
+def placed_samples(session, build) -> list[int]:
+    return list(
+        session.scalars(
+            select(SamplePlacement.sample_id).filter_by(build_id=build.id).order_by(SamplePlacement.sample_id)
+        )
+    )
+
+
+def test_one_sample_that_cannot_be_placed_does_not_stop_the_ones_after_it(
+    session, client, lab, data_dir, tmp_path, monkeypatch
+):
+    dataset = make_dataset(session)
+    build = published(session, dataset, data_dir, [dated_sample(session), dated_sample(session)])
+    samples = [submitted(session, client) for _ in range(3)]
+    for sample in samples:
+        aligned(session, sample)
+    broken = samples[1]
+    fake_placing(monkeypatch, lambda dataset, sample: sample.id == broken.id)
+
+    with pytest.raises(placement.PlacementFailed) as error:
+        placement.place_pending(placing(session, tmp_path / "1", "place_pending", {"dataset": "dengue-denv1"}))
+
+    # Job vẫn kết thúc là hỏng, để người vận hành thấy; lỗi nói mẫu nào và vì sao.
+    assert "1 of 3" in str(error.value) and broken.internal_id in str(error.value)
+    assert "IntegrityError" in str(error.value)
+    assert placed_samples(session, build) == [samples[0].id, samples[2].id]
+
+    # Lần chạy sau chỉ còn phải gắn mẫu đã hỏng.
+    fake_placing(monkeypatch, lambda dataset, sample: False)
+    again = placement.place_pending(placing(session, tmp_path / "2", "place_pending", {"dataset": "dengue-denv1"}))
+    assert (again["placed"], again["unplaced"]) == (1, 0)
+    assert placed_samples(session, build) == [sample.id for sample in samples]
+
+
+def test_a_tool_that_breaks_on_every_sample_fails_the_job_after_trying_them_all(
+    session, client, lab, data_dir, tmp_path
+):
+    # Lần này là lần gắn thật, với công cụ không chạy được: mỗi mẫu để lại một bước hỏng có ghi lý do.
+    published(session, make_dataset(session), data_dir, [dated_sample(session), dated_sample(session)])
+    for _ in range(2):
+        aligned(session, submitted(session, client))
+    context = placing(session, tmp_path, "place_pending", {"dataset": "dengue-denv1"})
+    context.allowed_tools = frozenset()
+
+    with pytest.raises(placement.PlacementFailed, match="2 of 2 placements failed"):
+        placement.place_pending(context)
+
+    steps = session.execute(
+        select(JobStep.name, JobStep.status, JobStep.log_tail)
+        .filter_by(job_id=context.job.id)
+        .order_by(JobStep.position)
+    ).all()
+    assert [(name, status) for name, status, _ in steps] == [("place-0001", "failed"), ("place-0002", "failed")]
+    assert all("ToolNotAllowed" in log_tail for _, _, log_tail in steps)
+    assert session.scalar(select(func.count()).select_from(SamplePlacement)) == 0
+
+
+def test_a_tree_that_cannot_take_a_new_sample_does_not_stop_the_other_trees(
+    session, client, lab, data_dir, tmp_path, monkeypatch
+):
+    builds = {
+        slug: published(session, make_dataset(session, slug), data_dir, [dated_sample(session), dated_sample(session)])
+        for slug in ("dengue-denv1-a", "dengue-denv1-b")
+    }
+    sample = submitted(session, client)
+    aligned(session, sample)
+    session.execute(update(Job).values(status="queued"))  # job kiểm tra của mẫu được chạy lại
+    fake_placing(monkeypatch, lambda dataset, sample: dataset.slug == "dengue-denv1-a")
+    context = JobContext(session=session, job=queue.claim(session, "w1"), work_dir=tmp_path)
+
+    with pytest.raises(placement.PlacementFailed) as error:
+        ingest_sample(context)
+
+    assert "dengue-denv1-a" in str(error.value) and "dengue-denv1-b" not in str(error.value)
+    assert placed_samples(session, builds["dengue-denv1-a"]) == []
+    assert placed_samples(session, builds["dengue-denv1-b"]) == [sample.id]
+    # Worker ghi job là hỏng. Mẫu đã có một chỗ gắn nên người nộp thấy nó là mẫu tạm.
+    assert queue.fail(session, context.job, str(error.value))
+    assert stage_of(client, sample) == "placed"
 
 
 # --- Tip tạm của một dataset ---

@@ -59,6 +59,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Schema cũ không có chỗ ghi "chưa công khai": bỏ cột `status` thì mẫu chưa kiểm tra, bị từ chối hay bị ẩn đều
+    # hiện ra ở API công khai. Việc xoá hay công khai chúng là quyết định của người vận hành, không phải của migration.
+    private = op.get_bind().scalar(sa.text("SELECT count(*) FROM sample WHERE status <> 'accepted'"))
+    if private:
+        raise RuntimeError(
+            f"{private} sample(s) are not public (received, rejected or hidden) and would become public "
+            "without the status column; delete them or set their status to 'accepted' first"
+        )
     op.drop_table("sample_placement")
     op.drop_table("submission")
     op.drop_constraint(op.f("ck_sample_status_known"), "sample", type_="check")

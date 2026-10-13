@@ -1,3 +1,4 @@
+import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import create_engine, inspect, text
@@ -33,6 +34,36 @@ def test_migrations_go_up_down_and_up_again():
         schema.upgrade(url)
         assert {"admin_unit", "place_alias"} <= table_names(url)
     finally:
+        drop_database(name)
+
+
+def test_the_status_of_samples_is_not_dropped_while_some_of_them_are_not_public():
+    # Schema trước 0009 không có chỗ ghi "chưa công khai": bỏ cột `status` thì mẫu chưa kiểm tra, bị từ chối hay
+    # bị ẩn đều hiện ra ở API công khai.
+    name = f"{TEST_DATABASE}_downgrade"
+    url = recreate_database(name)
+    engine = create_engine(url)
+    try:
+        schema.upgrade(url)
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO sample (display_name, pathogen, source, status, geo_status) "
+                    "VALUES ('x', 'dengue', 'submission', 'hidden', 'missing')"
+                )
+            )
+
+        with pytest.raises(RuntimeError, match="1 sample"):
+            schema.downgrade(url, "0008")
+        assert "submission" in table_names(url)
+
+        # Người vận hành đã quyết định: mẫu thành công khai. Mẫu công khai không cản việc lùi schema.
+        with engine.begin() as connection:
+            connection.execute(text("UPDATE sample SET status = 'accepted'"))
+        schema.downgrade(url, "0008")
+        assert "submission" not in table_names(url)
+    finally:
+        engine.dispose()
         drop_database(name)
 
 

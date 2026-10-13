@@ -89,3 +89,8 @@ const KNOWN_REJECTIONS = new Set<string>(["NOT_THIS_PATHOGEN", "TOO_FEW_VALID_SI
 export function rejectionMessage(code: string | null): MessageKey {
   return code !== null && KNOWN_REJECTIONS.has(code) ? (`reject_${code}` as MessageKey) : "reject_OTHER";
 }
+
+/** Lời báo khi server không nhận thêm mẫu (429): chờ các mẫu đang kiểm tra xong, hoặc đã hết lượt của hôm nay. */
+export function limitMessage(code: string): MessageKey {
+  return code === "TOO_MANY_TODAY" ? "submitTooManyToday" : "submitTooMany";
+}

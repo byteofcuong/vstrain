@@ -232,6 +232,10 @@ const MESSAGES = {
     vi: "Bạn đang có nhiều mẫu chờ kiểm tra. Chờ chúng xong rồi nộp tiếp.",
     en: "Many of your samples are still being checked. Wait for them to finish, then submit again.",
   },
+  submitTooManyToday: {
+    vi: "Tài khoản này đã nộp hết số mẫu được nhận trong 24 giờ. Nộp tiếp vào ngày mai.",
+    en: "This account has submitted as many samples as are taken in 24 hours. Submit again tomorrow.",
+  },
   fixProblems: {
     vi: "Chưa nộp được. Sửa các chỗ được đánh dấu rồi nộp lại.",
     en: "Not submitted yet. Fix the marked fields and submit again.",
@@ -301,6 +305,10 @@ const MESSAGES = {
   stage_rejected: { vi: "Không đạt kiểm tra chất lượng", en: "Did not pass the quality check" },
   stage_hidden: { vi: "Đã bị quản trị viên ẩn", en: "Hidden by an administrator" },
   stage_accepted: { vi: "Đạt kiểm tra; chưa có cây để gắn tạm", en: "Passed the check; no tree to attach it to yet" },
+  stage_placement_failed: {
+    vi: "Đạt kiểm tra; gắn tạm lên cây bị lỗi, sẽ gắn lại sau lần dựng cây kế tiếp",
+    en: "Passed the check; attaching it to the tree broke down and will be tried again after the next build",
+  },
   stage_placed: { vi: "Đang là mẫu tạm trên cây", en: "A provisional sample on the tree" },
   stage_in_tree: { vi: "Đã vào cây chính thức", en: "In the official tree" },
   reject_NOT_THIS_PATHOGEN: {
