@@ -93,14 +93,14 @@ docker compose -f deploy/docker-compose.yml exec api python -m app.cli job 2   #
 
 Gióng khoảng 22 nghìn genome mất chừng nửa phút; dựng cây DENV1 2.000 mẫu mất khoảng 11 phút trên máy 8 nhân.
 
-**5. Tạo tài khoản** (mật khẩu được hỏi khi chạy; vai trò là `submitter` hoặc `admin`):
+**5. Tạo tài khoản quản trị đầu tiên** (mật khẩu được hỏi khi chạy):
 
 ```bash
 docker compose -f deploy/docker-compose.yml exec api \
   python -m app.cli create-user --email ten@donvi.vn --name "Tên hiển thị" --role admin
 ```
 
-**6. Mở** <http://127.0.0.1:8080>. Từ đây admin đặt lịch dựng cây ở trang Quản trị, không cần dòng lệnh nữa.
+**6. Mở** <http://127.0.0.1:8080> và đăng nhập. Từ đây không cần dòng lệnh nữa: ở trang Quản trị, admin đặt lịch dựng cây và tạo tài khoản cho các phòng xét nghiệm (tab Tài khoản; ở đó cũng khoá, mở khoá và đặt lại mật khẩu). Ai cũng tự đổi được mật khẩu của mình: bấm vào tên mình ở thanh đầu trang.
 
 Cấu hình này dành cho một máy phát triển: mật khẩu database là mặc định, cổng chỉ mở trên `127.0.0.1`, chưa có HTTPS.
 
@@ -143,7 +143,7 @@ data/               dữ liệu nạp vào và file build sinh ra; không nằm 
 
 - Chạy trên một máy bằng Docker Compose; chưa triển khai lên server, chưa có HTTPS, chưa đo dưới tải.
 - Mọi số đo dùng DENV1 và một máy (8 nhân, 13 GB cho Docker).
-- Tài khoản do admin tạo bằng dòng lệnh; chưa có đổi mật khẩu, chưa có giao diện quản lý tài khoản.
+- Không có tự đăng ký và không có "quên mật khẩu" qua email (hệ thống không gửi thư): tài khoản do admin tạo, người quên mật khẩu nhờ admin đặt lại. Mật khẩu admin đặt không bị ép đổi ở lần đăng nhập đầu.
 - Mỗi lần nộp một chuỗi, và chuỗi của mẫu đã nộp không sửa được (chuỗi khác là mẫu khác).
 - Vùng của 34 đơn vị hành chính mới chưa có nguồn chính thức nên chưa được gán; mã đơn vị là mã nội bộ.
 - Cách chọn mẫu bối cảnh thế giới cho mỗi cây là một quy tắc đơn giản; đồ án tập trung vào kiến trúc, không đánh giá chất lượng khoa học của cây.

@@ -13,11 +13,12 @@ Có:
 - `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
 - `GET /api/auth/session` (bổ sung sau mốc M7): ai đang dùng trang, trả 200 với `user: null` cho khách. Giao diện hỏi endpoint này mỗi lần mở trang; hỏi `/me` thì mỗi người khách nhận một dòng lỗi 401 trong console của trình duyệt. `/me` giữ nguyên: 401 khi chưa đăng nhập.
 - `GET /api/admin/users` (chỉ admin): danh sách tài khoản.
+- Đổi mật khẩu của chính mình, và việc admin tạo, khoá, mở khoá, đặt lại mật khẩu tài khoản (bổ sung sau mốc M7): mục "Đổi mật khẩu và quản lý tài khoản" bên dưới.
 - Lệnh `python -m app.cli create-user` để tạo tài khoản.
 - Hai dependency kiểm tra quyền dùng chung: `CurrentUser` (đã đăng nhập) và `AdminUser` (là admin).
 - Giao diện: trang `#/login`; thanh đầu trang có đường dẫn "Đăng nhập", hoặc tên người đang đăng nhập và nút "Đăng xuất".
 
-Không: tự đăng ký, đăng nhập qua bên thứ ba, đặt lại hay đổi mật khẩu, xác thực hai lớp, phân quyền theo nhóm hay theo dataset (mọi dữ liệu đã publish là công khai).
+Không: tự đăng ký, đăng nhập qua bên thứ ba, đặt lại mật khẩu qua email, xác thực hai lớp, phân quyền theo nhóm hay theo dataset (mọi dữ liệu đã publish là công khai).
 
 ## Thiết kế
 
@@ -44,7 +45,7 @@ Không: tự đăng ký, đăng nhập qua bên thứ ba, đặt lại hay đổ
 
 ## Đổi mật khẩu và quản lý tài khoản (bổ sung sau mốc M7)
 
-Trạng thái: **đang làm**.
+Trạng thái: **đã triển khai và đã qua review độc lập** (2026-10-14).
 
 Tới mốc M7, tài khoản chỉ được tạo bằng dòng lệnh trong container, mật khẩu không đổi được, và muốn khoá một tài khoản phải sửa thẳng database. Phần này đưa ba việc đó lên giao diện. Hệ thống không có dịch vụ gửi thư, nên không có "quên mật khẩu" qua email: người quên mật khẩu nhờ admin đặt lại.
 
@@ -54,7 +55,7 @@ Tới mốc M7, tài khoản chỉ được tạo bằng dòng lệnh trong cont
 - Phải nhập đúng mật khẩu hiện tại, kể cả khi đã đăng nhập: người cầm được một phiên (máy để mở, cookie bị lấy) không vì thế mà chiếm được tài khoản.
 - Nhập sai mật khẩu hiện tại trả 403 `WRONG_PASSWORD` và **được đếm vào cùng bộ đếm với đăng nhập sai**: năm lần trong 15 phút thì tài khoản bị khoá 15 phút, và trong lúc khoá mọi lần đổi mật khẩu nhận 429 `TOO_MANY_ATTEMPTS`, kể cả với mật khẩu đúng. Không có bộ đếm này thì endpoint thành chỗ dò mật khẩu không giới hạn cho người cầm một phiên.
 - Mật khẩu mới theo đúng quy tắc của lúc tạo tài khoản (10 tới 200 ký tự sau chuẩn hoá NFKC): sai thì 422 với mã `WEAK_PASSWORD`; trùng mật khẩu hiện tại thì 422 với mã `SAME_PASSWORD`.
-- Đổi xong, **mọi phiên khác của tài khoản bị kết thúc**; phiên đang dùng được giữ. Nhật ký `password_changed`.
+- Đổi xong, **mọi phiên khác của tài khoản bị kết thúc**; phiên đang dùng được giữ. Nhật ký `password_changed`; lần nhập sai ghi `password_change_failed`, lần bị từ chối vì đang khoá ghi `password_change_refused`.
 - Việc băm nằm trong cùng trần số lần băm đồng thời với đăng nhập; vượt trần thì 503 `LOGIN_BUSY`.
 
 ### Admin quản lý tài khoản
@@ -94,6 +95,51 @@ Tới mốc M7, tài khoản chỉ được tạo bằng dòng lệnh trong cont
 | U9 | Trên stack thật: admin tạo tài khoản, người mới đăng nhập và đổi mật khẩu, admin khoá rồi mở khoá | Test đầu-cuối |
 | U10 | Phần này có reviewer độc lập đọc lại trước khi gộp | mục review |
 
+### Kết quả (2026-10-14)
+
+| # | Kết quả | Kiểm bằng |
+|---|---|---|
+| U1 | Đạt | `test_account_management.py`: mật khẩu cũ bị từ chối, mật khẩu mới đăng nhập được; phiên thứ hai của cùng tài khoản nhận 401, phiên của tài khoản khác không bị đụng |
+| U2 | Đạt | Cùng file: năm lần sai thì lần thứ sáu nhận 429 kể cả với mật khẩu đúng; lần sai ở form đổi và ở trang đăng nhập cộng vào một bộ đếm; test dùng session thật cho thấy lần sai được lưu qua các request, và tám lần đoán gửi cùng một lúc đều được đếm |
+| U3 | Đạt | Cùng file: 9 và 201 ký tự, dạng dấu rời của mật khẩu cũ, mật khẩu trùng; sau mỗi lần từ chối mật khẩu cũ vẫn đăng nhập được |
+| U4 | Đạt | Cùng file: test chạy trên cả năm endpoint quản trị, mỗi endpoint ba trường hợp (chưa đăng nhập, người nộp, thiếu header); endpoint đổi mật khẩu có test riêng |
+| U5 | Đạt | Cùng file: phiên đang mở nhận 401 ngay sau khi bị khoá, đăng nhập lại bị từ chối; mở khoá thì đăng nhập được |
+| U6 | Đạt | Cùng file: 409 `CANNOT_LOCK_SELF`, 409 `USE_OWN_PASSWORD_FORM`, và không có gì thay đổi sau hai lời từ chối đó |
+| U7 | Đạt | Cùng file: mật khẩu cũ hết dùng được, hai phiên của người đó cùng kết thúc, phiên của admin còn |
+| U8 | Đạt | Cùng file: mật khẩu và chuỗi băm được tìm trong thân mọi response và mọi dòng `audit_log` sau khi dùng thật |
+| U9 | Đạt | `frontend/e2e/accounts.spec.ts` (4 test nối tiếp trên stack thật, cả qua nginx): admin tạo tài khoản trên giao diện, người mới đăng nhập và đổi mật khẩu, admin khoá, mở khoá, đặt lại mật khẩu; phiên ở trình duyệt khác kết thúc đúng lúc |
+| U10 | Đạt | Mục "Review độc lập (2026-10-14)" ngay dưới |
+
+Lệnh và kết quả (Git Bash): `pytest` trong image api → 697 passed, 17 skipped; trong image worker → 714 passed; `ruff` sạch. Frontend: `npm run test` → 290 passed; `typecheck`, `lint` sạch; `npm run e2e` → 53 passed; `npm run e2e:web` → 59 passed. Mutation check trên mã backend mới: 36 chỗ sửa thử, cả 36 bị bắt.
+
+Về cách làm: với phần backend, test và mã được viết liền nhau nên chưa có lần nào thấy test hỏng trước khi có mã; độ nhạy của test dựa vào mutation check. Riêng các test thêm sau review thì đều đã thấy hỏng trước khi sửa.
+
+### Review độc lập (2026-10-14)
+
+Một reviewer không viết mã này làm hai bước: viết danh sách 30 điều cần kiểm từ yêu cầu, rồi mới đọc diff và bằng chứng. Kết quả: 27 điều đạt, 1 điều không đạt, 2 điều chưa kết luận được. Mỗi phát hiện được đối chiếu lại với mã trước khi sửa.
+
+| Phát hiện | Xử lý |
+|---|---|
+| Bộ đếm số lần sai bị vượt khi gửi nhiều lần đoán cùng lúc: mỗi request đã nạp tài khoản của phiên trước khi giữ khoá dòng, và sau khi có khoá vẫn đếm từ số đã nạp. Test dựng lại đúng như vậy: tám lần đoán song song đều nhận 403, tài khoản không bị khoá | Sửa: dòng tài khoản được đọc lại sau khi có khoá (`populate_existing`). Test với session thật và tám luồng: bốn lần được đếm, lần thứ năm khoá, ba lần còn lại nhận 429 |
+| Test cho 503 `LOGIN_BUSY` không cho thấy endpoint đổi mật khẩu có giữ chỗ băm | Thêm test: chỗ băm đang được giữ lúc service được gọi |
+| Hai lần tạo cùng một email chạy cùng lúc: lần sau bị ràng buộc duy nhất của database từ chối và thành lỗi 500 | Sửa: việc thêm dòng nằm trong một savepoint, lời từ chối đó thành 409 `EMAIL_TAKEN`. Test với hai session thật |
+| Form đếm độ dài mật khẩu theo đơn vị UTF-16, server đếm theo ký tự: mật khẩu có ký tự ngoài mặt phẳng cơ bản bị form đánh giá khác server | Sửa: form đếm theo ký tự |
+| Trong lúc tài khoản bị khoá tạm, mỗi lần thử vẫn ghi một dòng nhật ký | Không đổi: đăng nhập đã làm vậy từ mốc M5; nhật ký được dọn định kỳ |
+| Admin này khoá được admin khác, kể cả admin cuối cùng còn lại ngoài mình; khoá tạm vì nhập sai không kết thúc các phiên đang mở | Không đổi: đúng với đặc tả. Ghi ở "Điều cần biết" |
+
+Bản sửa được chính reviewer đó đọc lại và chấp nhận: lỗi về bộ đếm đã đóng (các chỗ khác đọc bộ đếm đều đi qua cùng một hàm đã đọc lại sau khi có khoá, hoặc không nạp tài khoản từ trước), savepoint không làm hỏng session của bên gọi hay đường tạo tài khoản bằng dòng lệnh, và bản sửa không thêm gì ngoài các phát hiện.
+
+Reviewer không chạy lệnh nào (chỉ đọc mã, patch và các file bằng chứng), và chưa đọc `cli.py`, phần gửi request của frontend, bảng lời văn và CSS.
+
+### Điều cần biết
+
+- Không có "quên mật khẩu" qua email. Người quên mật khẩu nhờ admin đặt lại; admin quên mật khẩu thì nhờ admin khác, hoặc tạo một tài khoản admin mới bằng dòng lệnh.
+- Mật khẩu admin đặt không bị ép đổi ở lần đăng nhập đầu.
+- Hệ thống không giữ lại admin cuối cùng: một admin khoá được mọi admin khác.
+- Khoá tạm vì nhập sai nhiều lần chỉ chặn đăng nhập và đổi mật khẩu; các phiên đang mở vẫn dùng được. Khoá do admin thì kết thúc mọi phiên.
+- Khi phiên hết hạn giữa lúc đang ở form đổi mật khẩu, form báo lời chung "chưa đổi được" chứ không đưa về trang đăng nhập.
+- Nhánh ném lại lỗi của database khi tạo tài khoản mà email không trùng (một ràng buộc khác bị vi phạm) chưa có test.
+
 ## Tạo tài khoản
 
 Từ thư mục gốc của repo, khi stack đang chạy:
@@ -131,5 +177,5 @@ Reviewer không chạy được lệnh nào (chỉ đọc mã và log), chưa đ
 
 ## Quyết định cho các câu hỏi mở
 
-1. **Ai được tạo tài khoản?** Chỉ admin, qua dòng lệnh. Tự đăng ký cần xác minh email, tức cần dịch vụ gửi thư.
+1. **Ai được tạo tài khoản?** Chỉ admin: tài khoản đầu tiên qua dòng lệnh, các tài khoản sau trên trang quản trị. Tự đăng ký cần xác minh email, tức cần dịch vụ gửi thư.
 2. **Nhật ký hành động:** có bảng `audit_log` ngay từ đầu.

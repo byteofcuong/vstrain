@@ -555,6 +555,19 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 **Kiểm chứng (2026-10-13):** backend `pytest` trong image api → 633 passed, 17 skipped; trong image worker → 650 passed; `ruff` sạch. Frontend: `npm run test` → 282 passed; `typecheck`, `lint` sạch; `npm run e2e` → 49 passed; `npm run e2e:web` → 55 passed.
 
+## Phase 14: đổi mật khẩu và quản lý tài khoản (sau mốc M7)
+
+Đặc tả: mục "Đổi mật khẩu và quản lý tài khoản" của `specs/SPEC-accounts.md`. Không thêm dependency, không đổi schema.
+
+- [x] T14.1 `POST /api/auth/password`: đổi mật khẩu của chính mình, cần mật khẩu hiện tại; lần sai được đếm chung với đăng nhập sai; đổi xong các phiên khác kết thúc. Kiểm chứng: `tests/test_account_management.py`
+- [x] T14.2 `/api/admin/users`: admin xem danh sách, tạo tài khoản, khoá, mở khoá, đặt lại mật khẩu của người khác; không tự khoá mình, không đặt lại mật khẩu của mình qua đường này. Kiểm chứng: cùng file test
+- [x] T14.3 Trang `#/account` (tên ở thanh đầu trang dẫn tới) và tab `#/admin/users`. Kiểm chứng: `frontend/e2e/accounts.spec.ts` trên stack thật; ảnh chụp ở 1280 px và 390 px
+- [x] T14.4 Reviewer độc lập đọc lại (phần này đụng xác thực); sửa bốn phát hiện, mỗi cái có test. Kiểm chứng: mục "Review độc lập (2026-10-14)" của đặc tả
+
+**Kiểm chứng (2026-10-14):** backend `pytest` trong image api → 697 passed, 17 skipped; trong image worker → 714 passed; `ruff` sạch. Frontend: `npm run test` → 290 passed; `typecheck`, `lint` sạch; `npm run e2e` → 53 passed; `npm run e2e:web` → 59 passed. Mutation check: 36 chỗ sửa thử, cả 36 bị bắt.
+
+**Điều cần biết:** không có "quên mật khẩu" qua email; mật khẩu admin đặt không bị ép đổi; hệ thống không giữ lại admin cuối cùng. Lỗi reviewer tìm ra (gửi nhiều lần đoán cùng lúc thì chỉ bị đếm một) không lộ ra trong 32 mutant ban đầu, vì mutant chỉ sửa mã đang có chứ không nghĩ ra trường hợp còn thiếu.
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.
