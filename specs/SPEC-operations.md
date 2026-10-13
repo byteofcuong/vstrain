@@ -1,6 +1,6 @@
 # Spec: module `operations` (mốc M6)
 
-Trạng thái: **đang làm** (2026-10-13). Các câu hỏi mở dùng phương án đề xuất ở cuối file.
+Trạng thái: **đã triển khai và đã qua review độc lập** (2026-10-13). Các câu hỏi mở dùng phương án đề xuất ở cuối file.
 
 ## Objective
 
@@ -76,6 +76,45 @@ Ba việc này hiện đều phải làm bằng dòng lệnh trong container (`p
 | O7 | Mẫu do phòng xét nghiệm nộp không bị việc phân giải lại đổi tỉnh | Có test |
 | O8 | Phiên hết hạn và nhật ký quá hạn bị xoá định kỳ; phiên còn hạn và nhật ký còn hạn thì không | Có test |
 | O9 | Ba trang admin dùng được trên stack thật | Test đầu-cuối: dựng ngay, xem job, chạy lại, gán một địa danh |
+
+## Kết quả (2026-10-13)
+
+| # | Kết quả | Nguồn |
+|---|---|---|
+| O1 | đạt: mỗi nhánh một test (chưa từng build, không có lịch, chưa tới hạn, đầu vào không đổi, đổi mẫu, đổi ngày, đổi chuỗi, build hỏng, job hỏng trước khi chọn mẫu) | `tests/test_schedule.py` |
+| O2 | đạt: bốn luồng bị giữ lại giữa việc xét rồi mới cho đi tiếp, đúng một job được xếp | `tests/test_schedule.py` |
+| O3 | đạt: mẫu nộp qua form thành tip chính thức nhờ đúng một build do lịch xếp, chạy bằng vòng lặp của worker với công cụ thật; lần xét ngay sau đó và một lần xét "một tuần sau" không xếp thêm gì | `tests/test_ingest.py` |
+| O4 | đạt: 401 và 403 cho cả 10 đường của module; mọi đường ghi cần header chống CSRF | `tests/test_operations_api.py` |
+| O5 | đạt: lần nộp trỏ sang job mới, job cũ còn nguyên; bốn lời gọi chạy lại cùng lúc cho đúng một job mới | `tests/test_operations_api.py` |
+| O6 | đạt. Trên database thật và cây DENV1 thật (1.964 tip): lời gọi API 83 ms, bản publish mới tới người xem sau 0,64 giây (trung vị 3 lần), không job dựng cây nào được xếp, `tree.json` giữ nguyên hash; lần dựng cây gần nhất mất 682 giây | `tests/test_operations_api.py`; `do-dac/results/W8-van-hanh/sua_dia_danh_tron_luong.json` |
+| O7 | đạt | `tests/test_operations_api.py` |
+| O8 | đạt; thời hạn giữ nhật ký bằng 0 bị từ chối ở cấu hình và ở hàm dọn | `tests/test_housekeeping.py`, `tests/test_worker.py` |
+| O9 | đạt: bốn test đầu-cuối, chạy cả qua nginx | `frontend/e2e/admin.spec.ts` |
+
+Kiểm chứng trên commit cuối: backend `pytest` trong image api 599 passed, 17 skipped; trong image worker (công cụ thật) 616 passed; frontend 277 test đơn vị, `typecheck` và `lint` sạch; `npm run e2e` 46 passed; `npm run e2e:web` 52 passed. Mutation check: 123 chỗ sửa thử (112 của module, 11 của các bản sửa sau review), tất cả bị test bắt. Ở lượt đầy đủ đầu tiên có sáu chỗ sống sót và một test treo; lượt thứ hai còn hai chỗ; test được bổ sung cho từng chỗ.
+
+## Review độc lập (2026-10-13)
+
+Reviewer không viết code, làm ba bước: liệt kê 30 điều sẽ kiểm khi chỉ có đặc tả; đọc code và bằng chứng; đọc lại bản sửa. Kết quả bước hai: 25 đạt, 3 không đạt, 2 không xác định được; không tìm ra đường nào vượt quyền admin, bỏ qua CSRF, làm mất hay nhân đôi việc khi chạy lại job, hay làm lịch dựng mãi hoặc không bao giờ dựng. Bước ba: chấp nhận bản sửa. Reviewer đọc code và số đo, không tự chạy test.
+
+| Phát hiện | Xử lý |
+|---|---|
+| Cách viết không phải chữ Latinh (chữ Kirin, chữ Hán) gán được nhưng không bỏ được: đường xoá chỉ nhận khoá a-z và 0-9 | Đã sửa: đường xoá nhận mọi khoá mà `place_key` sinh ra được |
+| Cách viết có khoá rất dài làm API trả 500 | Đã sửa: khoá dài hơn 80 ký tự bị từ chối với `PLACE_TOO_LONG`. Giới hạn là 80 chứ không phải 100 vì khoá còn được ghi vào `audit_log.subject` sau tiền tố `place:` |
+| Lệnh quản trị `enqueue build_dataset` xếp job dựng cây mà không khoá dòng dataset | Đã sửa: lệnh đi qua `request_build`. Bảo đảm nằm ở code, không có ràng buộc ở database; reviewer chấp nhận và ghi nhận một index duy nhất sẽ là lưới an toàn thêm |
+| Chi phí của việc xét lịch (lặp mỗi phút khi tới hạn mà đầu vào không đổi) chưa có số đo | Đã đo: 19 tới 64 ms mỗi dataset; ghi vào ADR-010 |
+| Số 71 ms đo trên một bản ghi nằm ngoài cây, nên không có job publish nào được xếp trong phép đo đó | Đã đo lại trọn đường trên một mẫu nằm trong cây (dòng O6 ở trên) |
+| Thêm một alias phân giải lại mọi bản ghi GenBank trong nước, không riêng bản ghi dùng cách viết đó | Giữ nguyên, đúng thiết kế. Hệ quả: nếu bảng đơn vị hay file seed đã đổi từ lúc nhập, các thay đổi đó được áp cùng lúc; số mẫu đổi hiện trên giao diện |
+| Dọn định kỳ chỉ chạy khi hàng đợi trống | Giữ nguyên, đúng thiết kế |
+
+## Điều cần biết
+
+- Dữ liệu GenBank hiện có không còn địa danh Việt Nam nào chưa khớp, nên trang sửa địa danh chưa có việc thật để làm; nó dành cho lần nhập kế tiếp. Các phép đo và test đầu-cuối tự tạo cách viết lạ rồi trả lại như cũ.
+- Hash đầu vào không thấy thay đổi của công cụ, tham số pipeline hay định nghĩa clade. Sau những thay đổi đó admin bấm "Dựng ngay".
+- Lịch chưa được để chạy qua nhiều ngày trên dữ liệu thật: bằng chứng là test với đồng hồ được truyền vào và một lần chạy vòng lặp worker với công cụ thật.
+- Bản publish cũ không bị xoá khi có bản mới (1,7 MB mỗi bản ở DENV1).
+- Job hỏng không tự chạy lại; chưa huỷ được một job đang chạy.
+- Migration 0010 mới được thử lên, xuống rồi lên lại trên database rỗng và chạy một lần trên database phát triển; chưa có test với dữ liệu có sẵn. Mọi cột mới đều cho phép để trống.
 
 ## Ngoài phạm vi
 

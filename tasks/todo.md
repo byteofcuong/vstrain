@@ -449,10 +449,50 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 **Điều cần biết:**
 - Sửa mẫu đã nộp chưa có. Muốn sửa thì admin ẩn mẫu và người nộp nộp lại.
-- Job kiểm tra đã hỏng không tự chạy lại và chưa có nút xếp lại; thuộc mốc M6.
+- Job kiểm tra đã hỏng không tự chạy lại; từ mốc M6 admin chạy lại bằng nút bấm ở trang job.
 - Mẫu bị ẩn sau khi đã vào một build vẫn nằm trong file của build đó cho tới lần build kế tiếp.
 - Dữ liệu công khai không có genome Việt Nam nào đứng ngoài build, nên phép đo dùng genome GenBank của nước khác.
 - 261 trong 2.633 genome Việt Nam đã gióng dài hơn 10.000 nucleotide nhưng có dưới 10.000 vị trí đọc được: chúng qua kiểm tra lúc nộp rồi bị từ chối ở bước gióng, với lý do nói rõ.
+
+## Phase 10: `operations` (mốc M6)
+
+Đặc tả: `specs/SPEC-operations.md`; quyết định: ADR-010. Không thêm dependency nào.
+
+- [x] T10.1 Lịch dựng cây: `build_interval_hours`, `inputs_hash`, `retry_of` (migration 0010); worker chung xét lịch mỗi phút và dọn phiên, nhật ký mỗi giờ. Kiểm chứng: `tests/test_schedule.py`, `tests/test_worker.py`, `tests/test_housekeeping.py`
+- [x] T10.2 Mẫu nộp thành tip chính thức qua build do lịch xếp, với công cụ thật. Kiểm chứng: `tests/test_ingest.py` trong image worker
+- [x] T10.3 API quản trị: danh sách và chi tiết job, chạy lại job hỏng, đặt lịch, dựng ngay, địa danh chưa khớp, thêm và bỏ tên thay thế (phân giải lại, publish lại không dựng cây). Kiểm chứng: `tests/test_operations_api.py`
+- [x] T10.4 Ba trang `#/admin/jobs`, `#/admin/datasets`, `#/admin/places`, tải riêng (15 KB). Kiểm chứng: `frontend/e2e/admin.spec.ts` trên stack thật
+- [x] T10.5 Đo O6 và chi phí xét lịch trên database thật. Số liệu ở `do-dac/results/W8-van-hanh/`
+- [x] T10.6 Mutation check (123 chỗ sửa thử) và review độc lập ba bước (30 điều kiểm: 25 đạt, 3 không đạt, 2 không xác định được); sửa theo review, reviewer chấp nhận bản sửa. Chi tiết ở mục "Review độc lập" của đặc tả
+
+## Checkpoint H (hết mốc M6)
+
+| Tiêu chí | Ngưỡng | Kết quả | Nguồn |
+|---|---|---|---|
+| O1 | build được xếp khi tới hạn và có mẫu mới; không xếp khi tập mẫu không đổi hoặc chưa tới hạn | đạt, mỗi nhánh một test | `test_schedule.py` |
+| O2 | hai worker xét lịch cùng lúc xếp đúng một job | đạt (bốn luồng bị giữ chồng lên nhau) | `test_schedule.py` |
+| O3 | mẫu nộp thành tip chính thức qua build theo lịch, không lệnh tay | đạt với công cụ thật; lần xét kế tiếp không xếp thêm | `test_ingest.py` |
+| O4 | chỉ admin xem được job | đạt: 401 và 403 cho cả 10 đường | `test_operations_api.py` |
+| O5 | chạy lại job kiểm tra đã hỏng đưa mẫu tới kết luận | đạt | `test_operations_api.py` |
+| O6 | thêm alias: mẫu được gán đơn vị, cột tỉnh của bản publish đổi, `tree.json` giữ nguyên | đạt; trên cây DENV1 thật: 0,64 giây từ lời gọi API tới bản publish mới, so với 682 giây của một lần dựng cây | `sua_dia_danh_tron_luong.json` |
+| O7 | mẫu do phòng xét nghiệm nộp không bị đổi tỉnh | đạt | `test_operations_api.py` |
+| O8 | phiên hết hạn và nhật ký quá hạn bị xoá định kỳ | đạt | `test_housekeeping.py` |
+| O9 | ba trang admin dùng được trên stack thật | đạt: bốn test đầu-cuối | `admin.spec.ts` |
+
+**Kiểm chứng lúc đóng checkpoint (2026-10-13):** backend `pytest` trong image api → 599 passed, 17 skipped; trong image worker (công cụ thật) → 616 passed. Frontend: `npm run test` → 277 passed; `npm run typecheck`, `npm run lint` sạch; `npm run e2e` → 46 passed; `npm run e2e:web` → 52 passed. Mutation check: 123 chỗ sửa thử, tất cả bị test bắt sau khi bổ sung test (lượt đầu sáu chỗ sống sót và một test treo, lượt hai còn hai chỗ).
+
+**Lỗi tìm ra trong lúc làm, đã sửa:**
+- **Thanh đầu trang của người đã đăng nhập làm trang rộng thêm 152 px ở màn hình 390 px** (có từ mốc M5, lộ ra khi admin có thêm một liên kết).
+- **Test "hai worker cùng xét lịch" vẫn xanh khi bỏ khoá dòng của dataset**: bốn luồng chạy đủ nhanh để không bao giờ chồng lên nhau. Mutation check tìm ra.
+- **Một test của vòng lặp worker lặp vô hạn thay vì hỏng.** Các test đó nay có giới hạn thời gian.
+- **Do review tìm ra:** cách viết không phải chữ Latinh gán được nhưng không bỏ được; cách viết rất dài làm API trả 500; lệnh quản trị `enqueue build_dataset` đi vòng qua quy tắc "mỗi dataset một job dựng cây chưa xong".
+
+**Điều cần biết:**
+- Dữ liệu thật hiện không có địa danh Việt Nam nào chưa khớp; trang sửa địa danh dành cho lần nhập kế tiếp.
+- Hash đầu vào không thấy thay đổi của công cụ, tham số pipeline hay định nghĩa clade; sau đó phải bấm "Dựng ngay".
+- Lịch chưa được để chạy qua nhiều ngày trên dữ liệu thật.
+- Bản publish cũ không bị xoá; job hỏng không tự chạy lại; chưa huỷ được job đang chạy.
+- Còn mở từ mốc M5: sửa mẫu đã nộp (S3), tiêu chí 1 ở 5.000 tip, tiêu chí 1b. Hai tiêu chí sau thuộc mốc M7.
 
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
