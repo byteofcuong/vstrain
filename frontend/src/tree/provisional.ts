@@ -86,8 +86,8 @@ export function provisionalExtent(provisional: Provisional | null, axis: Axis): 
   const values = axis === "time" ? provisional.date : provisional.div;
   let min = Infinity;
   let max = -Infinity;
+  // Tip không có giá trị trên trục (NaN) không qua được phép so sánh nào, nên tự bị bỏ qua.
   for (const value of values) {
-    if (Number.isNaN(value)) continue;
     if (value < min) min = value;
     if (value > max) max = value;
   }

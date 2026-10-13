@@ -63,8 +63,11 @@ Báo cáo địa danh: docker compose -f deploy/docker-compose.yml run --rm api 
 Test cần công cụ sinh học: docker compose -f deploy/docker-compose.yml run --rm worker pytest -m tools
 Xếp một job:    docker compose -f deploy/docker-compose.yml run --rm api python -m app.cli enqueue tool_versions
 Xem một job:    docker compose -f deploy/docker-compose.yml run --rm api python -m app.cli job 1
-Log của worker: docker compose -f deploy/docker-compose.yml logs -f worker
+Log của worker: docker compose -f deploy/docker-compose.yml logs -f worker ingest
+Tạo tài khoản:  docker compose -f deploy/docker-compose.yml exec api python -m app.cli create-user --email ten@donvi.vn --name "Tên hiển thị" --role submitter
 ```
+
+Có hai worker: `worker` nhận mọi loại job; `ingest` chỉ nhận việc kiểm tra mẫu vừa nộp (`python -m app.jobs.worker --only ingest_sample`), để một mẫu nộp trong lúc `worker` đang dựng cây không phải chờ.
 
 Bộ test đầy đủ chạy được ở cả hai image. Trong image `api` (Python 3.12) các test đánh dấu `tools` tự bỏ qua; trong image `worker` (Python 3.11, có Augur, Nextclade, IQ-TREE) chúng chạy thật.
 
@@ -106,7 +109,7 @@ deploy/               → docker-compose.yml, Dockerfile, nginx.conf (service `w
 backend/app/          → mã backend, mỗi module một gói con (geo/, samples/, ...)
 backend/migrations/   → migration Alembic
 backend/tests/        → pytest
-frontend/             → React: src/tree (cây), src/map (bản đồ), src/components, e2e
+frontend/             → React: src/tree (cây, tip tạm), src/map (bản đồ), src/submit (form nộp mẫu), src/components, e2e
 frontend/map-data/    → hai file đường biên và nguồn, giấy phép của chúng (NGUON.md)
 frontend/scripts/     → script dựng file hình học của bản đồ
 data/                 → dữ liệu cục bộ và file build; không đưa vào git
@@ -134,7 +137,8 @@ def place_key(raw: str) -> str:
 ## API conventions
 
 - JSON và tham số truy vấn dùng camelCase (`dateFrom`, `internalId`); mã Python dùng snake_case, chuyển đổi nằm ở lớp `ApiModel`.
-- Mọi lỗi có một dạng: `{"error": {"code": "SAMPLE_NOT_FOUND", "message": "...", "details": [{"field": "...", "message": "..."}]}}`. `code` dành cho máy, giao diện dịch theo mã này; `details` chỉ có ở lỗi 422.
+- Mọi lỗi có một dạng: `{"error": {"code": "SAMPLE_NOT_FOUND", "message": "...", "details": [{"field": "...", "message": "..."}]}}`. `code` dành cho máy, giao diện dịch theo mã này; `details` chỉ có ở lỗi 422. Một mục của `details` có thể kèm `code` riêng của nó (ví dụ `SEQUENCE_TOO_SHORT`), để giao diện dịch được từng lỗi của form.
+- Request ghi (POST, PUT, PATCH, DELETE) phải mang header `X-Requested-With`, khai `Content-Length`, và thân không quá 4 MB; không thì bị từ chối trước khi thân được đọc (403, 411, 413).
 - Endpoint danh sách luôn phân trang: `{"items": [...], "total": n, "limit": l, "offset": o}`, `limit` tối đa 500.
 - Thay đổi về sau chỉ thêm trường, không đổi nghĩa hay kiểu của trường đã có.
 - Tài liệu tự sinh: `http://127.0.0.1:8000/api/docs`.

@@ -83,6 +83,10 @@ describe("attachProvisional", () => {
       tip({ parentIndex: 99 }),
       tip({ parentIndex: -1 }),
       tip({ parentIndex: 1.5 }),
+      // Treo thẳng vào một node không có: không có chỉ số thứ hai nào để lộ ra chỗ sai.
+      tip({ parentIndex: 99, branchIndex: null }),
+      tip({ parentIndex: -1, branchIndex: null }),
+      tip({ parentIndex: 1.5, branchIndex: null }),
       tip({ branchIndex: 99 }),
       // b1 là con của B, không phải của A: hai chỉ số không thuộc cùng một cành.
       tip({ parentIndex: 1, branchIndex: 5 }),

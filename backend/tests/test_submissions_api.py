@@ -1,6 +1,7 @@
 import datetime as dt
 import hashlib
 import json
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -91,6 +92,9 @@ def test_submitting_needs_a_login(session, client):
 
 
 def test_a_submission_is_stored_as_received_and_queued_for_checking(session, client, lab):
+    # Một job dựng cây đã chờ sẵn trong hàng đợi từ trước khi mẫu được nộp.
+    build_job = queue.enqueue(session, "build_dataset", {"dataset": "dengue-denv1"})
+
     response = submit(client)
 
     assert response.status_code == 201
@@ -126,12 +130,12 @@ def test_a_submission_is_stored_as_received_and_queued_for_checking(session, cli
     assert (stored.sample_id, stored.sequence, stored.length) == (sample.id, GENOME, len(GENOME))
     assert stored.sha256 == hashlib.sha256(GENOME.encode()).hexdigest()
 
-    # Lần nộp ghi người nộp và job kiểm tra; job đứng trước job dựng cây trong hàng đợi.
+    # Lần nộp ghi người nộp và job kiểm tra; job này vượt lên trước job dựng cây đã chờ sẵn.
     submission = session.scalars(select(Submission)).one()
-    job = session.scalars(select(Job)).one()
+    job = session.scalars(select(Job).where(Job.kind == "ingest_sample")).one()
     assert (submission.sample_id, submission.submitter_id, submission.job_id) == (sample.id, lab.id, job.id)
     assert (job.kind, job.params, job.status) == ("ingest_sample", {"sample_id": sample.id}, "queued")
-    queue.enqueue(session, "build_dataset", {"dataset": "dengue-denv1"})
+    assert build_job.id < job.id
     assert queue.lock_next(session).id == job.id
 
     logged = session.execute(
@@ -147,6 +151,17 @@ def test_the_name_typed_by_the_lab_never_becomes_the_id_the_tools_see(session, c
 
     assert body["displayName"] == name
     assert body["internalId"].isascii() and body["internalId"].isalnum()
+
+
+def test_the_sample_name_is_stored_trimmed_and_in_one_unicode_form(session, client, lab):
+    composed = unicodedata.normalize("NFC", "Hà_Nội/01/2024")
+    typed = "  " + unicodedata.normalize("NFD", composed) + " "
+    assert typed.strip() != composed
+
+    body = submit(client, displayName=typed).json()
+
+    assert body["displayName"] == composed
+    assert session.scalars(select(Sample.display_name)).one() == composed
 
 
 def test_a_sample_just_submitted_is_not_public_yet(client, lab):
@@ -278,6 +293,29 @@ def test_one_lab_cannot_fill_the_queue(session, client, lab, monkeypatch):
     session.scalars(select(Sample)).first().status = "accepted"
     session.flush()
     assert submit(client).status_code == 201
+
+
+def test_another_labs_waiting_samples_do_not_count_against_me(session, client, lab, monkeypatch):
+    monkeypatch.setattr(service, "MAX_PENDING", 1)
+    assert submit(client).status_code == 201
+    make_user(session, "other@example.org")
+    log_in(client, "other@example.org")
+
+    assert submit(client).status_code == 201
+
+
+def test_the_province_is_checked_against_the_date_even_when_the_file_is_bad(session, client, lab):
+    response = submit(client, fasta="x", unitCode="vn34:ha-noi", collectionDate="2024-01-15")
+
+    assert sorted(codes(response)) == [("fasta", "NOT_FASTA"), ("unitCode", "UNIT_NOT_VALID_ON_DATE")]
+
+
+def test_a_content_length_that_is_not_a_number_is_a_bad_request(client, lab):
+    headers = BROWSER | {"Content-Type": "application/json", "Content-Length": "abc"}
+
+    response = client.post("/api/submissions", content=b"{}", headers=headers)
+
+    assert (response.status_code, response.json()["error"]["code"]) == (400, "BAD_REQUEST")
 
 
 def test_answers_about_submissions_are_not_to_be_stored(client, lab):
@@ -463,13 +501,25 @@ def test_a_rejected_sample_says_why(session, client, lab):
     sample.status = "rejected"
     submission = session.get(Submission, sample.id)
     submission.reject_code, submission.reject_message = "NOT_THIS_PATHOGEN", "No dengue reference is close enough"
+    # Kết quả gióng tốt nhất vẫn được lưu để tra cứu, nhưng một lần gióng hỏng không nói mẫu thuộc serotype nào.
+    session.add(
+        SampleAlignment(
+            sample_id=sample.id,
+            lineage="denv2",
+            status="failed",
+            coverage=0.4,
+            error="Too divergent",
+            sequence_sha256="0" * 64,
+            tool="nextclade 3.24.0",
+        )
+    )
     session.flush()
 
     body = client.get(f"/api/submissions/{sample.internal_id}").json()
 
     assert (body["status"], body["stage"]) == ("rejected", "rejected")
     assert (body["rejectCode"], body["rejectMessage"]) == ("NOT_THIS_PATHOGEN", "No dengue reference is close enough")
-    assert body["lineage"] is None
+    assert (body["lineage"], body["coverage"], body["validNt"]) == (None, None, None)
 
 
 def test_an_accepted_sample_moves_from_waiting_to_provisional_tip_to_the_tree(session, client, lab, data_dir):

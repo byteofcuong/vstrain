@@ -102,6 +102,9 @@ def submit(
 
     Ném `InvalidSubmission` kèm mọi lỗi tìm được, hoặc `TooManyPending`; khi đó chưa có gì được ghi.
     """
+    # Khoá dòng của tài khoản cho tới khi request này commit hoặc bị huỷ: các request cùng lúc của một người lần
+    # lượt đếm rồi ghi, nên không cùng lọt qua trần số mẫu đang chờ.
+    session.execute(select(AppUser.id).where(AppUser.id == user.id).with_for_update())
     pending = session.scalar(
         select(func.count())
         .select_from(Submission)

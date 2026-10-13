@@ -177,7 +177,8 @@ def test_a_submitted_genome_becomes_a_provisional_tip_and_then_a_tip_of_the_next
         title="DENV1 Việt Nam",
         pathogen="dengue",
         lineage="denv1",
-        max_samples=eligible + 10,
+        # Thấp hơn số genome đủ điều kiện một đơn vị: luôn có một bản ghi GenBank đứng ngoài build.
+        max_samples=eligible - 1,
         min_context_share=0.0,
     )
     session.add(dataset)
@@ -237,14 +238,22 @@ def test_a_submitted_genome_becomes_a_provisional_tip_and_then_a_tip_of_the_next
     assert again == {"sample": sample.internal_id, "status": "accepted", "placed_on": ["dengue-denv1"]}
     assert session.scalar(select(func.count()).select_from(SamplePlacement)) == 1
 
-    # Mất chỗ đặt (chẳng hạn build đổi) thì job gắn lại tìm ra đúng mẫu đã nộp, không đụng tới bản ghi GenBank.
+    # Mất chỗ đặt (chẳng hạn build đổi) thì job gắn lại tìm ra đúng mẫu đã nộp, không đụng tới bản ghi GenBank
+    # đứng ngoài build. Mẫu đang bị ẩn thì không được gắn.
     session.execute(delete(SamplePlacement))
+    sample.status = "hidden"
+    session.flush()
+    assert run_job(session, tmp_path / "place-hidden", "place_pending", {"dataset": "dengue-denv1"})["placed"] == 0
+    sample.status = "accepted"
+    session.flush()
     assert run_job(session, tmp_path / "place-1", "place_pending", {"dataset": "dengue-denv1"}) == {
         "dataset": "dengue-denv1",
         "build_id": first_build.id,
         "placed": 1,
         "unplaced": 0,
     }
+    # Mẫu đã có chỗ trên build này thì lần chạy sau không gắn lại.
+    assert run_job(session, tmp_path / "place-again", "place_pending", {"dataset": "dengue-denv1"})["placed"] == 0
 
     # --- Build kế tiếp ---
     second = build_then_place(claimed_build(session, tmp_path / "build-2"))
@@ -264,6 +273,15 @@ def test_a_submitted_genome_becomes_a_provisional_tip_and_then_a_tip_of_the_next
     queued = session.scalars(select(Job).where(Job.kind == "place_pending", Job.status == "queued")).one()
     assert (queued.params, queued.priority) == ({"dataset": "dengue-denv1"}, queue.INTERACTIVE)
     assert place_pending(claimed(session, tmp_path / "place-2"))["placed"] == 0
+    # Job kiểm tra của mẫu có chạy lại cũng không gắn tạm một mẫu đã là tip chính thức.
+    queue.enqueue(session, "ingest_sample", {"sample_id": sample.id}, priority=100)
+    assert ingest_sample(claimed(session, tmp_path / "ingest-member"))["placed_on"] == []
+    assert (
+        session.scalar(
+            select(func.count()).select_from(SamplePlacement).where(SamplePlacement.build_id == second_build.id)
+        )
+        == 0
+    )
     assert client.get("/api/datasets/dengue-denv1/placements").json() == {"buildId": second_build.id, "items": []}
     described = service.describe(session, [sample.id])[0]
     assert (described["stage"], described["in_datasets"]) == (
