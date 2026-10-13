@@ -9,12 +9,15 @@ from sqlalchemy import func, select, update
 
 from app.accounts import passwords
 from app.accounts import service as accounts
+from app.build.pipeline import republish_build
 from app.build.publish import publish_build
+from app.build.selection import inputs_hash, select_samples
 from app.config import settings
 from app.geo.seed import seed_geo
 from app.jobs import queue
 from app.jobs.steps import JobContext
 from app.models import (
+    AdminUnit,
     AuditLog,
     BuildSample,
     DatasetDef,
@@ -921,3 +924,303 @@ def test_the_units_list_gives_the_form_both_province_sets_with_their_dates(clien
     }
     assert (by_code["vn34:ha-noi"]["validFrom"], by_code["vn34:ha-noi"]["validTo"]) == ("2025-07-01", None)
     assert client.get("/api/units?level=planet").status_code == 422
+
+
+# --- Sửa mẫu đã nộp ---
+
+
+def correct(client, sample: Sample, **changes):
+    """Gửi một lần sửa; không nói gì thêm thì gửi lại đúng các giá trị của lúc nộp."""
+    body = {key: value for key, value in payload(**changes).items() if key != "fasta"}
+    return client.patch(f"/api/submissions/{sample.internal_id}", json=body, headers=BROWSER)
+
+
+def accepted(session, client, **changes) -> Sample:
+    internal_id = submit(client, **changes).json()["internalId"]
+    sample = session.scalars(select(Sample).where(Sample.internal_id == internal_id)).one()
+    aligned(session, sample)
+    return sample
+
+
+def stored(session, sample: Sample) -> tuple:
+    session.expire_all()
+    return (
+        sample.display_name,
+        sample.collection_date_raw,
+        sample.date_min,
+        sample.date_max,
+        sample.division_raw,
+        sample.admin_unit_code,
+        sample.region_code,
+        sample.host,
+        sample.status,
+    )
+
+
+def audit_rows(session) -> list[tuple[str, str | None, dict]]:
+    return [(row.action, row.subject, row.detail) for row in session.scalars(select(AuditLog).order_by(AuditLog.id))]
+
+
+def test_a_lab_corrects_the_name_date_province_and_host_of_its_sample(session, client, lab):
+    sample = accepted(session, client)
+    sequence = session.scalar(select(SampleSequence.sha256).where(SampleSequence.sample_id == sample.id))
+    internal_id = sample.internal_id
+
+    response = correct(
+        client,
+        sample,
+        displayName="  Đà Nẵng/02/2023 ",
+        collectionDate="2023-02",
+        unitCode="vn63:da-nang",
+        host="Aedes aegypti",
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert (body["internalId"], body["displayName"], body["collectionDate"], body["unitCode"], body["host"]) == (
+        internal_id,
+        "Đà Nẵng/02/2023",
+        "2023-02-XX",
+        "vn63:da-nang",
+        "Aedes aegypti",
+    )
+    da_nang = session.get(AdminUnit, "vn63:da-nang")
+    assert stored(session, sample) == (
+        "Đà Nẵng/02/2023",
+        "2023-02-XX",
+        dt.date(2023, 2, 1),
+        dt.date(2023, 2, 28),
+        da_nang.name_vi,
+        "vn63:da-nang",
+        da_nang.parent_code,
+        "Aedes aegypti",
+        "accepted",
+    )
+    # Chuỗi không đổi, và không có việc kiểm tra mới nào được xếp.
+    assert session.scalar(select(SampleSequence.sha256).where(SampleSequence.sample_id == sample.id)) == sequence
+    assert session.scalar(select(func.count()).select_from(Job)) == 1
+    assert audit_rows(session)[-1] == (
+        "sample_edited",
+        f"sample:{internal_id}",
+        {"fields": ["collectionDate", "displayName", "host", "unitCode"]},
+    )
+
+
+def test_a_correction_names_only_the_fields_that_changed(session, client, lab):
+    sample = accepted(session, client)
+
+    assert correct(client, sample, host=None).status_code == 200
+
+    assert stored(session, sample)[7] is None
+    assert audit_rows(session)[-1][2] == {"fields": ["host"]}
+
+
+def test_sending_back_the_values_a_sample_already_has_leaves_no_trace(session, client, lab, data_dir):
+    sample = accepted(session, client)
+    published(session, make_dataset(session), data_dir, [sample])
+    before = (stored(session, sample), len(audit_rows(session)), session.scalar(select(func.count()).select_from(Job)))
+
+    # Khoảng trắng hai đầu của tên bị bỏ như lúc nộp, nên đây vẫn là cùng một tên.
+    response = correct(client, sample, displayName="  Hà_Nội/01/2024  ")
+
+    assert response.status_code == 200
+    after = (stored(session, sample), len(audit_rows(session)), session.scalar(select(func.count()).select_from(Job)))
+    assert after == before
+
+
+def test_only_the_lab_that_submitted_a_sample_can_correct_it(session, client, lab):
+    sample = accepted(session, client)
+    before = stored(session, sample)
+    make_user(session, "other@example.org")
+    make_user(session, "boss@example.org", role="admin")
+
+    without_header = client.patch(f"/api/submissions/{sample.internal_id}", json=payload(displayName="của tôi"))
+    assert (without_header.status_code, without_header.json()["error"]["code"]) == (403, "CSRF_HEADER_REQUIRED")
+
+    log_in(client, "other@example.org")
+    stranger = correct(client, sample, displayName="của tôi")
+    assert (stranger.status_code, stranger.json()["error"]["code"]) == (404, "SUBMISSION_NOT_FOUND")
+
+    # Admin xem được mọi mẫu, nhưng dữ liệu của một phòng xét nghiệm là do phòng đó khai.
+    log_in(client, "boss@example.org")
+    admin = correct(client, sample, displayName="của tôi")
+    assert (admin.status_code, admin.json()["error"]["code"]) == (403, "FORBIDDEN")
+
+    client.cookies.clear()
+    guest = correct(client, sample, displayName="của tôi")
+    assert (guest.status_code, guest.json()["error"]["code"]) == (401, "NOT_AUTHENTICATED")
+
+    assert stored(session, sample) == before
+    assert "sample_edited" not in [action for action, _, _ in audit_rows(session)]
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    [
+        ({"displayName": "   "}, [("displayName", "INVALID_NAME")]),
+        ({"displayName": "hai\ndòng"}, [("displayName", "INVALID_NAME")]),
+        ({"collectionDate": "15/01/2024"}, [("collectionDate", "INVALID_DATE")]),
+        ({"collectionDate": "2099-01-01"}, [("collectionDate", "DATE_IN_FUTURE")]),
+        ({"host": "Homo\nsapiens"}, [("host", "INVALID_HOST")]),
+        ({"unitCode": "vn63:atlantis"}, [("unitCode", "UNKNOWN_UNIT")]),
+        ({"unitCode": "vnr:red-river-delta"}, [("unitCode", "UNKNOWN_UNIT")]),
+        ({"unitCode": "'; DROP TABLE sample; --"}, [("unitCode", "UNKNOWN_UNIT")]),
+        # Ngày mới đưa mẫu sang bên kia ngày sáp nhập: tỉnh đang chọn không còn tồn tại vào ngày đó.
+        ({"collectionDate": "2025-07-01"}, [("unitCode", "UNIT_NOT_VALID_ON_DATE")]),
+        ({"unitCode": "vn34:ha-noi"}, [("unitCode", "UNIT_NOT_VALID_ON_DATE")]),
+        (
+            {"displayName": "", "collectionDate": "hôm qua", "unitCode": "vn63:atlantis", "host": "a\tb"},
+            [
+                ("displayName", "INVALID_NAME"),
+                ("collectionDate", "INVALID_DATE"),
+                ("host", "INVALID_HOST"),
+                ("unitCode", "UNKNOWN_UNIT"),
+            ],
+        ),
+    ],
+)
+def test_a_correction_that_is_wrong_is_refused_with_the_reason_and_nothing_changes(
+    session, client, lab, changes, expected
+):
+    sample = accepted(session, client)
+    before = (stored(session, sample), len(audit_rows(session)))
+
+    response = correct(client, sample, **changes)
+
+    assert (response.status_code, response.json()["error"]["code"]) == (422, "VALIDATION_ERROR")
+    assert codes(response) == expected
+    assert (stored(session, sample), len(audit_rows(session))) == before
+
+
+def test_a_correction_must_carry_all_four_fields(session, client, lab):
+    sample = accepted(session, client)
+
+    response = client.patch(
+        f"/api/submissions/{sample.internal_id}", json={"displayName": "chỉ có tên"}, headers=BROWSER
+    )
+
+    assert (response.status_code, response.json()["error"]["code"]) == (422, "VALIDATION_ERROR")
+    assert stored(session, sample)[0] == "Hà_Nội/01/2024"
+
+
+@pytest.mark.parametrize(
+    ("state", "code"),
+    [
+        ("waiting for its check", "SAMPLE_BEING_CHECKED"),
+        ("accepted, still being placed", "SAMPLE_BEING_CHECKED"),
+        ("check broke down", "SAMPLE_NOT_EDITABLE"),
+        ("rejected", "SAMPLE_NOT_EDITABLE"),
+        ("hidden", "SAMPLE_NOT_EDITABLE"),
+    ],
+)
+def test_a_sample_that_is_not_settled_as_accepted_cannot_be_corrected(session, client, lab, state, code):
+    sample = submitted(session, client)
+    job = session.get(Job, session.scalar(select(Submission.job_id).where(Submission.sample_id == sample.id)))
+    if state == "accepted, still being placed":
+        aligned(session, sample)
+        job.status = "running"
+    elif state == "check broke down":
+        job.status = "failed"
+    elif state == "rejected":
+        job.status, sample.status = "succeeded", "rejected"
+    elif state == "hidden":
+        aligned(session, sample)
+        sample.status = "hidden"
+    session.flush()
+    before = stored(session, sample)
+
+    response = correct(client, sample, displayName="tên khác")
+
+    assert (response.status_code, response.json()["error"]["code"]) == (409, code)
+    assert stored(session, sample) == before
+
+
+@pytest.mark.parametrize("internal_id", ["S9999999", "nothing", "S0000001%00"])
+def test_correcting_a_submission_that_does_not_exist_is_not_found(client, lab, internal_id):
+    body = {key: value for key, value in payload().items() if key != "fasta"}
+
+    response = client.patch(f"/api/submissions/{internal_id}", json=body, headers=BROWSER)
+
+    assert (response.status_code, response.json()["error"]["code"]) == (404, "SUBMISSION_NOT_FOUND")
+
+
+def test_a_genbank_record_cannot_be_corrected_as_if_it_were_a_submission(session, client, lab):
+    record = dated_sample(session, accession="OQ000001", display_name="bản ghi GenBank")
+
+    response = correct(client, record, displayName="của tôi")
+
+    assert response.status_code == 404
+    session.expire_all()
+    assert record.display_name == "bản ghi GenBank"
+
+
+def test_a_provisional_tip_shows_the_corrected_values_at_once(session, client, lab, data_dir):
+    other = dated_sample(session)
+    dataset = make_dataset(session)
+    build = published(session, dataset, data_dir, [other])
+    sample = accepted(session, client)
+    place(session, sample, build)
+
+    correct(client, sample, displayName="Tên đã sửa", collectionDate="2023-05", unitCode="vn63:da-nang")
+
+    (tip,) = client.get(f"/api/datasets/{dataset.slug}/placements").json()["items"]
+    assert (tip["displayName"], tip["collectionDate"], tip["dateMin"], tip["dateMax"], tip["unitCode"]) == (
+        "Tên đã sửa",
+        "2023-05-XX",
+        "2023-05-01",
+        "2023-05-31",
+        "vn63:da-nang",
+    )
+    # Tip tạm đọc thẳng từ database: không có bản publish nào phải viết lại.
+    assert session.scalar(select(func.count()).select_from(Job).where(Job.kind == "publish_build")) == 0
+
+
+def test_correcting_an_official_tip_republishes_its_tree_without_rebuilding_it(
+    session, client, lab, data_dir, tmp_path
+):
+    sample = accepted(session, client)
+    other = dated_sample(session)
+    dataset = make_dataset(session)
+    build = published(session, dataset, data_dir, [sample, other])
+    elsewhere = published(session, make_dataset(session, "dengue-denv1-north"), data_dir, [other])
+    before = build.path
+
+    response = correct(client, sample, displayName="Tên đã sửa", unitCode="vn63:da-nang")
+
+    assert response.status_code == 200
+    waiting = session.scalars(select(Job).where(Job.status == "queued").order_by(Job.id)).all()
+    assert [(job.kind, job.params, job.priority) for job in waiting] == [
+        ("publish_build", {"build_id": build.id}, queue.INTERACTIVE)
+    ]
+    assert elsewhere.path is not None  # cây không có mẫu này thì không bị đụng tới
+
+    republish_build(JobContext(session=session, job=queue.claim(session, "w1"), work_dir=tmp_path))
+
+    session.expire_all()
+    old, new = data_dir / "builds" / before, data_dir / "builds" / build.path
+    assert build.path != before and build.is_current
+    assert (new / "tree.json").read_bytes() == (old / "tree.json").read_bytes()
+    assert "Tên đã sửa" in json.loads((new / "tips.json").read_text(encoding="utf-8"))["displayName"]
+    assert "Tên đã sửa" not in json.loads((old / "tips.json").read_text(encoding="utf-8"))["displayName"]
+    assert "vn63:da-nang" in json.loads((new / "col.unit.json").read_text(encoding="utf-8"))["values"]
+
+
+def test_correcting_the_date_changes_what_the_next_tree_is_built_from_but_correcting_the_name_does_not(
+    session, client, lab
+):
+    sample = accepted(session, client)
+    dataset = make_dataset(session)
+
+    def tree_inputs() -> str:
+        session.expire_all()
+        choices = select_samples(session, dataset)
+        assert sample.id in {choice.sample_id for choice in choices}
+        return inputs_hash(session, choices)
+
+    before = tree_inputs()
+
+    correct(client, sample, displayName="Tên đã sửa", host=None)
+    assert tree_inputs() == before
+
+    correct(client, sample, displayName="Tên đã sửa", host=None, collectionDate="2024-01-16")
+    assert tree_inputs() != before

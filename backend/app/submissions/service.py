@@ -7,15 +7,16 @@ import datetime as dt
 import hashlib
 import re
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import suppress
-from typing import Any
+from typing import Any, Protocol, TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.accounts.service import record
 from app.jobs import queue
+from app.jobs.schedule import queue_republish
 from app.models import (
     AdminUnit,
     AppUser,
@@ -31,6 +32,7 @@ from app.models import (
     SampleStatus,
     Submission,
     UnitLevel,
+    UserRole,
 )
 from app.pathogens import DENGUE
 from app.submissions.validate import (
@@ -38,6 +40,7 @@ from app.submissions.validate import (
     InvalidSubmission,
     Problem,
     SequenceLimits,
+    check_metadata,
     check_submission,
     clean_collection_date,
 )
@@ -64,6 +67,25 @@ class TooManyPending(RuntimeError):
 
 class TooManyToday(RuntimeError):
     """Người nộp đã nộp hết số mẫu được phép trong 24 giờ."""
+
+
+class NotTheSubmitter(PermissionError):
+    """Người gọi thấy được mẫu này nhưng không phải người đã nộp nó."""
+
+
+class BeingChecked(RuntimeError):
+    """Việc kiểm tra của mẫu còn đang chờ hoặc đang chạy."""
+
+
+class NotEditable(RuntimeError):
+    """Mẫu chưa được nhận, đã bị từ chối hoặc đã bị ẩn."""
+
+
+class _Dated(Protocol):
+    date: CollectionDate
+
+
+_Checked = TypeVar("_Checked", bound=_Dated)
 
 
 def today_in_vietnam() -> dt.date:
@@ -94,6 +116,30 @@ def _unit_of(session: Session, code: str, date: CollectionDate | None) -> AdminU
                 [Problem("unitCode", "UNIT_NOT_VALID_ON_DATE", "This province did not exist on the collection date")]
             )
     return unit
+
+
+def _checked_with_unit(
+    session: Session, check: Callable[[], _Checked], *, collection_date: str, unit_code: str, today: dt.date
+) -> tuple[_Checked, AdminUnit]:
+    """Chạy phép kiểm tra các trường rồi xét tỉnh; ném `InvalidSubmission` kèm mọi lỗi của cả hai."""
+    problems: list[Problem] = []
+    cleaned = unit = None
+    try:
+        cleaned = check()
+    except InvalidSubmission as error:
+        problems.extend(error.problems)
+    # Tỉnh được xét cả khi trường khác sai, để form báo mọi lỗi trong một lượt.
+    date = cleaned.date if cleaned else None
+    if date is None:
+        with suppress(InvalidSubmission):
+            date = clean_collection_date(collection_date, today=today)
+    try:
+        unit = _unit_of(session, unit_code, date)
+    except InvalidSubmission as error:
+        problems.extend(error.problems)
+    if problems or cleaned is None or unit is None:
+        raise InvalidSubmission(problems)
+    return cleaned, unit
 
 
 def submit(
@@ -133,30 +179,20 @@ def submit(
     if (recent or 0) >= MAX_PER_DAY:
         raise TooManyToday(f"{recent} submissions in the last 24 hours")
 
-    problems: list[Problem] = []
-    cleaned = unit = None
-    try:
-        cleaned = check_submission(
+    cleaned, unit = _checked_with_unit(
+        session,
+        lambda: check_submission(
             display_name=display_name,
             collection_date=collection_date,
             host=host,
             fasta=fasta,
             limits=sequence_limits(),
             today=today,
-        )
-    except InvalidSubmission as error:
-        problems.extend(error.problems)
-    # Tỉnh được xét cả khi trường khác sai, để form báo mọi lỗi trong một lượt.
-    date = cleaned.date if cleaned else None
-    if date is None:
-        with suppress(InvalidSubmission):
-            date = clean_collection_date(collection_date, today=today)
-    try:
-        unit = _unit_of(session, unit_code, date)
-    except InvalidSubmission as error:
-        problems.extend(error.problems)
-    if problems or cleaned is None or unit is None:
-        raise InvalidSubmission(problems)
+        ),
+        collection_date=collection_date,
+        unit_code=unit_code,
+        today=today,
+    )
 
     sample = Sample(
         display_name=cleaned.display_name,
@@ -190,6 +226,75 @@ def submit(
     record(session, user.id, "sample_submitted", f"sample:{sample.internal_id}")
     session.flush()
     return sample
+
+
+def edit(
+    session: Session,
+    user: AppUser,
+    internal_id: str,
+    *,
+    display_name: str,
+    collection_date: str,
+    unit_code: str,
+    host: str | None,
+    today: dt.date,
+) -> int:
+    """Sửa tên, ngày, tỉnh và vật chủ của một mẫu đã được nhận; trả về id của mẫu. Chỉ flush.
+
+    Chỉ người đã nộp mẫu sửa được. Chuỗi không sửa được: chuỗi khác là mẫu khác. Mẫu đang là tip chính thức của
+    một cây thì cây đó được publish lại (các cột viết lại từ database, cây không bị dựng lại).
+    Ném `LookupError`, `NotTheSubmitter`, `BeingChecked`, `NotEditable` hoặc `InvalidSubmission`; khi đó chưa có
+    gì được ghi.
+    """
+    found = session.execute(
+        select(Sample, Submission.submitter_id, Job.status)
+        .join(Submission, Submission.sample_id == Sample.id)
+        .outerjoin(Job, Job.id == Submission.job_id)
+        .where(Sample.internal_id == internal_id)
+    ).one_or_none()
+    if found is None:
+        raise LookupError(f"No submission with id {internal_id}")
+    sample, submitter_id, job_status = found
+    if submitter_id != user.id:
+        # Admin xem được mẫu này nên được nói rõ lý do; người nộp khác thì không được biết là có nó.
+        if user.role == UserRole.ADMIN.value:
+            raise NotTheSubmitter("Only the account that submitted a sample can change it")
+        raise LookupError(f"No submission with id {internal_id}")
+    if job_status in _WAITING:
+        raise BeingChecked(f"Sample {internal_id} is still being checked")
+    if sample.status != SampleStatus.ACCEPTED.value:
+        raise NotEditable(f"Sample {internal_id} is {sample.status}")
+
+    cleaned, unit = _checked_with_unit(
+        session,
+        lambda: check_metadata(display_name=display_name, collection_date=collection_date, host=host, today=today),
+        collection_date=collection_date,
+        unit_code=unit_code,
+        today=today,
+    )
+
+    changed = []
+    if cleaned.display_name != sample.display_name:
+        changed.append("displayName")
+        sample.display_name = cleaned.display_name
+    # So theo dạng đã lưu của ngày: khoảng ngày của một năm chưa hết còn tuỳ hôm nay, nên so khoảng thì gửi
+    # lại đúng năm đó vào hôm sau cũng thành một lần sửa.
+    if cleaned.date.raw != sample.collection_date_raw:
+        changed.append("collectionDate")
+        sample.collection_date_raw = cleaned.date.raw
+        sample.date_min, sample.date_max = cleaned.date.first, cleaned.date.last
+    if unit.code != sample.admin_unit_code:
+        changed.append("unitCode")
+        sample.division_raw, sample.admin_unit_code, sample.region_code = unit.name_vi, unit.code, unit.parent_code
+    if cleaned.host != sample.host:
+        changed.append("host")
+        sample.host = cleaned.host
+    if changed:
+        session.flush()
+        queue_republish(session, [sample.id])
+        record(session, user.id, "sample_edited", f"sample:{sample.internal_id}", fields=sorted(changed))
+        session.flush()
+    return sample.id
 
 
 def _stage(status: str, job_status: str | None, in_tree: bool, placed: bool) -> str:

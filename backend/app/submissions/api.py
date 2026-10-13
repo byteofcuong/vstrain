@@ -43,6 +43,15 @@ class SubmissionIn(ApiModel):
     fasta: str = Field(max_length=MAX_FASTA_CHARS + 1024 * 1024)
 
 
+class CorrectionIn(ApiModel):
+    """Một lần sửa: đủ bốn trường người nộp khai. `host` phải có mặt, và là `null` khi không rõ vật chủ."""
+
+    display_name: str = Field(max_length=4000)
+    collection_date: str = Field(max_length=100)
+    unit_code: str = Field(max_length=100)
+    host: str | None = Field(max_length=4000)
+
+
 class DatasetRef(ApiModel):
     dataset: str
     title: str
@@ -123,6 +132,11 @@ def _not_found(internal_id: str) -> ApiError:
     return ApiError(404, "SUBMISSION_NOT_FOUND", f"No submission with id {internal_id[:40]}")
 
 
+def _invalid(error: InvalidSubmission) -> ApiError:
+    details = [{"field": problem.field, "code": problem.code, "message": problem.message} for problem in error.problems]
+    return ApiError(422, "VALIDATION_ERROR", INVALID_PARAMETERS, details)
+
+
 @router.post("", status_code=201)
 def submit(body: SubmissionIn, user: CurrentUser, session: SessionDep) -> SubmissionOut:
     """Nộp một genome. Mẫu được lưu ngay ở trạng thái `received`; việc kiểm tra và đặt lên cây chạy nền."""
@@ -138,10 +152,7 @@ def submit(body: SubmissionIn, user: CurrentUser, session: SessionDep) -> Submis
             today=service.today_in_vietnam(),
         )
     except InvalidSubmission as error:
-        details = [
-            {"field": problem.field, "code": problem.code, "message": problem.message} for problem in error.problems
-        ]
-        raise ApiError(422, "VALIDATION_ERROR", INVALID_PARAMETERS, details) from None
+        raise _invalid(error) from None
     except service.TooManyPending:
         raise ApiError(
             429, "TOO_MANY_PENDING", "Too many of your submissions are still being checked; try again shortly"
@@ -185,6 +196,36 @@ def get_submission(internal_id: str, user: CurrentUser, session: SessionDep) -> 
     if found is None:
         raise _not_found(internal_id)
     return SubmissionOut.model_validate(found)
+
+
+@router.patch("/{internal_id}")
+def correct_submission(internal_id: str, body: CorrectionIn, user: CurrentUser, session: SessionDep) -> SubmissionOut:
+    """Sửa tên, ngày, tỉnh và vật chủ của một mẫu mình đã nộp. Chuỗi không sửa được."""
+    try:
+        if not _INTERNAL_ID.fullmatch(internal_id):
+            raise LookupError(internal_id)
+        sample_id = service.edit(
+            session,
+            user,
+            internal_id,
+            display_name=body.display_name,
+            collection_date=body.collection_date,
+            unit_code=body.unit_code,
+            host=body.host,
+            today=service.today_in_vietnam(),
+        )
+    except LookupError:
+        raise _not_found(internal_id) from None
+    except service.NotTheSubmitter:
+        raise ApiError(403, "FORBIDDEN", "Only the account that submitted a sample can change it") from None
+    except service.BeingChecked:
+        raise ApiError(409, "SAMPLE_BEING_CHECKED", "This sample is still being checked; try again shortly") from None
+    except service.NotEditable:
+        raise ApiError(409, "SAMPLE_NOT_EDITABLE", "Only a sample that has been accepted can be changed") from None
+    except InvalidSubmission as error:
+        raise _invalid(error) from None
+    session.commit()
+    return SubmissionOut.model_validate(service.describe(session, [sample_id])[0])
 
 
 @placements_router.get("/{slug}/placements")

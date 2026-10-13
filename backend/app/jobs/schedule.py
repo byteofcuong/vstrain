@@ -13,11 +13,12 @@ from sqlalchemy.orm import Session
 
 from app.build.selection import inputs_hash, select_samples
 from app.jobs import queue
-from app.models import Build, DatasetDef, Job, JobStatus
+from app.models import Build, BuildSample, DatasetDef, Job, JobStatus
 
 log = logging.getLogger(__name__)
 
 BUILD_JOB = "build_dataset"
+PUBLISH_JOB = "publish_build"
 _WAITING = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
 
 
@@ -79,3 +80,33 @@ def request_build(session: Session, slug: str, *, priority: int = 0) -> Job:
     if _has_waiting_build(session, slug):
         raise BuildAlreadyWaiting(f"A build of {slug} is already waiting or running")
     return queue.enqueue(session, BUILD_JOB, {"dataset": slug}, priority=priority)
+
+
+def queue_republish(session: Session, sample_ids: list[int]) -> list[str]:
+    """Xếp việc publish lại build hiện hành của mọi dataset có mẫu trong `sample_ids`; trả về slug các dataset đó.
+
+    Publish lại chỉ viết lại các cột thuộc tính từ database; cây đã dựng được dùng lại.
+    """
+    if not sample_ids:
+        return []
+    holds_changed = (
+        select(BuildSample.build_id).where(BuildSample.sample_id.in_(sample_ids)).distinct().scalar_subquery()
+    )
+    builds = session.execute(
+        select(Build.id, DatasetDef.slug)
+        .join(DatasetDef, DatasetDef.id == Build.dataset_id)
+        .where(Build.is_current, Build.path.is_not(None), Build.id.in_(holds_changed))
+        .order_by(DatasetDef.slug)
+    ).all()
+    for build_id, _ in builds:
+        # Job còn chờ thì chưa đọc gì, nên nó sẽ thấy thay đổi này. Job đang chạy có thể đã đọc rồi: xếp thêm.
+        waiting = session.scalar(
+            select(Job.id).where(
+                Job.kind == PUBLISH_JOB,
+                Job.status == JobStatus.QUEUED.value,
+                Job.params["build_id"].as_integer() == build_id,
+            )
+        )
+        if waiting is None:
+            queue.enqueue(session, PUBLISH_JOB, {"build_id": build_id}, priority=queue.INTERACTIVE)
+    return [slug for _, slug in builds]

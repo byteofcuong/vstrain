@@ -59,6 +59,15 @@ class CollectionDate:
 
 
 @dataclass(frozen=True)
+class CleanMetadata:
+    """Tên, ngày và vật chủ của một mẫu đã qua kiểm tra: thứ người nộp khai, và sửa được về sau."""
+
+    display_name: str
+    date: CollectionDate
+    host: str | None
+
+
+@dataclass(frozen=True)
 class CleanSubmission:
     display_name: str
     date: CollectionDate
@@ -176,10 +185,8 @@ def clean_collection_date(raw: str, *, today: dt.date) -> CollectionDate:
     return CollectionDate(stored, first, min(last, today))
 
 
-def check_submission(
-    *, display_name: str, collection_date: str, host: str | None, fasta: str, limits: SequenceLimits, today: dt.date
-) -> CleanSubmission:
-    """Kiểm tra mọi trường và gom tất cả lỗi lại, để form báo một lượt thay vì từng lỗi một."""
+def check_metadata(*, display_name: str, collection_date: str, host: str | None, today: dt.date) -> CleanMetadata:
+    """Kiểm tra tên, ngày và vật chủ, gom mọi lỗi lại. Dùng lúc nộp và lúc sửa, nên hai lúc cùng một quy tắc."""
     problems: list[Problem] = []
 
     def checked(check: Callable[[], T]) -> T | None:
@@ -192,7 +199,27 @@ def check_submission(
     name = checked(lambda: clean_name(display_name))
     date = checked(lambda: clean_collection_date(collection_date, today=today))
     cleaned_host = checked(lambda: clean_host(host))
-    sequence = checked(lambda: read_single_fasta(fasta, limits))
-    if problems or name is None or date is None or sequence is None:
+    if problems or name is None or date is None:
         raise InvalidSubmission(problems)
-    return CleanSubmission(display_name=name, date=date, host=cleaned_host, sequence=sequence)
+    return CleanMetadata(display_name=name, date=date, host=cleaned_host)
+
+
+def check_submission(
+    *, display_name: str, collection_date: str, host: str | None, fasta: str, limits: SequenceLimits, today: dt.date
+) -> CleanSubmission:
+    """Kiểm tra mọi trường và gom tất cả lỗi lại, để form báo một lượt thay vì từng lỗi một."""
+    problems: list[Problem] = []
+    metadata = sequence = None
+    try:
+        metadata = check_metadata(display_name=display_name, collection_date=collection_date, host=host, today=today)
+    except InvalidSubmission as error:
+        problems.extend(error.problems)
+    try:
+        sequence = read_single_fasta(fasta, limits)
+    except InvalidSubmission as error:
+        problems.extend(error.problems)
+    if problems or metadata is None or sequence is None:
+        raise InvalidSubmission(problems)
+    return CleanSubmission(
+        display_name=metadata.display_name, date=metadata.date, host=metadata.host, sequence=sequence
+    )
