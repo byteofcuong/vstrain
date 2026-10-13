@@ -203,17 +203,35 @@ div.notice {
   color: #cfe6e8;
 }
 
-.masthead__lang {
+.masthead__end {
   display: flex;
-  gap: 0.25rem;
+  align-items: baseline;
+  gap: 1.25rem;
   margin-left: auto;
 }
 
-.masthead__lang button {
+.masthead__account {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  color: #cfe6e8;
+}
+
+.masthead__lang {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.masthead__lang button,
+.masthead__account button {
   padding: 0.15rem 0.55rem;
   border-color: transparent;
   background: none;
   color: #a9b7bd;
+}
+
+.masthead__account button {
+  border-color: #5d6f78;
 }
 
 .masthead__lang button[aria-pressed="true"] {
@@ -295,6 +313,39 @@ div.notice {
   border-color: var(--accent);
   background: var(--accent);
   color: #fff;
+}
+
+/* Trang đăng nhập */
+
+.login {
+  width: min(24rem, 100% - 2rem);
+  margin: 3rem auto;
+}
+
+.login h1 {
+  font-size: var(--step-3);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.login > p {
+  margin-top: 0.4rem;
+  color: var(--ink-soft);
+}
+
+.login form {
+  display: grid;
+  gap: 0.35rem;
+  margin: 1.5rem 0 1rem;
+}
+
+.login input {
+  margin-bottom: 0.75rem;
+}
+
+.login button {
+  justify-self: start;
+  margin-top: 0.4rem;
 }
 
 /* Trang một dataset */

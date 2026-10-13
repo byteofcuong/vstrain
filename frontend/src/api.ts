@@ -35,6 +35,13 @@ export interface SampleDetail {
   meta: Record<string, unknown>;
 }
 
+/** Tài khoản đang đăng nhập, như `GET /api/auth/me` trả về. */
+export interface User {
+  email: string;
+  displayName: string;
+  role: "submitter" | "admin";
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -45,14 +52,32 @@ export class ApiError extends Error {
   }
 }
 
+/** Biến một câu trả lời lỗi thành `ApiError`. */
+async function failure(response: Response): Promise<ApiError> {
+  // Lỗi của API có dạng {"error": {"code", "message"}}; thứ khác (proxy, mất mạng) thì không.
+  const body = (await response.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+  return new ApiError(response.status, body?.error?.code ?? "HTTP_ERROR", body?.error?.message ?? response.statusText);
+}
+
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { headers: { Accept: "application/json" }, signal });
-  if (!response.ok) {
-    // Lỗi của API có dạng {"error": {"code", "message"}}; thứ khác (proxy, mất mạng) thì không.
-    const body = (await response.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
-    throw new ApiError(response.status, body?.error?.code ?? "HTTP_ERROR", body?.error?.message ?? response.statusText);
-  }
+  if (!response.ok) throw await failure(response);
   return (await response.json()) as T;
+}
+
+/**
+ * Một request ghi. Mọi request ghi đi qua đây để mang header `X-Requested-With`: backend từ chối request ghi
+ * thiếu nó, vì một trang khác không gắn được header tự đặt khi mượn cookie của người dùng.
+ */
+async function send<T>(method: "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method,
+    headers: { Accept: "application/json", "Content-Type": "application/json", "X-Requested-With": "vietstrain" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) throw await failure(response);
+  // 204: không có nội dung để đọc.
+  return (response.status === 204 ? undefined : await response.json()) as T;
 }
 
 export async function listDatasets(signal?: AbortSignal): Promise<DatasetInfo[]> {
@@ -66,4 +91,22 @@ export function getDataset(slug: string, signal?: AbortSignal): Promise<DatasetI
 
 export function getSample(internalId: string, signal?: AbortSignal): Promise<SampleDetail> {
   return get<SampleDetail>(`/api/samples/${encodeURIComponent(internalId)}`, signal);
+}
+
+/** Tài khoản đang đăng nhập, hoặc `null` với khách. Lỗi khác của server vẫn là lỗi, không coi là khách. */
+export async function getMe(signal?: AbortSignal): Promise<User | null> {
+  try {
+    return (await get<{ user: User }>("/api/auth/me", signal)).user;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null;
+    throw error;
+  }
+}
+
+export async function logIn(email: string, password: string): Promise<User> {
+  return (await send<{ user: User }>("POST", "/api/auth/login", { email, password })).user;
+}
+
+export function logOut(): Promise<void> {
+  return send<void>("POST", "/api/auth/logout");
 }

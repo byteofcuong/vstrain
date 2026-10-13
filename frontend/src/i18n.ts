@@ -161,6 +161,28 @@ const MESSAGES = {
     vi: "Đường biên: OCHA, nguồn Tổng cục Thống kê (CC BY-IGO) cho 34 đơn vị; geoBoundaries cho 63 tỉnh, vùng và miền.",
     en: "Boundaries: OCHA, source General Statistics Office of Vietnam (CC BY-IGO) for the 34 units; geoBoundaries for the 63 provinces, regions and macro-regions.",
   },
+  logIn: { vi: "Đăng nhập", en: "Log in" },
+  logOut: { vi: "Đăng xuất", en: "Log out" },
+  loggingIn: { vi: "Đang đăng nhập…", en: "Logging in…" },
+  loginIntro: {
+    vi: "Đăng nhập để nộp mẫu. Xem dữ liệu thì không cần tài khoản.",
+    en: "Log in to submit samples. Viewing the data needs no account.",
+  },
+  email: { vi: "Email", en: "Email" },
+  password: { vi: "Mật khẩu", en: "Password" },
+  loginWrong: {
+    vi: "Email hoặc mật khẩu không đúng, hoặc tài khoản đang tạm khoá vì nhập sai nhiều lần. Nếu bạn chắc mật khẩu đúng, thử lại sau 15 phút.",
+    en: "Wrong email or password, or the account is locked for a while after too many wrong attempts. If you are sure of the password, try again in 15 minutes.",
+  },
+  loginBusy: {
+    vi: "Máy chủ đang kiểm tra nhiều lần đăng nhập cùng lúc. Thử lại sau giây lát.",
+    en: "The server is checking many logins at once. Try again in a moment.",
+  },
+  loginError: {
+    vi: "Không đăng nhập được vì lỗi của máy chủ hoặc đường truyền. Thử lại.",
+    en: "Could not log in because of a server or network problem. Try again.",
+  },
+  accountNote: { vi: "Tài khoản do quản trị viên cấp.", en: "Accounts are issued by an administrator." },
   areaFilter: { vi: "Địa bàn", en: "Area" },
   removeAreaFilter: { vi: "Bỏ lọc theo địa bàn", en: "Remove the area filter" },
 } as const;
