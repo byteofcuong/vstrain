@@ -67,7 +67,7 @@ Log của worker: docker compose -f deploy/docker-compose.yml logs -f worker ing
 Tạo tài khoản:  docker compose -f deploy/docker-compose.yml exec api python -m app.cli create-user --email ten@donvi.vn --name "Tên hiển thị" --role submitter
 ```
 
-Có hai worker: `worker` nhận mọi loại job; `ingest` chỉ nhận việc kiểm tra mẫu vừa nộp (`python -m app.jobs.worker --only ingest_sample`), để một mẫu nộp trong lúc `worker` đang dựng cây không phải chờ.
+Có hai worker: `worker` nhận mọi loại job; `ingest` chỉ nhận việc kiểm tra mẫu vừa nộp (`python -m app.jobs.worker --only ingest_sample`), để một mẫu nộp trong lúc `worker` đang dựng cây không phải chờ. `worker` còn tự xét lịch build của các dataset mỗi phút (ADR-010) và, lúc rảnh, dọn thư mục làm việc cũ, phiên đăng nhập hết hạn và nhật ký quá hạn (`VS_AUDIT_RETENTION_DAYS`, mặc định 365).
 
 Bộ test đầy đủ chạy được ở cả hai image. Trong image `api` (Python 3.12) các test đánh dấu `tools` tự bỏ qua; trong image `worker` (Python 3.11, có Augur, Nextclade, IQ-TREE) chúng chạy thật.
 
