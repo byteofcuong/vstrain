@@ -1,0 +1,60 @@
+{
+  "status": "succeeded",
+  "error": null,
+  "result": {
+    "tips": 1980,
+    "samples": 1999,
+    "accessions_in_p1": 2000
+  },
+  "seconds": 755.425016,
+  "steps": [
+    {
+      "name": "prepare",
+      "status": "succeeded",
+      "samples": 1999,
+      "wall_seconds": 0.122
+    },
+    {
+      "name": "tree",
+      "status": "succeeded",
+      "max_rss_mb": 979.2,
+      "cpu_seconds": 272.378,
+      "wall_seconds": 71.904
+    },
+    {
+      "name": "refine",
+      "status": "succeeded",
+      "max_rss_mb": 718.3,
+      "cpu_seconds": 649.329,
+      "wall_seconds": 648.594
+    },
+    {
+      "name": "ancestral",
+      "status": "succeeded",
+      "max_rss_mb": 707.1,
+      "cpu_seconds": 27.897,
+      "wall_seconds": 26.657
+    },
+    {
+      "name": "translate",
+      "status": "succeeded",
+      "max_rss_mb": 280.9,
+      "cpu_seconds": 4.939,
+      "wall_seconds": 3.69
+    },
+    {
+      "name": "clades",
+      "status": "succeeded",
+      "max_rss_mb": 395.8,
+      "cpu_seconds": 2.886,
+      "wall_seconds": 1.622
+    },
+    {
+      "name": "export",
+      "status": "succeeded",
+      "max_rss_mb": 282.1,
+      "cpu_seconds": 4.398,
+      "wall_seconds": 3.121
+    }
+  ]
+}

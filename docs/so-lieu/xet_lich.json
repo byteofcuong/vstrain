@@ -1,0 +1,45 @@
+{
+  "rounds": 7,
+  "datasets": [
+    {
+      "dataset": "dengue-denv1",
+      "chosenSamples": 2000,
+      "selectMedianMs": 46.0,
+      "hashMedianMs": 17.8,
+      "totalMedianMs": 63.7,
+      "totalMaxMs": 121.4,
+      "currentBuildHasHash": false,
+      "sameAsCurrentBuild": false
+    },
+    {
+      "dataset": "dengue-denv2",
+      "chosenSamples": 2000,
+      "selectMedianMs": 43.3,
+      "hashMedianMs": 17.6,
+      "totalMedianMs": 60.5,
+      "totalMaxMs": 106.4,
+      "currentBuildHasHash": false,
+      "sameAsCurrentBuild": false
+    },
+    {
+      "dataset": "dengue-denv3",
+      "chosenSamples": 2000,
+      "selectMedianMs": 12.6,
+      "hashMedianMs": 17.6,
+      "totalMedianMs": 31.0,
+      "totalMaxMs": 32.6,
+      "currentBuildHasHash": false,
+      "sameAsCurrentBuild": false
+    },
+    {
+      "dataset": "dengue-denv4",
+      "chosenSamples": 1406,
+      "selectMedianMs": 6.7,
+      "hashMedianMs": 12.5,
+      "totalMedianMs": 19.4,
+      "totalMaxMs": 41.6,
+      "currentBuildHasHash": false,
+      "sameAsCurrentBuild": false
+    }
+  ]
+}

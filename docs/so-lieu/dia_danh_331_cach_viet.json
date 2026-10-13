@@ -1,0 +1,131 @@
+{
+  "so_cach_viet": 331,
+  "so_don_vi": 106,
+  "so_ten_thay_the": {
+    "name": 81,
+    "variant": 39,
+    "city": 35
+  },
+  "chi_ten_chinh": {
+    "theo_kieu": {
+      "TAT_CA": {
+        "n": 331,
+        "dung": 320
+      },
+      "co_dau": {
+        "n": 63,
+        "dung": 63
+      },
+      "khong_dau": {
+        "n": 63,
+        "dung": 63
+      },
+      "viet_lien": {
+        "n": 63,
+        "dung": 63
+      },
+      "chu_thuong": {
+        "n": 63,
+        "dung": 63
+      },
+      "hau_to_province": {
+        "n": 63,
+        "dung": 63
+      },
+      "cach_viet_khac": {
+        "n": 16,
+        "dung": 5
+      }
+    },
+    "khong_ra_dung_tinh": [
+      {
+        "province": "Bà Rịa - Vũng Tàu",
+        "kind": "cach_viet_khac",
+        "spelling": "Vung Tau"
+      },
+      {
+        "province": "Bà Rịa - Vũng Tàu",
+        "kind": "cach_viet_khac",
+        "spelling": "BRVT"
+      },
+      {
+        "province": "Bắc Kạn",
+        "kind": "cach_viet_khac",
+        "spelling": "Bac Can"
+      },
+      {
+        "province": "Đắk Lắk",
+        "kind": "cach_viet_khac",
+        "spelling": "Dac Lac"
+      },
+      {
+        "province": "Đắk Nông",
+        "kind": "cach_viet_khac",
+        "spelling": "Dac Nong"
+      },
+      {
+        "province": "Huế",
+        "kind": "cach_viet_khac",
+        "spelling": "Thừa Thiên Huế"
+      },
+      {
+        "province": "Huế",
+        "kind": "cach_viet_khac",
+        "spelling": "Thua Thien Hue"
+      },
+      {
+        "province": "Huế",
+        "kind": "cach_viet_khac",
+        "spelling": "Thua Thien - Hue"
+      },
+      {
+        "province": "Hồ Chí Minh",
+        "kind": "cach_viet_khac",
+        "spelling": "TP.HCM"
+      },
+      {
+        "province": "Hồ Chí Minh",
+        "kind": "cach_viet_khac",
+        "spelling": "Saigon"
+      },
+      {
+        "province": "Hồ Chí Minh",
+        "kind": "cach_viet_khac",
+        "spelling": "Sai Gon"
+      }
+    ]
+  },
+  "day_du": {
+    "theo_kieu": {
+      "TAT_CA": {
+        "n": 331,
+        "dung": 331
+      },
+      "co_dau": {
+        "n": 63,
+        "dung": 63
+      },
+      "khong_dau": {
+        "n": 63,
+        "dung": 63
+      },
+      "viet_lien": {
+        "n": 63,
+        "dung": 63
+      },
+      "chu_thuong": {
+        "n": 63,
+        "dung": 63
+      },
+      "hau_to_province": {
+        "n": 63,
+        "dung": 63
+      },
+      "cach_viet_khac": {
+        "n": 16,
+        "dung": 16
+      }
+    },
+    "khong_ra_dung_tinh": []
+  }
+}

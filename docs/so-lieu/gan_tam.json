@@ -1,0 +1,963 @@
+{
+  "measuredAt": "2026-10-13T11:13:58+00:00",
+  "source": "dengue-denv1",
+  "fullBuild": {
+    "id": 1,
+    "tips": 1964
+  },
+  "heldOut": 100,
+  "heldOutFromVietnam": 74,
+  "randomSeed": 1,
+  "reducedBuild": {
+    "tips": 1857,
+    "seconds": 676.0,
+    "droppedByClockFilter": 7
+  },
+  "placement": {
+    "placed": 100,
+    "notPlaced": [],
+    "secondsPerSampleMedian": 0.46,
+    "secondsPerSampleMax": 0.85,
+    "vsFullRebuild": {
+      "compared": 100,
+      "matched": 95,
+      "percent": 95.0
+    },
+    "vsFullRebuildVietnamOnly": {
+      "compared": 74,
+      "matched": 69,
+      "percent": 93.2
+    },
+    "vsFullRebuildContextOnly": {
+      "compared": 26,
+      "matched": 26,
+      "percent": 100.0
+    }
+  },
+  "ceiling": {
+    "treeSeeds": [
+      1,
+      2
+    ],
+    "secondFullBuild": {
+      "tips": 1957,
+      "seconds": 713.8
+    },
+    "fullVsFullAgain": {
+      "compared": 100,
+      "matched": 100,
+      "percent": 100.0
+    },
+    "placedVsFullAgain": {
+      "compared": 100,
+      "matched": 95,
+      "percent": 95.0
+    }
+  },
+  "samples": [
+    {
+      "sample": "S0008352",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.00451936977177457,
+      "distanceFull": 0.004183000000000006
+    },
+    {
+      "sample": "S0048016",
+      "country": "New Caledonia",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.006082890638099678,
+      "distanceFull": 0.006092
+    },
+    {
+      "sample": "S0053164",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0007641611551001334,
+      "distanceFull": 0.0007498999999999978
+    },
+    {
+      "sample": "S0052759",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 3,
+      "nearestInFull": 3,
+      "distancePlaced": 0.003449197112249662,
+      "distanceFull": 0.003466999999999998
+    },
+    {
+      "sample": "S0052592",
+      "country": "Brazil",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.00448759711224965,
+      "distanceFull": 0.004504599999999984
+    },
+    {
+      "sample": "S0005072",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 10,
+      "nearestInFull": 10,
+      "distancePlaced": 0.001025672659524926,
+      "distanceFull": 0.0010570000000000024
+    },
+    {
+      "sample": "S0014938",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0008318",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.00028193381462505995,
+      "distanceFull": 0.0002960000000000046
+    },
+    {
+      "sample": "S0029152",
+      "country": "New Caledonia",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.004871898556124826,
+      "distanceFull": 0.005149999999999988
+    },
+    {
+      "sample": "S0052359",
+      "country": "Venezuela",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.009955208616674427,
+      "distanceFull": 0.010050199999999995
+    },
+    {
+      "sample": "S0026680",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 2,
+      "distancePlaced": 0.00028370647414997785,
+      "distanceFull": 0.0002940000000000026
+    },
+    {
+      "sample": "S0026727",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 2,
+      "nearestInFull": 2,
+      "distancePlaced": 9.315323707498324e-05,
+      "distanceFull": 0.00010000000000000286
+    },
+    {
+      "sample": "S0050994",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 2,
+      "nearestInFull": 2,
+      "distancePlaced": 0.0,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0018718",
+      "country": "Cuba",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 2,
+      "distancePlaced": 0.006448823008849552,
+      "distanceFull": 0.006519999999999998
+    },
+    {
+      "sample": "S0052694",
+      "country": "Vietnam",
+      "matchesFull": false,
+      "nearestInPlaced": 2,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0007474129482999553,
+      "distanceFull": 0.00037390000000001034
+    },
+    {
+      "sample": "S0014815",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0015123597112249657,
+      "distanceFull": 0.0014230000000000076
+    },
+    {
+      "sample": "S0008269",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0005718597112249688,
+      "distanceFull": 0.0005939999999999834
+    },
+    {
+      "sample": "S0028454",
+      "country": "Philippines",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.008628925896599915,
+      "distanceFull": 0.008146999999999988
+    },
+    {
+      "sample": "S0003094",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.002802464741499769,
+      "distanceFull": 0.0028579999999999994
+    },
+    {
+      "sample": "S0053778",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0013257791336748967,
+      "distanceFull": 0.0012280000000000069
+    },
+    {
+      "sample": "S0053134",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 2,
+      "distancePlaced": 0.0007494000000000042,
+      "distanceFull": 0.0007595999999999992
+    },
+    {
+      "sample": "S0022602",
+      "country": "Thailand",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.010767927340475075,
+      "distanceFull": 0.010812299999999983
+    },
+    {
+      "sample": "S0026646",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 2,
+      "nearestInFull": 2,
+      "distancePlaced": 9.315323707498324e-05,
+      "distanceFull": 9.900000000000186e-05
+    },
+    {
+      "sample": "S0050497",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 6.467629250148099e-07,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0052448",
+      "country": "Venezuela",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0026184985561248306,
+      "distanceFull": 0.0026330000000000103
+    },
+    {
+      "sample": "S0052644",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0010315064741499777,
+      "distanceFull": 0.0010290000000000021
+    },
+    {
+      "sample": "S0000228",
+      "country": "Thailand",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.004783014392175128,
+      "distanceFull": 0.004647999999999999
+    },
+    {
+      "sample": "S0051455",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0010269194224499303,
+      "distanceFull": 0.0010272999999999949
+    },
+    {
+      "sample": "S0026672",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 4,
+      "nearestInFull": 4,
+      "distancePlaced": 0.0,
+      "distanceFull": 1.000000000001e-06
+    },
+    {
+      "sample": "S0014977",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.00037395971122496097,
+      "distanceFull": 0.00037700000000000233
+    },
+    {
+      "sample": "S0051805",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0020520582673497836,
+      "distanceFull": 0.0020610000000000073
+    },
+    {
+      "sample": "S0052758",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 3,
+      "nearestInFull": 3,
+      "distancePlaced": 0.002703030926874711,
+      "distanceFull": 0.002718999999999999
+    },
+    {
+      "sample": "S0014875",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0007559129482999569,
+      "distanceFull": 0.0007820000000000049
+    },
+    {
+      "sample": "S0050185",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.001990107918025147,
+      "distanceFull": 0.0019689999999999985
+    },
+    {
+      "sample": "S0053968",
+      "country": "Cambodia",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0038256244527247324,
+      "distanceFull": 0.0037406999999999996
+    },
+    {
+      "sample": "S0008286",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0016810050302748097,
+      "distanceFull": 0.001801000000000011
+    },
+    {
+      "sample": "S0053795",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.00046781294829995046,
+      "distanceFull": 0.0005709999999999882
+    },
+    {
+      "sample": "S0017343",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 2.5467629250069956e-06,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0003098",
+      "country": "Vietnam",
+      "matchesFull": false,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0018636582673497992,
+      "distanceFull": 0.0017540000000000056
+    },
+    {
+      "sample": "S0002252",
+      "country": "Somalia",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.004109130926874718,
+      "distanceFull": 0.0040979999999999905
+    },
+    {
+      "sample": "S0002794",
+      "country": "Côte d'Ivoire",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.004390810060549574,
+      "distanceFull": 0.004601999999999995
+    },
+    {
+      "sample": "S0050967",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.00037539999999999796,
+      "distanceFull": 0.00037500000000000033
+    },
+    {
+      "sample": "S0044021",
+      "country": "Jamaica",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.009351628039124357,
+      "distanceFull": 0.009487999999999996
+    },
+    {
+      "sample": "S0001341",
+      "country": "China",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0072963798323241735,
+      "distanceFull": 0.007294000000000009
+    },
+    {
+      "sample": "S0053873",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 2,
+      "nearestInFull": 2,
+      "distancePlaced": 0.0010268597112249658,
+      "distanceFull": 0.0010329000000000033
+    },
+    {
+      "sample": "S0053753",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.000580653237074992,
+      "distanceFull": 0.0004310000000000147
+    },
+    {
+      "sample": "S0018755",
+      "country": "USA",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.005689542431299488,
+      "distanceFull": 0.005812999999999999
+    },
+    {
+      "sample": "S0051341",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 3,
+      "nearestInFull": 3,
+      "distancePlaced": 0.0003736064741499748,
+      "distanceFull": 0.00037199999999999733
+    },
+    {
+      "sample": "S0014837",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0009609805775500635,
+      "distanceFull": 0.0009649999999999936
+    },
+    {
+      "sample": "S0026624",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0051815",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0010297129482999545,
+      "distanceFull": 0.0010310000000000041
+    },
+    {
+      "sample": "S0003095",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 2,
+      "distancePlaced": 0.002333819422449923,
+      "distanceFull": 0.002358000000000013
+    },
+    {
+      "sample": "S0038873",
+      "country": "Singapore",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.002461505030274813,
+      "distanceFull": 0.0024390000000000106
+    },
+    {
+      "sample": "S0014849",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0011280661853749346,
+      "distanceFull": 0.0011319999999999941
+    },
+    {
+      "sample": "S0026656",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 5,
+      "nearestInFull": 5,
+      "distancePlaced": 0.0,
+      "distanceFull": 0.0
+    },
+    {
+      "sample": "S0029157",
+      "country": "New Caledonia",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.007293882720074529,
+      "distanceFull": 0.007519999999999999
+    },
+    {
+      "sample": "S0045850",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0052251748020493635,
+      "distanceFull": 0.0008910000000000029
+    },
+    {
+      "sample": "S0014889",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0003771064741499783,
+      "distanceFull": 0.0002869999999999956
+    },
+    {
+      "sample": "S0017401",
+      "country": "Vietnam",
+      "matchesFull": false,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 2.7467629250127468e-06,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0014881",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0006547661853749387,
+      "distanceFull": 0.0006629999999999969
+    },
+    {
+      "sample": "S0051258",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 2.6870517000482375e-06,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0014843",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 2,
+      "nearestInFull": 2,
+      "distancePlaced": 9.340000000000737e-05,
+      "distanceFull": 9.800000000000086e-05
+    },
+    {
+      "sample": "S0026701",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 7,
+      "nearestInFull": 7,
+      "distancePlaced": 0.0,
+      "distanceFull": 0.0
+    },
+    {
+      "sample": "S0054860",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0004703597112249644,
+      "distanceFull": 0.00047779999999998657
+    },
+    {
+      "sample": "S0017286",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 5,
+      "nearestInFull": 5,
+      "distancePlaced": 0.0,
+      "distanceFull": 1.9999999999742446e-06
+    },
+    {
+      "sample": "S0053846",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 2,
+      "distancePlaced": 0.0013105258965999053,
+      "distanceFull": 0.0011321000000000109
+    },
+    {
+      "sample": "S0002248",
+      "country": "Somalia",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.010949081276199354,
+      "distanceFull": 0.01072300000000001
+    },
+    {
+      "sample": "S0026239",
+      "country": "Benin",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.002057738844899862,
+      "distanceFull": 0.0020650000000000113
+    },
+    {
+      "sample": "S0053141",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.000473633814625056,
+      "distanceFull": 0.0004669999999999952
+    },
+    {
+      "sample": "S0053825",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0002842532370749898,
+      "distanceFull": 0.0002819999999999906
+    },
+    {
+      "sample": "S0045857",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 2,
+      "distancePlaced": 0.0014921856078248738,
+      "distanceFull": 0.0015210000000000085
+    },
+    {
+      "sample": "S0053837",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0009410194224499305,
+      "distanceFull": 0.0004099999999999937
+    },
+    {
+      "sample": "S0050801",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0008281",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.000940966185374939,
+      "distanceFull": 0.0009822000000000025
+    },
+    {
+      "sample": "S0014724",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0012324129482999477,
+      "distanceFull": 0.0012589999999999962
+    },
+    {
+      "sample": "S0050774",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0012151726595249213,
+      "distanceFull": 0.0012166999999999872
+    },
+    {
+      "sample": "S0051811",
+      "country": "Vietnam",
+      "matchesFull": false,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0006541129482999578,
+      "distanceFull": 0.0006552000000000086
+    },
+    {
+      "sample": "S0053640",
+      "country": "Colombia",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.006021827340475079,
+      "distanceFull": 0.0058849999999999875
+    },
+    {
+      "sample": "S0017300",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 5,
+      "nearestInFull": 5,
+      "distancePlaced": 0.00018630647414996648,
+      "distanceFull": 0.00019199999999998385
+    },
+    {
+      "sample": "S0008324",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 8.59352585002443e-06,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0051865",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 2,
+      "nearestInFull": 2,
+      "distancePlaced": 0.0015877129482999505,
+      "distanceFull": 0.0015929000000000082
+    },
+    {
+      "sample": "S0017374",
+      "country": "Vietnam",
+      "matchesFull": false,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0014910453190498385,
+      "distanceFull": 0.001563999999999996
+    },
+    {
+      "sample": "S0053783",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0004056697717745722,
+      "distanceFull": 0.00038399999999999546
+    },
+    {
+      "sample": "S0051779",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0005648467629250156,
+      "distanceFull": 0.0004910000000000053
+    },
+    {
+      "sample": "S0032212",
+      "country": "Venezuela",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.006903547461574296,
+      "distanceFull": 0.006818000000000005
+    },
+    {
+      "sample": "S0053867",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0021924208663250955,
+      "distanceFull": 0.001897999999999997
+    },
+    {
+      "sample": "S0035936",
+      "country": "Thailand",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0034977014438751716,
+      "distanceFull": 0.0034510000000000096
+    },
+    {
+      "sample": "S0053120",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.00037390647414997646,
+      "distanceFull": 0.0003730000000000122
+    },
+    {
+      "sample": "S0053813",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0005606129482999475,
+      "distanceFull": 0.0005899999999999933
+    },
+    {
+      "sample": "S0051240",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.00046641294829995184,
+      "distanceFull": 0.0004669999999999952
+    },
+    {
+      "sample": "S0014740",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0004788884955752304,
+      "distanceFull": 0.00037900000000000433
+    },
+    {
+      "sample": "S0017314",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 5,
+      "nearestInFull": 6,
+      "distancePlaced": 0.00018655323707497673,
+      "distanceFull": 0.00019299999999999873
+    },
+    {
+      "sample": "S0017273",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 2,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0004668999999999923,
+      "distanceFull": 0.00039000000000000146
+    },
+    {
+      "sample": "S0049981",
+      "country": "Nicaragua",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.002996045319049838,
+      "distanceFull": 0.003022000000000011
+    },
+    {
+      "sample": "S0053756",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 1.5776245924546684e-05,
+      "distanceFull": 2.000000000002e-06
+    },
+    {
+      "sample": "S0029609",
+      "country": "China",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.007753828039124354,
+      "distanceFull": 0.007814399999999985
+    },
+    {
+      "sample": "S0053162",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0005600597112249625,
+      "distanceFull": 0.0005604000000000026
+    },
+    {
+      "sample": "S0053876",
+      "country": "Vietnam",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.0015875388448998648,
+      "distanceFull": 0.0016599999999999948
+    },
+    {
+      "sample": "S0035634",
+      "country": "Ecuador",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.011440942431299485,
+      "distanceFull": 0.01153499999999999
+    },
+    {
+      "sample": "S0022685",
+      "country": "Thailand",
+      "matchesFull": true,
+      "nearestInPlaced": 1,
+      "nearestInFull": 1,
+      "distancePlaced": 0.002236911504424781,
+      "distanceFull": 0.002328700000000003
+    }
+  ],
+  "leftOver": {
+    "datasets": 0,
+    "jobs": 0
+  }
+}

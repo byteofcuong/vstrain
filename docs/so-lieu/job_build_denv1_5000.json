@@ -1,0 +1,132 @@
+{
+  "id": 176,
+  "kind": "build_dataset",
+  "status": "succeeded",
+  "params": {
+    "dataset": "dengue-denv1-5000"
+  },
+  "result": {
+    "path": "dengue-denv1-5000/b000007/p-29b72161690b",
+    "tips": 4949,
+    "dropped": [
+      "S0000229",
+      "S0001112",
+      "S0006560",
+      "S0008243",
+      "S0011295",
+      "S0011306",
+      "S0015712",
+      "S0015722",
+      "S0016350",
+      "S0021910",
+      "S0022152",
+      "S0023898",
+      "S0023900",
+      "S0024336",
+      "S0024412",
+      "S0024885",
+      "S0026363",
+      "S0026364",
+      "S0026365",
+      "S0027703",
+      "S0027704",
+      "S0027705",
+      "S0027706",
+      "S0028056",
+      "S0028057",
+      "S0034557",
+      "S0038091",
+      "S0038092",
+      "S0039212",
+      "S0040110",
+      "S0040113",
+      "S0040114",
+      "S0040115",
+      "S0040118",
+      "S0040119",
+      "S0040121",
+      "S0040123",
+      "S0040125",
+      "S0040416",
+      "S0042682",
+      "S0045559",
+      "S0045837",
+      "S0047461",
+      "S0047462",
+      "S0047463",
+      "S0047467",
+      "S0049688",
+      "S0049725",
+      "S0051381",
+      "S0051382",
+      "S0052010"
+    ],
+    "build_id": 7,
+    "selected": 5000
+  },
+  "error": null,
+  "worker": "9875848d4c38:1",
+  "seconds": 2026.048206,
+  "steps": [
+    {
+      "name": "select",
+      "status": "succeeded",
+      "wall_seconds": 0.759
+    },
+    {
+      "name": "prepare",
+      "status": "succeeded",
+      "samples": 5000,
+      "wall_seconds": 0.324
+    },
+    {
+      "name": "tree",
+      "status": "succeeded",
+      "max_rss_mb": 3410.3,
+      "cpu_seconds": 578.048,
+      "wall_seconds": 301.296
+    },
+    {
+      "name": "refine",
+      "status": "succeeded",
+      "max_rss_mb": 1632.2,
+      "cpu_seconds": 1629.942,
+      "wall_seconds": 1598.427
+    },
+    {
+      "name": "ancestral",
+      "status": "succeeded",
+      "max_rss_mb": 1644.2,
+      "cpu_seconds": 74.079,
+      "wall_seconds": 71.787
+    },
+    {
+      "name": "translate",
+      "status": "succeeded",
+      "max_rss_mb": 398.1,
+      "cpu_seconds": 8.436,
+      "wall_seconds": 7.167
+    },
+    {
+      "name": "clades",
+      "status": "succeeded",
+      "max_rss_mb": 675.6,
+      "cpu_seconds": 3.421,
+      "wall_seconds": 2.101
+    },
+    {
+      "name": "export",
+      "status": "succeeded",
+      "max_rss_mb": 401.4,
+      "cpu_seconds": 7.688,
+      "wall_seconds": 6.242
+    },
+    {
+      "name": "publish",
+      "status": "succeeded",
+      "tips": 4949,
+      "dropped": 51,
+      "wall_seconds": 0.911
+    }
+  ]
+}

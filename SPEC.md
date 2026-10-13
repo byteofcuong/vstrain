@@ -156,7 +156,7 @@ def place_key(raw: str) -> str:
 
 - **Luôn làm:** chạy test và lint trước mỗi commit; mỗi lát cắt được kiểm chứng lúc chạy thật; pipeline chỉ thấy mã nội bộ của mẫu; thay đổi schema có migration; chuỗi hiển thị đi qua lớp dịch.
 - **Hỏi trước:** cài thêm dependency hoặc image ngoài danh sách đã duyệt; tải bộ dữ liệu ngoài (đường biên tỉnh); đổi công nghệ; migration làm mất dữ liệu; xoá volume dữ liệu; đổi cấu hình máy.
-- **Không bao giờ:** push lên remote hay công bố ra ngoài; commit secret hoặc file dữ liệu; đưa chuỗi do người dùng nhập vào shell; tắt hoặc xoá test để bộ test qua; sửa file trong `D:\nextstrain\repos\`.
+- **Không bao giờ:** push lên remote khi chủ repo chưa bảo; commit secret hoặc file dữ liệu; đưa chuỗi do người dùng nhập vào shell; tắt hoặc xoá test để bộ test qua; sửa file trong `D:\nextstrain\repos\`.
 
 ## Definition of Done (áp cho mọi task)
 
@@ -195,7 +195,7 @@ Trần của tiêu chí 4 và 4b do chính dữ liệu quyết định: 1.999 b�
 5. Giao diện mặc định tiếng Việt, có tiếng Anh; trình duyệt desktop hiện đại; chưa tối ưu cho điện thoại.
 6. Mọi dữ liệu đều công khai, nên chưa có phân quyền theo nhóm.
 7. Mã đơn vị hành chính là mã nội bộ (`vn63:dak-lak`) cho tới khi đối chiếu danh mục chính thức.
-8. Commit cục bộ sau mỗi lát cắt trên nhánh `feature/*`; không push.
+8. Commit sau mỗi lát cắt trên nhánh `feature/*`, gộp vào `main` khi module qua checkpoint. Repo có trên GitHub (`byteofcuong/vstrain`) từ 2026-10-13; push do chủ repo quyết định.
 
 ## Open Questions
 

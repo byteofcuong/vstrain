@@ -494,6 +494,45 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 - Bản publish cũ không bị xoá; job hỏng không tự chạy lại; chưa huỷ được job đang chạy.
 - Còn mở từ mốc M5: sửa mẫu đã nộp (S3), tiêu chí 1 ở 5.000 tip, tiêu chí 1b. Hai tiêu chí sau thuộc mốc M7.
 
+## Phase 11: `evaluation` (mốc M7)
+
+Đặc tả: `specs/SPEC-evaluation.md`. Không thêm tính năng, không thêm dependency.
+
+- [x] T11.1 Tiêu chí 1 trên cây 4.949 tip và thời gian build ở 5.000 mẫu (dataset tạm, dựng bằng worker của ứng dụng, đã xoá sau khi đo)
+- [x] T11.2 Tiêu chí 1b trên ứng dụng: giấu 100 mẫu, dựng lại, gắn tạm từng mẫu bằng hàm của job nộp mẫu; kèm trần của chỉ số
+- [x] T11.3 Chạy lại harness viewer ở 35 nghìn tip, báo cáo địa danh và các test an toàn trên bản cuối
+- [x] T11.4 `docs/KET-QUA.md` (bảng trước và sau, cách đo, giới hạn) và file số liệu ở `docs/so-lieu/`
+- [x] T11.5 `README.md`
+
+## Checkpoint I (hết mốc M7)
+
+| Tiêu chí | Ngưỡng | Kết quả | Nguồn (`docs/so-lieu/`) |
+|---|---|---|---|
+| 1 | nộp tới tip tạm công khai ≤ 30 giây, cây ≤ 5.000 tip | đạt: trung vị 2,40 giây ở cây 4.949 tip (20 lần, 1,85–2,78); 1,07 giây ở cây 1.964 tip | `thoi_gian_nop_5000.json`, `thoi_gian_nop_2000.json` |
+| 1b | hàng xóm gần nhất trùng cây dựng lại ≥ 85% | đạt: 95 trong 100 (mẫu Việt Nam 69 trong 74); trần đo được 100 trong 100 | `gan_tam.json` |
+| 2 | build N = 2.000 không chậm hơn 771 giây; không có bước gióng; thời gian từng bước được ghi | đạt sát ngưỡng: 755, 770, 770 giây trên cùng tập mẫu. **Không nhanh hơn**: ở 5.000 mẫu 2.026 giây so với 2.020 giây | `build_tap_p1_lan*.json`, `job_build_denv1_5000.json` |
+| 3 | 35 nghìn tip: khung hình đầu ≤ 1 giây | đạt: 0,47 giây qua nginx trên bản cuối | `viewer_35000_tip.json` |
+| 3b | 35 nghìn tip: lọc hoặc đổi màu, main thread bận ≤ 100 ms | đạt: nhiều nhất 40 ms, task dài nhất 26 ms | `viewer_35000_tip.json` |
+| 3c | rê chuột và bấm cho đúng mẫu | đạt: 100 tip ngẫu nhiên | `frontend/e2e/viewer.spec.ts` |
+| 4, 4b | gán được tỉnh ≥ 781; tỉnh hoặc vùng 2.306 | đạt: 782 và 2.306 trên 4.305 | `dia_danh.json` |
+| 4c | 331 cách viết ra đúng tỉnh ≥ 95% | đạt: 96,7% chỉ nhờ chuẩn hoá | `dia_danh_331_cach_viet.json` |
+| 5, 5b | tên có dấu đi trọn luồng; chuỗi tấn công không được thực thi | đạt: 61 test của năm file liên quan qua với công cụ thật | `test_an_toan.txt` |
+
+**Kiểm chứng lúc đóng checkpoint (2026-10-13):** mốc này chỉ thêm tài liệu và file số liệu, mã không đổi so với Checkpoint H (backend 599 passed, 17 skipped trong image api và 616 passed trong image worker; frontend 277 passed; e2e 46 và 52 passed). Chạy lại ở mốc này: 61 test an toàn trong image worker, và lệnh `enqueue align_pending` của README.
+
+**Điều tìm ra trong lúc đo:**
+- **Dựng cây không nhanh hơn Nextstrain ở cả hai cỡ.** Bỏ bước gióng tiết kiệm 77 và 322 giây, nhưng `refine` chậm hơn 85 và 282 giây trên đầu vào của ứng dụng. Chưa tìm hiểu vì sao.
+- **Ở lần build 5.000 mẫu, cộng thời gian các bước thiếu 37 giây so với tổng**, gần hết ở bước `refine`. Có thể hai đồng hồ của máy ảo lệch nhau trong lần chạy dài; chưa kiểm chứng. Ở 2.000 mẫu hai cách tính khớp nhau.
+- **Trần của tiêu chí 1b ra 100 trong 100**, cao hơn prototype (94–97%). Chưa tìm hiểu vì sao.
+- **Console của trình duyệt ghi một dòng 401 mỗi lần khách mở trang** (câu trả lời của `GET /api/auth/me`). Không phải lỗi JavaScript, nhưng harness đếm nó là một lỗi.
+
+**Điều cần biết:**
+- Mọi phép đo dùng DENV1, một máy, một người dùng tại một thời điểm.
+- Cây 100 nghìn tip không được đo lại trên bản cuối; số của nó là số ở mốc M3.
+- Các lệnh trong README đã được chạy trên stack này, ở mốc này hoặc các mốc trước; chưa thử làm theo README trên một máy khác từ một bản clone mới.
+- Mấy file cấu hình dengue chép từ `nextstrain/dengue`, repo không có file giấy phép (`backend/app/pathogens/dengue/NGUON.md`).
+- Còn mở: sửa mẫu đã nộp (S3 của mốc M5).
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.

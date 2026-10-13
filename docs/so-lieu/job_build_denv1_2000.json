@@ -1,0 +1,117 @@
+{
+  "id": 4,
+  "kind": "build_dataset",
+  "status": "succeeded",
+  "params": {
+    "dataset": "dengue-denv1"
+  },
+  "result": {
+    "path": "dengue-denv1/b000001/p-40c9b4f4f6f1",
+    "tips": 1964,
+    "dropped": [
+      "S0000985",
+      "S0001190",
+      "S0001199",
+      "S0006560",
+      "S0008243",
+      "S0008374",
+      "S0011306",
+      "S0018443",
+      "S0018444",
+      "S0023759",
+      "S0023762",
+      "S0023767",
+      "S0023771",
+      "S0024336",
+      "S0027704",
+      "S0027705",
+      "S0029029",
+      "S0030613",
+      "S0037817",
+      "S0037989",
+      "S0038838",
+      "S0039212",
+      "S0040416",
+      "S0045559",
+      "S0045837",
+      "S0045839",
+      "S0047460",
+      "S0047461",
+      "S0047462",
+      "S0047463",
+      "S0047467",
+      "S0049717",
+      "S0049725",
+      "S0051381",
+      "S0051382",
+      "S0059257"
+    ],
+    "build_id": 1,
+    "selected": 2000
+  },
+  "error": null,
+  "worker": "5bdf6c8d0fbb:1",
+  "seconds": 682.315997,
+  "steps": [
+    {
+      "name": "select",
+      "status": "succeeded",
+      "wall_seconds": 0.219
+    },
+    {
+      "name": "prepare",
+      "status": "succeeded",
+      "samples": 2000,
+      "wall_seconds": 0.115
+    },
+    {
+      "name": "tree",
+      "status": "succeeded",
+      "max_rss_mb": 1067.1,
+      "cpu_seconds": 197.031,
+      "wall_seconds": 73.168
+    },
+    {
+      "name": "refine",
+      "status": "succeeded",
+      "max_rss_mb": 713.3,
+      "cpu_seconds": 574.161,
+      "wall_seconds": 573.311
+    },
+    {
+      "name": "ancestral",
+      "status": "succeeded",
+      "max_rss_mb": 704.4,
+      "cpu_seconds": 28.368,
+      "wall_seconds": 27.227
+    },
+    {
+      "name": "translate",
+      "status": "succeeded",
+      "max_rss_mb": 278.4,
+      "cpu_seconds": 4.904,
+      "wall_seconds": 3.627
+    },
+    {
+      "name": "clades",
+      "status": "succeeded",
+      "max_rss_mb": 506.6,
+      "cpu_seconds": 3.022,
+      "wall_seconds": 1.734
+    },
+    {
+      "name": "export",
+      "status": "succeeded",
+      "max_rss_mb": 279.8,
+      "cpu_seconds": 4.338,
+      "wall_seconds": 3.043
+    },
+    {
+      "name": "publish",
+      "status": "succeeded",
+      "tips": 1964,
+      "dropped": 36,
+      "wall_seconds": 0.304
+    }
+  ]
+}

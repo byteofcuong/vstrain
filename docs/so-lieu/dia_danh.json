@@ -1,0 +1,96 @@
+{
+  "country": "Vietnam",
+  "total": 4305,
+  "by_status": {
+    "region": 1524,
+    "missing": 1999,
+    "province": 782
+  },
+  "with_province": 782,
+  "with_province_or_region": 2306,
+  "by_unit": [
+    {
+      "code": "vn63:khanh-hoa",
+      "name": "Khánh Hòa",
+      "samples": 562
+    },
+    {
+      "code": "vn63:ha-noi",
+      "name": "Hà Nội",
+      "samples": 131
+    },
+    {
+      "code": "vn63:dak-lak",
+      "name": "Đắk Lắk",
+      "samples": 38
+    },
+    {
+      "code": "vn63:binh-dinh",
+      "name": "Bình Định",
+      "samples": 30
+    },
+    {
+      "code": "vn63:gia-lai",
+      "name": "Gia Lai",
+      "samples": 6
+    },
+    {
+      "code": "vn63:ho-chi-minh",
+      "name": "Hồ Chí Minh",
+      "samples": 4
+    },
+    {
+      "code": "vn63:kon-tum",
+      "name": "Kon Tum",
+      "samples": 4
+    },
+    {
+      "code": "vn63:hai-phong",
+      "name": "Hải Phòng",
+      "samples": 3
+    },
+    {
+      "code": "vn63:dak-nong",
+      "name": "Đắk Nông",
+      "samples": 1
+    },
+    {
+      "code": "vn63:da-nang",
+      "name": "Đà Nẵng",
+      "samples": 1
+    },
+    {
+      "code": "vn63:phu-tho",
+      "name": "Phú Thọ",
+      "samples": 1
+    },
+    {
+      "code": "vn63:thanh-hoa",
+      "name": "Thanh Hóa",
+      "samples": 1
+    }
+  ],
+  "by_region_only": [
+    {
+      "code": "vnm:south",
+      "name": "Miền Nam",
+      "samples": 1455
+    },
+    {
+      "code": "vnr:mekong-delta",
+      "name": "Đồng bằng sông Cửu Long",
+      "samples": 56
+    },
+    {
+      "code": "vnm:north",
+      "name": "Miền Bắc",
+      "samples": 11
+    },
+    {
+      "code": "vnm:central",
+      "name": "Miền Trung",
+      "samples": 2
+    }
+  ],
+  "unresolved_values": []
+}

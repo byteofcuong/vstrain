@@ -1,0 +1,73 @@
+{
+  "measuredAt": "2026-10-13T10:13:54.606Z",
+  "origin": "http://127.0.0.1:8080",
+  "dataset": "dengue-denv1",
+  "spelling": "Xa Thu Nghiem Do Dac",
+  "sample": "S0003090",
+  "tips": 1964,
+  "domesticGenbankRecords": 4305,
+  "rounds": [
+    {
+      "add": {
+        "apiMs": 93.5,
+        "untilPublicMs": 915.3,
+        "publishJobsQueued": 1,
+        "treeUnchanged": true,
+        "unitColumnChanged": true,
+        "sampleUnitAfter": "vn63:ha-noi"
+      },
+      "remove": {
+        "apiMs": 67.3,
+        "untilPublicMs": 209,
+        "publishJobsQueued": 1,
+        "treeUnchanged": true,
+        "unitColumnChanged": true
+      }
+    },
+    {
+      "add": {
+        "apiMs": 83.3,
+        "untilPublicMs": 642.3,
+        "publishJobsQueued": 1,
+        "treeUnchanged": true,
+        "unitColumnChanged": true,
+        "sampleUnitAfter": "vn63:ha-noi"
+      },
+      "remove": {
+        "apiMs": 66.7,
+        "untilPublicMs": 300.5,
+        "publishJobsQueued": 1,
+        "treeUnchanged": true,
+        "unitColumnChanged": true
+      }
+    },
+    {
+      "add": {
+        "apiMs": 77.3,
+        "untilPublicMs": 602.3,
+        "publishJobsQueued": 1,
+        "treeUnchanged": true,
+        "unitColumnChanged": true,
+        "sampleUnitAfter": "vn63:ha-noi"
+      },
+      "remove": {
+        "apiMs": 72.4,
+        "untilPublicMs": 182.6,
+        "publishJobsQueued": 1,
+        "treeUnchanged": true,
+        "unitColumnChanged": true
+      }
+    }
+  ],
+  "addApiMedianMs": 83.3,
+  "addUntilPublicMedianMs": 642.3,
+  "removeUntilPublicMedianMs": 209,
+  "buildJobsQueued": 0,
+  "lastBuildSeconds": 682.315997,
+  "rebuildOverChange": 1062,
+  "restored": {
+    "samePublicationAsBefore": true,
+    "sample": "vn63:khanh-hoa province Nha Trang"
+  },
+  "leftOverAliases": 0
+}

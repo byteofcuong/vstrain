@@ -1,0 +1,193 @@
+{
+  "measuredAt": "2026-10-13T05:09:28.604Z",
+  "perSerotype": 5,
+  "serotypes": {
+    "denv1": {
+      "submitted": 5,
+      "assignedCorrectly": 5,
+      "results": [
+        {
+          "source": "S0044899",
+          "status": "accepted",
+          "stage": "placed",
+          "assigned": "denv1",
+          "validNt": 10732
+        },
+        {
+          "source": "S0019549",
+          "status": "accepted",
+          "stage": "placed",
+          "assigned": "denv1",
+          "validNt": 10654
+        },
+        {
+          "source": "S0002299",
+          "status": "accepted",
+          "stage": "placed",
+          "assigned": "denv1",
+          "validNt": 10735
+        },
+        {
+          "source": "S0018660",
+          "status": "accepted",
+          "stage": "placed",
+          "assigned": "denv1",
+          "validNt": 10331
+        },
+        {
+          "source": "S0018680",
+          "status": "accepted",
+          "stage": "placed",
+          "assigned": "denv1",
+          "validNt": 10330
+        }
+      ]
+    },
+    "denv2": {
+      "submitted": 5,
+      "assignedCorrectly": 5,
+      "results": [
+        {
+          "source": "S0002348",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv2",
+          "validNt": 10723
+        },
+        {
+          "source": "S0025854",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv2",
+          "validNt": 10464
+        },
+        {
+          "source": "S0014664",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv2",
+          "validNt": 10672
+        },
+        {
+          "source": "S0017517",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv2",
+          "validNt": 10496
+        },
+        {
+          "source": "S0005943",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv2",
+          "validNt": 10653
+        }
+      ]
+    },
+    "denv3": {
+      "submitted": 5,
+      "assignedCorrectly": 5,
+      "results": [
+        {
+          "source": "S0008456",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv3",
+          "validNt": 10636
+        },
+        {
+          "source": "S0006106",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv3",
+          "validNt": 10707
+        },
+        {
+          "source": "S0025121",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv3",
+          "validNt": 10571
+        },
+        {
+          "source": "S0011647",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv3",
+          "validNt": 10697
+        },
+        {
+          "source": "S0011637",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv3",
+          "validNt": 10312
+        }
+      ]
+    },
+    "denv4": {
+      "submitted": 5,
+      "assignedCorrectly": 5,
+      "results": [
+        {
+          "source": "S0024348",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv4",
+          "validNt": 10332
+        },
+        {
+          "source": "S0007907",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv4",
+          "validNt": 10536
+        },
+        {
+          "source": "S0019005",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv4",
+          "validNt": 10510
+        },
+        {
+          "source": "S0003053",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv4",
+          "validNt": 10593
+        },
+        {
+          "source": "S0048021",
+          "status": "accepted",
+          "stage": "accepted",
+          "assigned": "denv4",
+          "validNt": 10568
+        }
+      ]
+    }
+  },
+  "notDengue": [
+    {
+      "status": "rejected",
+      "rejectCode": "NOT_THIS_PATHOGEN",
+      "assigned": null
+    },
+    {
+      "status": "rejected",
+      "rejectCode": "NOT_THIS_PATHOGEN",
+      "assigned": null
+    },
+    {
+      "status": "rejected",
+      "rejectCode": "NOT_THIS_PATHOGEN",
+      "assigned": null
+    }
+  ],
+  "summary": {
+    "genomes": 20,
+    "assignedCorrectly": 20,
+    "notDengueRejected": 3
+  },
+  "leftBehind": "0\t0\t0\t0"
+}

@@ -1,0 +1,543 @@
+{
+  "measuredAt": "2026-10-13T04:33:09.052Z",
+  "origin": "http://127.0.0.1:8080",
+  "dataset": "dengue-denv1",
+  "runs": [
+    {
+      "source": "S0009294",
+      "internalId": "S0119106",
+      "placed": true,
+      "msToAccepted": 16,
+      "msToVisible": 833,
+      "polls": 8,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 55,
+      "parentNode": "NODE_0000911",
+      "branchNode": "S0011103",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.022858,
+        "ranSeconds": 0.750274
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.031,
+        "align-denv2": 0.036,
+        "align-denv3": 0.026,
+        "align-denv4": 0.019,
+        "place-dengue-denv1": 0.45
+      }
+    },
+    {
+      "source": "S0044899",
+      "internalId": "S0119107",
+      "placed": true,
+      "msToAccepted": 17,
+      "msToVisible": 871,
+      "polls": 8,
+      "stage": "placed",
+      "clade": "DENV1/I",
+      "privateMutations": 29,
+      "parentNode": "NODE_0000059",
+      "branchNode": "S0029609",
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.02612,
+        "ranSeconds": 0.787041
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.016,
+        "align-denv2": 0.02,
+        "align-denv3": 0.018,
+        "align-denv4": 0.015,
+        "place-dengue-denv1": 0.406
+      }
+    },
+    {
+      "source": "S0011034",
+      "internalId": "S0119108",
+      "placed": true,
+      "msToAccepted": 14,
+      "msToVisible": 687,
+      "polls": 7,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 28,
+      "parentNode": "NODE_0000955",
+      "branchNode": "S0011714",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.081149,
+        "ranSeconds": 0.589218
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.017,
+        "align-denv2": 0.029,
+        "align-denv3": 0.019,
+        "align-denv4": 0.028,
+        "place-dengue-denv1": 0.354
+      }
+    },
+    {
+      "source": "S0019549",
+      "internalId": "S0119109",
+      "placed": true,
+      "msToAccepted": 13,
+      "msToVisible": 1088,
+      "polls": 10,
+      "stage": "placed",
+      "clade": "DENV1/I",
+      "privateMutations": 0,
+      "parentNode": "NODE_0001839",
+      "branchNode": null,
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.316599,
+        "ranSeconds": 0.697044
+      },
+      "steps": {
+        "nextclade-version": 0.003,
+        "align-denv1": 0.034,
+        "align-denv2": 0.035,
+        "align-denv3": 0.034,
+        "align-denv4": 0.038,
+        "place-dengue-denv1": 0.383
+      }
+    },
+    {
+      "source": "S0009164",
+      "internalId": "S0119110",
+      "placed": true,
+      "msToAccepted": 19,
+      "msToVisible": 970,
+      "polls": 9,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 41,
+      "parentNode": "NODE_0000911",
+      "branchNode": "S0011103",
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.344018,
+        "ranSeconds": 0.583579
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.016,
+        "align-denv2": 0.029,
+        "align-denv3": 0.018,
+        "align-denv4": 0.013,
+        "place-dengue-denv1": 0.391
+      }
+    },
+    {
+      "source": "S0028643",
+      "internalId": "S0119111",
+      "placed": true,
+      "msToAccepted": 18,
+      "msToVisible": 1101,
+      "polls": 10,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 67,
+      "parentNode": "NODE_0000851",
+      "branchNode": "S0004712",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.320009,
+        "ranSeconds": 0.714713
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.021,
+        "align-denv2": 0.042,
+        "align-denv3": 0.031,
+        "align-denv4": 0.057,
+        "place-dengue-denv1": 0.43
+      }
+    },
+    {
+      "source": "S0002299",
+      "internalId": "S0119112",
+      "placed": true,
+      "msToAccepted": 15,
+      "msToVisible": 1118,
+      "polls": 10,
+      "stage": "placed",
+      "clade": "DENV1/IV",
+      "privateMutations": 34,
+      "parentNode": "NODE_0000682",
+      "branchNode": "S0002330",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.487854,
+        "ranSeconds": 0.526617
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.021,
+        "align-denv2": 0.025,
+        "align-denv3": 0.024,
+        "align-denv4": 0.012,
+        "place-dengue-denv1": 0.329
+      }
+    },
+    {
+      "source": "S0018660",
+      "internalId": "S0119113",
+      "placed": true,
+      "msToAccepted": 16,
+      "msToVisible": 939,
+      "polls": 9,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 21,
+      "parentNode": "NODE_0000959",
+      "branchNode": "NODE_0000960",
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.190451,
+        "ranSeconds": 0.641506
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.028,
+        "align-denv2": 0.031,
+        "align-denv3": 0.033,
+        "align-denv4": 0.025,
+        "place-dengue-denv1": 0.389
+      }
+    },
+    {
+      "source": "S0011049",
+      "internalId": "S0119114",
+      "placed": true,
+      "msToAccepted": 14,
+      "msToVisible": 1179,
+      "polls": 11,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 53,
+      "parentNode": "NODE_0000911",
+      "branchNode": "S0011103",
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.466225,
+        "ranSeconds": 0.700557
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.083,
+        "align-denv2": 0.054,
+        "align-denv3": 0.025,
+        "align-denv4": 0.019,
+        "place-dengue-denv1": 0.403
+      }
+    },
+    {
+      "source": "S0018680",
+      "internalId": "S0119115",
+      "placed": true,
+      "msToAccepted": 12,
+      "msToVisible": 1036,
+      "polls": 10,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 16,
+      "parentNode": "NODE_0000961",
+      "branchNode": "NODE_0000962",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.353819,
+        "ranSeconds": 0.60206
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.014,
+        "align-denv2": 0.026,
+        "align-denv3": 0.02,
+        "align-denv4": 0.021,
+        "place-dengue-denv1": 0.372
+      }
+    },
+    {
+      "source": "S0023765",
+      "internalId": "S0119116",
+      "placed": true,
+      "msToAccepted": 13,
+      "msToVisible": 671,
+      "polls": 7,
+      "stage": "placed",
+      "clade": "unassigned",
+      "privateMutations": 22,
+      "parentNode": "NODE_0000709",
+      "branchNode": "S0026191",
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.06425,
+        "ranSeconds": 0.572722
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.018,
+        "align-denv2": 0.028,
+        "align-denv3": 0.019,
+        "align-denv4": 0.011,
+        "place-dengue-denv1": 0.357
+      }
+    },
+    {
+      "source": "S0009208",
+      "internalId": "S0119117",
+      "placed": true,
+      "msToAccepted": 15,
+      "msToVisible": 1168,
+      "polls": 11,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 46,
+      "parentNode": "NODE_0000911",
+      "branchNode": "S0011103",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.411111,
+        "ranSeconds": 0.620589
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.015,
+        "align-denv2": 0.025,
+        "align-denv3": 0.037,
+        "align-denv4": 0.018,
+        "place-dengue-denv1": 0.392
+      }
+    },
+    {
+      "source": "S0000841",
+      "internalId": "S0119118",
+      "placed": true,
+      "msToAccepted": 14,
+      "msToVisible": 1144,
+      "polls": 11,
+      "stage": "placed",
+      "clade": "DENV1/I",
+      "privateMutations": 7,
+      "parentNode": "NODE_0000024",
+      "branchNode": "S0005723",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.454453,
+        "ranSeconds": 0.597774
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.017,
+        "align-denv2": 0.019,
+        "align-denv3": 0.02,
+        "align-denv4": 0.013,
+        "place-dengue-denv1": 0.373
+      }
+    },
+    {
+      "source": "S0029164",
+      "internalId": "S0119119",
+      "placed": true,
+      "msToAccepted": 14,
+      "msToVisible": 1015,
+      "polls": 10,
+      "stage": "placed",
+      "clade": "DENV1/I",
+      "privateMutations": 10,
+      "parentNode": "NODE_0001413",
+      "branchNode": "S0029167",
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.397584,
+        "ranSeconds": 0.553003
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.015,
+        "align-denv2": 0.026,
+        "align-denv3": 0.018,
+        "align-denv4": 0.012,
+        "place-dengue-denv1": 0.362
+      }
+    },
+    {
+      "source": "S0041449",
+      "internalId": "S0119120",
+      "placed": true,
+      "msToAccepted": 16,
+      "msToVisible": 693,
+      "polls": 7,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 85,
+      "parentNode": "NODE_0000810",
+      "branchNode": "S0011890",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.011257,
+        "ranSeconds": 0.61975
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.027,
+        "align-denv2": 0.038,
+        "align-denv3": 0.033,
+        "align-denv4": 0.019,
+        "place-dengue-denv1": 0.373
+      }
+    },
+    {
+      "source": "S0015959",
+      "internalId": "S0119121",
+      "placed": true,
+      "msToAccepted": 14,
+      "msToVisible": 1167,
+      "polls": 11,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 40,
+      "parentNode": "NODE_0000950",
+      "branchNode": "NODE_0000951",
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.364608,
+        "ranSeconds": 0.74032
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.105,
+        "align-denv2": 0.07,
+        "align-denv3": 0.029,
+        "align-denv4": 0.025,
+        "place-dengue-denv1": 0.373
+      }
+    },
+    {
+      "source": "S0009014",
+      "internalId": "S0119122",
+      "placed": true,
+      "msToAccepted": 13,
+      "msToVisible": 1068,
+      "polls": 10,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 45,
+      "parentNode": "NODE_0000911",
+      "branchNode": "S0011103",
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.502727,
+        "ranSeconds": 0.55589
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.016,
+        "align-denv2": 0.027,
+        "align-denv3": 0.018,
+        "align-denv4": 0.012,
+        "place-dengue-denv1": 0.367
+      }
+    },
+    {
+      "source": "S0015829",
+      "internalId": "S0119123",
+      "placed": true,
+      "msToAccepted": 14,
+      "msToVisible": 1144,
+      "polls": 11,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 88,
+      "parentNode": "NODE_0000808",
+      "branchNode": "S0017986",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.396196,
+        "ranSeconds": 0.647158
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.027,
+        "align-denv2": 0.036,
+        "align-denv3": 0.025,
+        "align-denv4": 0.028,
+        "place-dengue-denv1": 0.391
+      }
+    },
+    {
+      "source": "S0048880",
+      "internalId": "S0119124",
+      "placed": true,
+      "msToAccepted": 17,
+      "msToVisible": 1127,
+      "polls": 11,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 14,
+      "parentNode": "NODE_0000943",
+      "branchNode": "S0048878",
+      "job": {
+        "worker": "9875848d4c38:1",
+        "waitedSeconds": 0.45562,
+        "ranSeconds": 0.602811
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.023,
+        "align-denv2": 0.032,
+        "align-denv3": 0.027,
+        "align-denv4": 0.024,
+        "place-dengue-denv1": 0.388
+      }
+    },
+    {
+      "source": "S0011093",
+      "internalId": "S0119125",
+      "placed": true,
+      "msToAccepted": 14,
+      "msToVisible": 1043,
+      "polls": 10,
+      "stage": "placed",
+      "clade": "DENV1/V",
+      "privateMutations": 48,
+      "parentNode": "NODE_0000911",
+      "branchNode": "S0011103",
+      "job": {
+        "worker": "110f63839de5:1",
+        "waitedSeconds": 0.412308,
+        "ranSeconds": 0.602992
+      },
+      "steps": {
+        "nextclade-version": 0.002,
+        "align-denv1": 0.024,
+        "align-denv2": 0.031,
+        "align-denv3": 0.027,
+        "align-denv4": 0.013,
+        "place-dengue-denv1": 0.375
+      }
+    }
+  ],
+  "build": {
+    "id": 1,
+    "tips": 1964
+  },
+  "summary": {
+    "runs": 20,
+    "placed": 20,
+    "msToVisible": {
+      "min": 671,
+      "median": 1068,
+      "max": 1179
+    },
+    "thresholdMs": 30000,
+    "pass": true
+  },
+  "leftBehind": "0\t0\t0\t0"
+}
