@@ -19,13 +19,14 @@ Không: tự đăng ký, đăng nhập qua bên thứ ba, đặt lại hay đổ
 
 ## Thiết kế
 
-- Mật khẩu băm bằng **scrypt** của thư viện chuẩn (N = 2^17, r = 8, p = 1), chuẩn hoá NFKC trước khi băm, dài 10 tới 200 ký tự. Chuỗi lưu tự ghi thuật toán và tham số.
+- Mật khẩu băm bằng **scrypt** của thư viện chuẩn (N = 2^17, r = 8, p = 1), chuẩn hoá NFKC trước khi băm, dài 10 tới 200 ký tự tính trên dạng đã chuẩn hoá. Chuỗi lưu tự ghi thuật toán và tham số. Nhiều nhất 4 lần băm chạy cùng lúc và 8 lần chờ; vượt trần thì 503 `LOGIN_BUSY`.
 - Phiên đăng nhập là một token ngẫu nhiên 256 bit; DB chỉ lưu SHA-256 của token. Token nằm trong cookie `vs_session`: `HttpOnly`, `SameSite=Lax`, `Secure` khi `VS_COOKIE_SECURE` bật. Phiên hết hạn sau 7 ngày không dùng, và muộn nhất 30 ngày sau lúc đăng nhập.
 - Mọi request ghi (POST, PUT, PATCH, DELETE) phải có header `X-Requested-With` do frontend tự gắn; thiếu thì 403 `CSRF_HEADER_REQUIRED`.
-- Đăng nhập thất bại vì lý do nào cũng trả 401 `INVALID_CREDENTIALS` với cùng một thông báo, và tốn cùng một lần băm.
+- Đăng nhập thất bại vì lý do nào cũng trả 401 `INVALID_CREDENTIALS` với cùng một thông báo, tốn cùng một lần băm và để lại một dòng nhật ký.
+- Câu trả lời ở `/api/auth/` và `/api/admin/` mang `Cache-Control: no-store`. Lỗi chưa lường trước trả 500 `INTERNAL_ERROR`, không kèm chi tiết.
 - Năm lần sai liên tiếp trong 15 phút thì khoá tài khoản 15 phút, kể cả với mật khẩu đúng.
 - Lỗi theo dạng chung của API: 401 `NOT_AUTHENTICATED`, 403 `FORBIDDEN`.
-- Nhật ký: `login`, `login_failed`, `login_locked`, `logout`, `user_created`.
+- Nhật ký: `login`, `login_failed`, `login_locked`, `login_refused`, `logout`, `user_created`. Không ghi email đã thử.
 
 ## Tiêu chí nghiệm thu
 

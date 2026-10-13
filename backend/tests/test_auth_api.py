@@ -274,6 +274,8 @@ def test_an_absurdly_long_password_is_refused_without_work(client, user):
     response = log_in(client, password="x" * 5000)
 
     assert error_of(response) == (422, "VALIDATION_ERROR")
+    # Lỗi kiểm tra đầu vào không chép lại mật khẩu vừa gửi.
+    assert "xxxxx" not in response.text
 
 
 def test_creating_a_user_refuses_a_taken_email_a_weak_password_and_an_unknown_role(session, user):
@@ -339,3 +341,171 @@ def test_the_use_of_a_session_is_saved(real):
     with sessions() as check:
         last_seen = check.scalars(select(UserSession.last_seen_at)).one()
     assert dt.datetime.now(dt.UTC) - last_seen < dt.timedelta(minutes=1)
+
+
+@pytest.mark.parametrize("email", ["a\x00b@example.org", "tab\there@example.org", "not-an-email", "@", ""])
+def test_an_email_that_could_never_be_an_account_is_answered_like_an_unknown_one(client, user, email):
+    unknown = log_in(client, email="nobody@example.org")
+
+    response = log_in(client, email=email)
+
+    assert (response.status_code, response.json()) == (unknown.status_code, unknown.json())
+
+
+def test_text_that_is_not_valid_unicode_is_refused_as_a_bad_request_not_a_crash(client, user):
+    # Nửa cặp surrogate lẻ: JSON viết được nó, UTF-8 thì không. Lớp kiểm tra đầu vào từ chối nó trước khi nó
+    # tới câu truy vấn hay bước băm, và từ chối như nhau dù email có tài khoản hay không.
+    bodies = [
+        b'{"email": "lab@example.org", "password": "\\ud800aaaaaaaaaaaa"}',
+        b'{"email": "\\ud800@example.org", "password": "aaaaaaaaaaaa"}',
+        b'{"email": "nobody@example.org", "password": "\\ud800aaaaaaaaaaaa"}',
+    ]
+
+    for body in bodies:
+        response = client.post("/api/auth/login", content=body, headers=BROWSER | {"Content-Type": "application/json"})
+        assert error_of(response) == (422, "VALIDATION_ERROR")
+        # Thông báo lỗi không chép lại thứ vừa gửi lên.
+        assert "aaaaaaaaaaaa" not in response.text
+
+
+def test_every_failed_login_leaves_one_audit_row_and_never_the_text_that_was_typed(client, session, user):
+    log_in(client, email="nobody@example.org", password="mật khẩu gõ nhầm vào đây")
+    log_in(client, email="mật khẩu gõ nhầm vào ô email", password="x" * 12)
+    for _ in range(5):
+        log_in(client, password="sai mật khẩu rồi")
+    log_in(client)  # đang bị khoá
+
+    rows = session.execute(
+        select(AuditLog.action, AuditLog.actor_id, AuditLog.subject, AuditLog.detail).order_by(AuditLog.id)
+    ).all()
+
+    assert [(action, actor) for action, actor, _, _ in rows] == [
+        ("user_created", None),
+        ("login_failed", None),
+        ("login_failed", None),
+        *[("login_failed", user.id)] * 4,
+        ("login_locked", user.id),
+        ("login_refused", user.id),
+    ]
+    assert "gõ nhầm" not in repr(rows) and "nobody" not in repr(rows) and PASSWORD not in repr(rows)
+
+
+def test_attempts_made_while_locked_do_not_extend_the_lock(client, session, user):
+    for _ in range(5):
+        log_in(client, password="sai mật khẩu rồi")
+    until = user.locked_until
+
+    for _ in range(3):
+        log_in(client, password="sai mật khẩu rồi")
+
+    session.refresh(user)
+    assert user.locked_until == until
+
+
+def test_after_a_lock_has_passed_one_wrong_password_does_not_lock_again(client, session, user):
+    for _ in range(5):
+        log_in(client, password="sai mật khẩu rồi")
+    user.locked_until -= dt.timedelta(minutes=16)
+    session.flush()
+
+    log_in(client, password="sai mật khẩu rồi")
+
+    assert log_in(client).status_code == 200
+
+
+def test_an_admin_locked_account_is_refused_like_any_other_failure(client, session, user):
+    wrong = log_in(client, password="sai mật khẩu rồi")
+    user.is_locked = True
+    session.flush()
+
+    response = log_in(client)
+
+    assert (response.status_code, response.json()) == (wrong.status_code, wrong.json())
+    assert "set-cookie" not in response.headers
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
+@pytest.mark.parametrize("path", ["/api/auth/login", "/api/auth/logout", "/api/samples", "/api/no-such-thing", "/"])
+def test_every_write_request_needs_the_browser_header_whatever_it_targets(client, method, path):
+    refused = client.request(method, path)
+    allowed = client.request(method, path, headers=BROWSER)
+
+    assert error_of(refused) == (403, "CSRF_HEADER_REQUIRED")
+    # Có header thì request đi tiếp tới chỗ xử lý bình thường của nó.
+    assert allowed.status_code != 403
+
+
+def test_requests_refused_for_the_missing_header_do_not_count_as_wrong_passwords(client, user):
+    for _ in range(6):
+        response = client.post("/api/auth/login", json={"email": EMAIL, "password": "sai mật khẩu rồi"})
+        assert response.status_code == 403
+
+    assert log_in(client).status_code == 200
+
+
+def test_answers_about_accounts_are_never_to_be_stored(client, user, admin):
+    log_in(client, email="admin@example.org")
+    responses = [
+        log_in(client, password="sai mật khẩu rồi"),
+        log_in(client, email="admin@example.org"),
+        client.get("/api/auth/me"),
+        client.get("/api/admin/users"),
+        client.post("/api/auth/logout", headers=BROWSER),
+        client.get("/api/auth/me"),
+        client.post("/api/auth/login", json={}),
+    ]
+
+    assert [response.headers.get("cache-control") for response in responses] == ["no-store"] * len(responses)
+    # Dữ liệu công khai không bị ảnh hưởng.
+    assert client.get("/api/health").headers.get("cache-control") is None
+
+
+def test_a_login_is_turned_away_when_too_many_are_being_checked(client, session, user, monkeypatch):
+    def busy(*_args):
+        raise passwords.TooBusy("no free slot")
+
+    monkeypatch.setattr(service, "verify_password", busy)
+
+    response = log_in(client)
+
+    assert error_of(response) == (503, "LOGIN_BUSY")
+    assert "set-cookie" not in response.headers
+    # Lần bị từ chối vì quá tải không phải một lần sai mật khẩu.
+    session.refresh(user)
+    assert (user.failed_logins, user.locked_until) == (0, None)
+
+
+def test_an_unexpected_failure_is_reported_without_its_details(session, user, monkeypatch):
+    from app.db import get_session
+    from app.main import app
+
+    def explode(*_args, **_kwargs):
+        raise RuntimeError("secret detail from inside the server")
+
+    monkeypatch.setattr(service, "log_in", explode)
+    app.dependency_overrides[get_session] = lambda: session
+    try:
+        with TestClient(app, raise_server_exceptions=False) as quiet:
+            response = log_in(quiet)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert error_of(response) == (500, "INTERNAL_ERROR")
+    assert "secret detail" not in response.text and "Traceback" not in response.text
+
+
+def test_logging_in_works_with_the_real_cost_of_hashing(client, session, monkeypatch):
+    # Các test khác băm nhẹ cho nhanh; test này đi trọn đường với tham số thật.
+    monkeypatch.setattr(passwords, "N", 2**17)
+    service.create_user(session, email="real@example.org", display_name="Thật", password=PASSWORD)
+
+    assert log_in(client, email="real@example.org").status_code == 200
+    assert error_of(log_in(client, email="real@example.org", password="sai mật khẩu rồi")) == (
+        401,
+        "INVALID_CREDENTIALS",
+    )
+
+
+def test_a_display_name_must_be_readable_text(session):
+    with pytest.raises(ValueError, match="name"):
+        service.create_user(session, email="e@example.org", display_name="tên\x00lạ", password=PASSWORD)

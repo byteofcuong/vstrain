@@ -35,8 +35,8 @@ class Me(ApiModel):
 
 class Credentials(ApiModel):
     email: str = Field(max_length=254)
-    # Giới hạn ngay ở đây: mật khẩu dài hơn mức được nhận thì không tới được bước băm.
-    password: str = Field(max_length=passwords.MAX_LENGTH)
+    # Giới hạn ngay ở đây: chuỗi dài hơn mọi mật khẩu được nhận (kể cả ở dạng dấu rời) không tới được bước băm.
+    password: str = Field(max_length=passwords.RAW_LIMIT)
 
 
 class UserList(ApiModel):
@@ -71,7 +71,12 @@ AdminUser = Annotated[AppUser, Depends(require_admin)]
 
 @router.post("/login")
 def login(body: Credentials, response: Response, session: SessionDep) -> Me:
-    result = service.log_in(session, body.email, body.password, now=_now())
+    try:
+        result = service.log_in(session, body.email, body.password, now=_now())
+    except passwords.TooBusy:
+        # Quá nhiều lần đăng nhập cùng lúc: từ chối ngay, không tính là một lần sai. Lúc này chưa có gì được
+        # ghi; khoá trên dòng tài khoản được nhả khi session của request đóng lại.
+        raise ApiError(503, "LOGIN_BUSY", "Too many logins are being checked; try again in a moment") from None
     # Commit cả khi thất bại: số lần sai phải được lưu thì giới hạn số lần thử mới có nghĩa.
     session.commit()
     if result is None:

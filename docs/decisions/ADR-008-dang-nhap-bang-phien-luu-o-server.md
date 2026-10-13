@@ -16,13 +16,15 @@ Bản nháp đặc tả ghi băm mật khẩu bằng Argon2id qua gói `argon2-c
 ## Decision
 - **Mật khẩu băm bằng scrypt** (`hashlib.scrypt`), tham số N = 2^17, r = 8, p = 1: khoảng 128 MB bộ nhớ và 0,3 giây cho một lần băm trên máy phát triển, là mức tối thiểu OWASP khuyến nghị cho scrypt. Chuỗi lưu trong DB tự ghi thuật toán và tham số, nên nâng tham số hay đổi thuật toán sau này không làm hỏng mật khẩu đã lưu.
 - **Mật khẩu được chuẩn hoá Unicode (NFKC) trước khi băm.** Bộ gõ tiếng Việt cho ra chữ dựng sẵn hoặc chữ cái cộng dấu rời tuỳ cấu hình; người dùng thấy cùng một mật khẩu thì hệ thống phải coi là một.
-- **Mật khẩu dài từ 10 tới 200 ký tự.** Cận trên chặn việc gửi chuỗi rất dài để bắt server băm.
+- **Mật khẩu dài từ 10 tới 200 ký tự, tính trên dạng đã chuẩn hoá**, để một mật khẩu được nhận hay không không phụ thuộc bộ gõ. Chuỗi gửi lên dài quá 800 ký tự bị từ chối trước khi chuẩn hoá hay băm.
+- **Nhiều nhất 4 lần băm chạy cùng lúc và 8 lần chờ.** Mỗi lần băm giữ khoảng 128 MB, và đăng nhập là endpoint không cần quyền gì; không có trần thì 40 request cùng lúc đòi khoảng 5 GB. Request vượt trần bị từ chối ngay với 503 `LOGIN_BUSY`, không giữ luồng của server và không tính là một lần sai.
 - **Phiên đăng nhập là một token ngẫu nhiên 256 bit, lưu ở server.** DB chỉ giữ SHA-256 của token; token thật nằm trong cookie `HttpOnly`, `SameSite=Lax`, thêm `Secure` khi cấu hình `VS_COOKIE_SECURE` bật (sau HTTPS). Phiên hết hạn sau 7 ngày không dùng, và muộn nhất 30 ngày sau lúc đăng nhập. Đăng xuất xoá dòng phiên, nên token hết hiệu lực ngay.
 - **Mọi request ghi phải mang header `X-Requested-With`.** Trang khác không gắn được header tự đặt khi gửi kèm cookie, vì API không cho phép origin nào khác (không bật CORS). Đây là lớp thứ hai bên cạnh `SameSite=Lax`.
-- **Mọi lần đăng nhập thất bại cho cùng một câu trả lời** (`INVALID_CREDENTIALS`), dù là email lạ, sai mật khẩu hay tài khoản đang bị khoá, và đều tốn đúng một lần băm, để câu trả lời và thời gian trả lời không cho biết email nào có tài khoản.
+- **Mọi lần đăng nhập thất bại cho cùng một câu trả lời** (`INVALID_CREDENTIALS`), dù là email lạ, sai mật khẩu hay tài khoản đang bị khoá, và đều tốn đúng một lần băm và một dòng nhật ký, để câu trả lời và thời gian trả lời không cho biết email nào có tài khoản. Đo qua nginx với tham số thật, 20 lần mỗi kiểu: trung vị 285, 291, 287 và 292 ms cho email lạ, sai mật khẩu, đang tự khoá và admin khoá; đăng nhập đúng 292 ms.
+- **Câu trả lời ở `/api/auth/` và `/api/admin/` mang `Cache-Control: no-store`.**
 - **Năm lần sai mật khẩu liên tiếp trong 15 phút thì khoá tài khoản 15 phút**, kể cả với mật khẩu đúng. Bộ đếm nằm trên dòng của tài khoản và được khoá dòng khi đọc, nên các lần thử song song không vượt được nó.
 - **Tài khoản do admin tạo bằng dòng lệnh** (`python -m app.cli create-user`); mật khẩu được hỏi hoặc đọc từ stdin, không nhận qua tham số. Không có tự đăng ký.
-- **Bảng `audit_log`** ghi đăng nhập, đăng nhập sai, khoá, đăng xuất và tạo tài khoản; không bao giờ ghi mật khẩu hay token.
+- **Bảng `audit_log`** ghi đăng nhập, đăng nhập sai, khoá, lần thử khi đang khoá, đăng xuất và tạo tài khoản. Nó không bao giờ ghi mật khẩu hay token, và không ghi email đã thử: người dùng hay gõ nhầm mật khẩu vào ô email.
 
 ## Alternatives Considered
 
@@ -48,7 +50,7 @@ Bản nháp đặc tả ghi băm mật khẩu bằng Argon2id qua gói `argon2-c
 
 ## Consequences
 - Không thêm dependency nào cho phần đăng nhập.
-- Mỗi lần đăng nhập tốn khoảng 0,3 giây CPU và 128 MB bộ nhớ ở server. Với vài chục người dùng thì không đáng kể; nhiều người đăng nhập cùng lúc thì cần giới hạn số lần băm chạy song song.
+- Mỗi lần đăng nhập tốn khoảng 0,3 giây CPU và 128 MB bộ nhớ ở server; bộ nhớ dành cho việc băm không vượt quá khoảng 512 MB, và server kiểm được khoảng 13 lần đăng nhập mỗi giây. Chưa có giới hạn theo địa chỉ IP ở nginx: một loạt request đăng nhập vẫn chiếm được cả 12 chỗ và làm người khác nhận 503.
 - Mỗi request có đăng nhập thêm một truy vấn tìm phiên. Lần dùng phiên được ghi lại nhiều nhất một phút một lần.
 - Chưa có: đặt lại mật khẩu, đổi mật khẩu, xác thực hai lớp, trang quản lý tài khoản. Quên mật khẩu thì admin tạo lại tài khoản.
 - Chưa có HTTPS (ADR-006); trên máy phát triển cookie đi qua HTTP ở `127.0.0.1`. Đưa lên server phải bật HTTPS và `VS_COOKIE_SECURE`.

@@ -80,7 +80,8 @@ def run_job(args: argparse.Namespace) -> None:
 def run_create_user(args: argparse.Namespace) -> None:
     """Tạo một tài khoản. Mật khẩu không nhận qua tham số dòng lệnh, vì tham số nằm trong danh sách tiến trình."""
     if args.password_stdin:
-        password = sys.stdin.readline().rstrip("\r\n")
+        # Đọc byte rồi tự giải mã: mật khẩu tiếng Việt không phụ thuộc bảng mã mặc định của terminal.
+        password = sys.stdin.buffer.readline().decode("utf-8").rstrip("\r\n")
     else:
         password = getpass.getpass("Mật khẩu: ")
         if getpass.getpass("Nhập lại mật khẩu: ") != password:

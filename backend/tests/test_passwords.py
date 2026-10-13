@@ -1,9 +1,11 @@
+import threading
+import time
 import unicodedata
 
 import pytest
 
 from app.accounts import passwords
-from app.accounts.passwords import WeakPassword, hash_password, verify_password
+from app.accounts.passwords import TooBusy, WeakPassword, hash_password, verify_password
 
 GOOD = "correct horse battery"
 
@@ -82,3 +84,71 @@ def test_a_hash_made_by_another_scheme_does_not_verify():
 )
 def test_a_stored_hash_that_cannot_be_read_never_verifies_and_never_raises(encoded):
     assert verify_password(GOOD, encoded) is False
+
+
+def test_the_length_limits_apply_to_the_password_as_normalised_however_it_was_typed():
+    # Chín ký tự với người gõ, nhưng dạng dấu rời có 13 code point: cả hai dạng đều phải bị coi là quá ngắn.
+    composed = unicodedata.normalize("NFC", "mật khẩu1")
+    decomposed = unicodedata.normalize("NFD", composed)
+    assert (len(composed), len(decomposed)) == (9, 13)
+
+    for typed in (composed, decomposed):
+        with pytest.raises(WeakPassword):
+            hash_password(typed)
+
+
+def test_a_long_vietnamese_password_still_verifies_when_typed_with_separate_accents():
+    # 200 ký tự là dài nhất được nhận; dạng dấu rời của nó dài gấp ba và vẫn phải đăng nhập được.
+    composed = unicodedata.normalize("NFC", "ậ" * 200)
+    decomposed = unicodedata.normalize("NFD", composed)
+    assert len(decomposed) == 600
+
+    assert verify_password(decomposed, hash_password(composed)) is True
+
+
+def test_text_that_cannot_be_encoded_is_refused_instead_of_crashing():
+    # Một nửa cặp thay thế (surrogate) lẻ không viết được thành UTF-8; JSON vẫn mang được nó tới server.
+    broken = "\ud800" * 12
+
+    with pytest.raises(WeakPassword):
+        hash_password(broken)
+    assert verify_password(broken, hash_password(GOOD)) is False
+
+
+def test_only_a_few_hashes_run_at_once_and_the_overflow_is_turned_away(monkeypatch):
+    # Mỗi lần băm cần khoảng 128 MB: không giới hạn thì một loạt request đăng nhập làm server hết bộ nhớ.
+    active = 0
+    most = 0
+    lock = threading.Lock()
+
+    def slow_scrypt(*_args, dklen, **_kwargs):
+        nonlocal active, most
+        with lock:
+            active += 1
+            most = max(most, active)
+        time.sleep(0.2)
+        with lock:
+            active -= 1
+        return b"k" * dklen
+
+    encoded = hash_password(GOOD)
+    monkeypatch.setattr(passwords.hashlib, "scrypt", slow_scrypt)
+    outcomes = []
+
+    def attempt():
+        try:
+            verify_password(GOOD, encoded)
+            outcomes.append("done")
+        except TooBusy:
+            outcomes.append("busy")
+
+    threads = [threading.Thread(target=attempt) for _ in range(30)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    waiting_room = passwords.CONCURRENT_HASHES + passwords.WAITING_HASHES
+    assert most == passwords.CONCURRENT_HASHES
+    assert outcomes.count("done") == waiting_room
+    assert outcomes.count("busy") == 30 - waiting_room

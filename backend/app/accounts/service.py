@@ -39,6 +39,15 @@ def normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+def _is_email(email: str) -> bool:
+    """Chuỗi đã chuẩn hoá có thể là email của một tài khoản không.
+
+    Ký tự điều khiển và ký tự không in được bị loại ngay ở đây: PostgreSQL không nhận byte NUL, và nửa cặp
+    surrogate lẻ không viết được thành UTF-8, nên chúng không được đi tới câu truy vấn.
+    """
+    return len(email) <= 254 and email.isprintable() and _EMAIL.fullmatch(email) is not None
+
+
 def record(session: Session, actor_id: int | None, action: str, subject: str | None = None, **detail: Any) -> None:
     """Thêm một dòng nhật ký. Không bao giờ đưa mật khẩu hay token vào `detail`."""
     session.add(AuditLog(actor_id=actor_id, action=action, subject=subject, detail=detail))
@@ -49,12 +58,12 @@ def create_user(
 ) -> AppUser:
     email = normalize_email(email)
     name = display_name.strip()
-    if not _EMAIL.fullmatch(email) or len(email) > 254:
+    if not _is_email(email):
         raise ValueError("Not an email address")
     if role not in {known.value for known in UserRole}:
         raise ValueError(f"Unknown role {role!r}")
-    if not 0 < len(name) <= 100:
-        raise ValueError("The display name must have between 1 and 100 characters")
+    if not 0 < len(name) <= 100 or not name.isprintable():
+        raise ValueError("The display name must be 1 to 100 characters of readable text")
     if session.scalar(select(AppUser.id).where(AppUser.email == email)) is not None:
         raise EmailTaken(f"There is already an account for {email}")
     user = AppUser(email=email, display_name=name, password_hash=hash_password(password), role=role)
@@ -78,16 +87,26 @@ def _dummy_hash() -> str:
 def log_in(session: Session, email: str, password: str, *, now: dt.datetime) -> tuple[AppUser, str] | None:
     """Đăng nhập: trả về tài khoản và token của phiên mới, hoặc `None`.
 
-    Mọi lý do thất bại (email lạ, sai mật khẩu, đang bị khoá) cho cùng một kết quả và cùng một lần băm, để câu
-    trả lời và thời gian trả lời không cho biết email nào có tài khoản.
+    Mọi lý do thất bại (email lạ, sai mật khẩu, đang bị khoá) cho cùng một kết quả, cùng một lần băm và cùng
+    một dòng nhật ký, để câu trả lời và thời gian trả lời không cho biết email nào có tài khoản. Nhật ký không
+    ghi email đã thử: người dùng hay gõ nhầm mật khẩu vào ô email.
+
+    Ném `TooBusy` khi đang có quá nhiều lần băm; khi đó chưa có gì được ghi.
     """
+    email = normalize_email(email)
     # Khoá dòng: các lần thử chạy song song không vượt được bộ đếm số lần sai.
-    user = session.scalar(select(AppUser).where(AppUser.email == normalize_email(email)).with_for_update())
+    locked_row = select(AppUser).where(AppUser.email == email).with_for_update()
+    user = session.scalar(locked_row) if _is_email(email) else None
     if user is None:
         verify_password(password, _dummy_hash())
+        record(session, None, "login_failed")
+        session.flush()
         return None
     correct = verify_password(password, user.password_hash)
     if user.locked_until is not None and user.locked_until > now:
+        # Đang khoá: lần thử này không được tính thêm và không kéo dài thời gian khoá.
+        record(session, user.id, "login_refused")
+        session.flush()
         return None
     if not correct:
         if user.failed_since is None or now - user.failed_since > FAILURE_WINDOW:
@@ -102,6 +121,8 @@ def log_in(session: Session, email: str, password: str, *, now: dt.datetime) -> 
         session.flush()
         return None
     if user.is_locked:
+        record(session, user.id, "login_refused")
+        session.flush()
         return None
 
     user.failed_since, user.failed_logins, user.locked_until = None, 0, None
