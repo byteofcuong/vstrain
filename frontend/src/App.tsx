@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { DatasetList } from "./components/DatasetList";
 import { DatasetView } from "./components/DatasetView";
 import { LoginPage } from "./components/LoginPage";
+import { EditSamplePage } from "./components/EditSamplePage";
 import { MySamplesPage } from "./components/MySamplesPage";
 import { SubmitPage } from "./components/SubmitPage";
 import type { Lang } from "./i18n";
@@ -103,6 +104,7 @@ export function App() {
       {route.page === "login" && <LoginPage />}
       {route.page === "submit" && <SubmitPage />}
       {route.page === "mine" && <MySamplesPage />}
+      {route.page === "editSample" && <EditSamplePage internalId={route.internalId} />}
       {route.page === "admin" && (
         <Suspense fallback={<main className="page" />}>
           <AdminPage section={route.section} />

@@ -250,3 +250,76 @@ test("an administrator hides the sample, which takes it off the tree, and can br
   const restored = await (await page.request.get(`/api/datasets/${SLUG}/placements`)).json();
   expect(restored.items.map((item: { internalId: string }) => item.internalId)).toContain(internalId);
 });
+
+test("a lab corrects the name and province of its sample, and the tree shows the corrected sample", async ({
+  page,
+  browser,
+}) => {
+  const corrected = "Đà_Nẵng/02/2024 đã sửa";
+  await logIn(page, lab);
+  await page.goto("/#/mine");
+  await page
+    .getByRole("row", { name: new RegExp(SAMPLE_NAME.slice(0, 14)) })
+    .getByRole("link", { name: "Sửa" })
+    .click();
+
+  // Form sửa mở ra với đúng các giá trị đang có; không có ô chọn file, vì chuỗi không sửa được.
+  await expect(page).toHaveURL(new RegExp(`#/mine/${internalId}/edit$`));
+  await expect(page.getByRole("heading", { name: "Sửa thông tin mẫu" })).toBeVisible();
+  await expect(page.getByLabel("Tên mẫu")).toHaveValue(SAMPLE_NAME);
+  await expect(date(page)).toHaveValue(genome.date);
+  await expect(province(page)).toHaveValue(/:ha-noi$/);
+  await expect(page.getByLabel("File FASTA")).toHaveCount(0);
+
+  // Bỏ trống tên: form nói chỗ sai và không gửi gì.
+  await page.getByLabel("Tên mẫu").fill("   ");
+  await page.getByRole("button", { name: "Lưu thay đổi" }).click();
+  await expect(page.getByRole("alert")).toContainText("Chưa lưu được. Sửa các chỗ được đánh dấu rồi lưu lại.");
+  await expect(page.getByLabel("Tên mẫu")).toHaveAttribute("aria-invalid", "true");
+  expect((await (await page.request.get(`/api/submissions/${internalId}`)).json()).displayName).toBe(SAMPLE_NAME);
+
+  await page.getByLabel("Tên mẫu").fill(corrected);
+  await province(page).selectOption({ label: "Đà Nẵng" });
+  await page.getByRole("button", { name: "Lưu thay đổi" }).click();
+
+  // Về trang "Mẫu của tôi": lời báo đã lưu, và dòng của mẫu mang tên và tỉnh mới, vẫn là mẫu đó.
+  await expect(page).toHaveURL(/#\/mine$/);
+  await expect(page.getByRole("status")).toContainText(`Đã lưu thay đổi của mẫu ${corrected}`);
+  const row = page.getByRole("row", { name: new RegExp(corrected.slice(0, 14)) });
+  await expect(row).toContainText("Đà Nẵng");
+  await expect(row).toContainText(internalId);
+  await expect(row).toContainText("Đang là mẫu tạm trên cây");
+  await expect(page.getByRole("row", { name: new RegExp(SAMPLE_NAME.slice(0, 14)) })).toHaveCount(0);
+
+  // Trên cây, với mọi người xem: tip tạm mang tên và tỉnh mới ngay, không chờ lần dựng cây nào.
+  const guest = await browser.newContext();
+  const guestPage = await guest.newPage();
+  await openTip(guestPage, internalId);
+  const panel = guestPage.getByRole("complementary", { name: "Mẫu tạm" });
+  await expect(panel.getByRole("heading")).toContainText(corrected);
+  await expect(panel).toContainText("Đà Nẵng");
+  await expect(panel).not.toContainText("Hà Nội");
+  // Khách mở thẳng địa chỉ của form sửa thì được mời đăng nhập.
+  await guestPage.goto(`/#/mine/${internalId}/edit`);
+  await expect(guestPage.getByText("Đăng nhập để nộp mẫu.")).toBeVisible();
+  await expect(guestPage.getByLabel("Tên mẫu")).toHaveCount(0);
+  await guest.close();
+});
+
+test("an administrator sees the sample of a lab but cannot correct it", async ({ page }) => {
+  await logIn(page, admin);
+  await page.goto("/#/mine");
+  await page.getByRole("group", { name: "Danh sách" }).getByText("Mọi mẫu đã nộp").click();
+  const row = page.getByRole("row", { name: new RegExp(lab.displayName) });
+  await expect(row).toContainText(internalId);
+  await expect(row.getByRole("link", { name: "Sửa" })).toHaveCount(0);
+
+  // Gõ thẳng địa chỉ của form: quyền được kiểm ở API, và lời từ chối nói rõ lý do.
+  await page.goto(`/#/mine/${internalId}/edit`);
+  await page.getByLabel("Tên mẫu").fill("tên do admin đặt");
+  await page.getByRole("button", { name: "Lưu thay đổi" }).click();
+  await expect(page.getByRole("alert")).toContainText("Chỉ tài khoản đã nộp mẫu mới sửa được nó.");
+  expect((await (await page.request.get(`/api/submissions/${internalId}`)).json()).displayName).not.toBe(
+    "tên do admin đặt",
+  );
+});

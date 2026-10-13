@@ -322,6 +322,44 @@ const MESSAGES = {
   reject_OTHER: { vi: "Mẫu không qua được bước kiểm tra.", en: "The sample did not get through the check." },
   serotype: { vi: "Serotype", en: "Serotype" },
   viewOnTree: { vi: "Xem trên cây {title}", en: "See on the tree {title}" },
+  correctSample: { vi: "Sửa", en: "Correct" },
+  editSample: { vi: "Sửa thông tin mẫu", en: "Correct a sample" },
+  editSampleIntro: {
+    vi: "Sửa tên, ngày lấy mẫu, tỉnh và vật chủ của mẫu {id}. Chuỗi không sửa được: chuỗi khác là một mẫu khác, cần nộp mới.",
+    en: "Correct the name, collection date, province and host of sample {id}. The sequence cannot be changed: another sequence is another sample and has to be submitted anew.",
+  },
+  saveChanges: { vi: "Lưu thay đổi", en: "Save changes" },
+  fixProblemsToSave: {
+    vi: "Chưa lưu được. Sửa các chỗ được đánh dấu rồi lưu lại.",
+    en: "Not saved yet. Fix the marked fields and save again.",
+  },
+  savingChanges: { vi: "Đang lưu…", en: "Saving…" },
+  backToMySamples: { vi: "Quay lại mẫu của tôi", en: "Back to my samples" },
+  correctedNotice: {
+    vi: "Đã lưu thay đổi của mẫu {name}. Mẫu đang là tip chính thức của một cây thì tên và tỉnh trên cây đổi sau ít giây, còn vị trí theo thời gian đổi ở lần dựng cây kế tiếp.",
+    en: "The changes to sample {name} are saved. Where the sample is an official tip of a tree, its name and province there change within seconds, and its place in time changes at the next build.",
+  },
+  editLoadFailed: { vi: "Không tải được mẫu này.", en: "Could not load this sample." },
+  editBeingChecked: {
+    vi: "Mẫu này đang được kiểm tra. Thử lại sau ít giây.",
+    en: "This sample is still being checked. Try again in a few seconds.",
+  },
+  editNotEditable: {
+    vi: "Chỉ mẫu đã được nhận mới sửa được.",
+    en: "Only a sample that has been accepted can be corrected.",
+  },
+  editNotFound: {
+    vi: "Không có mẫu này trong các mẫu bạn đã nộp.",
+    en: "This sample is not among the ones you have submitted.",
+  },
+  editForbidden: {
+    vi: "Chỉ tài khoản đã nộp mẫu mới sửa được nó.",
+    en: "Only the account that submitted a sample can correct it.",
+  },
+  editFailed: {
+    vi: "Không lưu được vì lỗi của máy chủ hoặc đường truyền. Thử lại.",
+    en: "Could not save because of a server or network problem. Try again.",
+  },
   hideSample: { vi: "Ẩn mẫu này", en: "Hide this sample" },
   unhideSample: { vi: "Hiện lại", en: "Show again" },
   actionFailed: { vi: "Không làm được việc này. Thử lại.", en: "That did not work. Try again." },

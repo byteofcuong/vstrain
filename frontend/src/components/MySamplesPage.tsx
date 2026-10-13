@@ -5,7 +5,7 @@ import { unitName, useProvinces } from "../data/provinces";
 import { useAuth } from "../state/auth";
 import { useT, useUi } from "../state/store";
 import { useSubmissions } from "../state/submissions";
-import { rejectionMessage } from "../submit/form";
+import { canCorrect, rejectionMessage } from "../submit/form";
 import { Choice } from "./Choice";
 
 type Scope = "mine" | "all";
@@ -27,6 +27,7 @@ export function MySamplesPage() {
   const user = useAuth((state) => state.user);
   // Lời báo "đã nhận mẫu" chỉ dành cho lần mở trang ngay sau khi nộp: đọc một lần rồi xoá khỏi store.
   const [justSubmitted] = useState(() => useSubmissions.getState().justSubmitted);
+  const [justCorrected] = useState(() => useSubmissions.getState().justCorrected);
   const provinces = useProvinces();
   const [scope, setScope] = useState<Scope>("mine");
   const [loaded, setLoaded] = useState<Loaded>({ state: "loading" });
@@ -68,7 +69,10 @@ export function MySamplesPage() {
     return () => window.clearTimeout(timer);
   }, [checking, loaded, load]);
 
-  useEffect(() => useSubmissions.getState().setJustSubmitted(null), []);
+  useEffect(() => {
+    useSubmissions.getState().setJustSubmitted(null);
+    useSubmissions.getState().setJustCorrected(null);
+  }, []);
 
   if (user === undefined) return <main className="page" />;
   if (user === null) {
@@ -118,6 +122,11 @@ export function MySamplesPage() {
           {t("submittedNotice", { name: justSubmitted })}
         </p>
       )}
+      {justCorrected !== null && (
+        <p className="notice notice--good" role="status">
+          {t("correctedNotice", { name: justCorrected })}
+        </p>
+      )}
       {actionFailed && (
         <p className="notice" role="alert">
           {t("actionFailed")}
@@ -165,6 +174,8 @@ export function MySamplesPage() {
                       {t("viewOnTree", { title: where.title })}
                     </a>
                   ))}
+                  {/* Chỉ ở danh sách của chính mình: mẫu của người khác thì admin xem được nhưng không sửa hộ. */}
+                  {!everyone && canCorrect(item) && <a href={`#/mine/${item.internalId}/edit`}>{t("correctSample")}</a>}
                   {admin && (item.status === "accepted" || item.status === "hidden") && (
                     <button
                       type="button"

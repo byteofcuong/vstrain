@@ -2,7 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import type { AdminUnit, SubmissionStage } from "../api";
 import { translate, type MessageKey } from "../i18n";
-import { limitMessage, problemMessage, provincesOn, readCollectionDate, rejectionMessage } from "./form";
+import {
+  canCorrect,
+  correctionMessage,
+  limitMessage,
+  problemMessage,
+  provincesOn,
+  readCollectionDate,
+  rejectionMessage,
+  typedDate,
+} from "./form";
 
 describe("readCollectionDate", () => {
   it("reads a day, a month or a year, with the days each one could mean", () => {
@@ -167,5 +176,54 @@ describe("problemMessage and rejectionMessage", () => {
       const words = stages.map((stage) => translate(lang, `stage_${stage}`));
       expect(new Set(words).size).toBe(stages.length);
     }
+  });
+});
+
+describe("typedDate", () => {
+  it("turns a stored collection date back into what the form holds, at the precision the lab gave", () => {
+    expect(typedDate("2024-01-15")).toEqual({ precision: "day", text: "2024-01-15" });
+    expect(typedDate("2024-01-XX")).toEqual({ precision: "month", text: "2024-01" });
+    expect(typedDate("2024-XX-XX")).toEqual({ precision: "year", text: "2024" });
+  });
+
+  it("gives back a date the form reads as the same stored value", () => {
+    for (const stored of ["2024-02-29", "2023-12-XX", "1999-XX-XX"]) {
+      const typed = typedDate(stored);
+      expect(typed).not.toBeNull();
+      if (typed) expect(readCollectionDate(typed.precision, typed.text)?.value).toBe(typed.text);
+    }
+  });
+
+  it("gives nothing for a date that is missing or in a shape the form cannot hold", () => {
+    for (const stored of [null, "", "XXXX-XX-XX", "2024-XX-15", "15/01/2024", "2024", "2024-01-15T00:00"]) {
+      expect(typedDate(stored), String(stored)).toBeNull();
+    }
+  });
+});
+
+describe("canCorrect", () => {
+  it("lets a lab correct a sample once it is accepted and nothing is still running for it", () => {
+    const yes: SubmissionStage[] = ["accepted", "placement_failed", "placed", "in_tree"];
+    const no: SubmissionStage[] = ["processing", "failed", "rejected", "hidden"];
+    for (const stage of yes) expect(canCorrect({ status: "accepted", stage }), stage).toBe(true);
+    for (const stage of no)
+      expect(canCorrect({ status: stage === "processing" ? "accepted" : stage, stage })).toBe(false);
+    // Tình trạng mà giao diện chưa biết (server mới hơn): không mời sửa thứ chưa chắc sửa được.
+    expect(canCorrect({ status: "accepted", stage: "something_new" as SubmissionStage })).toBe(false);
+  });
+});
+
+describe("correctionMessage", () => {
+  it("says why a correction was not taken, in words of its own for each reason", () => {
+    const keys = ["SAMPLE_BEING_CHECKED", "SAMPLE_NOT_EDITABLE", "SUBMISSION_NOT_FOUND", "FORBIDDEN"].map(
+      correctionMessage,
+    );
+    expect(new Set(keys).size).toBe(4);
+    expect(keys).not.toContain("editFailed");
+    for (const lang of ["vi", "en"] as const) {
+      expect(new Set(keys.map((key) => translate(lang, key))).size).toBe(4);
+    }
+    expect(correctionMessage("SOMETHING_NEW")).toBe("editFailed");
+    expect(correctionMessage("constructor")).toBe("editFailed");
   });
 });

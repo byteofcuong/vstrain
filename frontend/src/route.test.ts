@@ -10,6 +10,7 @@ describe("parseRoute", () => {
     expect(parseRoute("#/login")).toEqual({ page: "login" });
     expect(parseRoute("#/submit")).toEqual({ page: "submit" });
     expect(parseRoute("#/mine")).toEqual({ page: "mine" });
+    expect(parseRoute("#/mine/S0059552/edit")).toEqual({ page: "editSample", internalId: "S0059552" });
     expect(parseRoute("#/admin/jobs")).toEqual({ page: "admin", section: "jobs" });
     expect(parseRoute("#/admin/datasets")).toEqual({ page: "admin", section: "datasets" });
     expect(parseRoute("#/admin/places")).toEqual({ page: "admin", section: "places" });
@@ -34,6 +35,11 @@ describe("parseRoute", () => {
       "#login",
       "#/submit/",
       "#/mine?all",
+      "#/mine/S0059552",
+      "#/mine/S123/edit",
+      "#/mine/abc/edit",
+      "#/mine/S0059552/edit/",
+      "#/mine/S0059552/delete",
       "#/d/dengue-denv1/t/",
       "#/d/dengue-denv1/t/abc",
       "#/d/dengue-denv1/t/S123",

@@ -194,6 +194,17 @@ export function submitSample(input: SubmissionInput): Promise<Submission> {
   return send<Submission>("POST", "/api/submissions", input);
 }
 
+/** Thứ form sửa mẫu gửi đi: các trường người nộp khai, không có chuỗi. */
+export type CorrectionInput = Omit<SubmissionInput, "fasta">;
+
+export function getSubmission(internalId: string, signal?: AbortSignal): Promise<Submission> {
+  return get<Submission>(`/api/submissions/${encodeURIComponent(internalId)}`, signal);
+}
+
+export function correctSubmission(internalId: string, input: CorrectionInput): Promise<Submission> {
+  return send<Submission>("PATCH", `/api/submissions/${encodeURIComponent(internalId)}`, input);
+}
+
 export function listSubmissions(scope: "mine" | "all", signal?: AbortSignal): Promise<SubmissionPage> {
   return get<SubmissionPage>(`/api/submissions?scope=${scope}&limit=200`, signal);
 }

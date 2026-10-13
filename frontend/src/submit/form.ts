@@ -1,4 +1,4 @@
-import type { AdminUnit } from "../api";
+import type { AdminUnit, Submission, SubmissionStage } from "../api";
 import type { MessageKey } from "../i18n";
 
 /**
@@ -44,6 +44,19 @@ export function readCollectionDate(precision: Precision, typed: string): Collect
   if (month === null) return { value, first: `${match[1]}-01-01`, last: `${match[1]}-12-31` };
   if (day === null) return { value, first: `${value}-01`, last: `${value}-${pad(daysInMonth)}` };
   return { value, first: value, last: value };
+}
+
+/**
+ * Ngày lấy mẫu như server lưu ("2024-01-15", "2024-01-XX", "2024-XX-XX") thành thứ ô ngày của form giữ, ở đúng mức
+ * người nộp đã khai; `null` nếu không có ngày hoặc ngày ở dạng form không giữ được.
+ */
+export function typedDate(stored: string | null): { precision: Precision; text: string } | null {
+  const match = /^(\d{4})-(\d{2}|XX)-(\d{2}|XX)$/.exec(stored ?? "");
+  if (!match) return null;
+  const [, year, month, day] = match;
+  if (month === "XX") return day === "XX" ? { precision: "year", text: year } : null;
+  if (day === "XX") return { precision: "month", text: `${year}-${month}` };
+  return { precision: "day", text: `${year}-${month}-${day}` };
 }
 
 /**
@@ -93,4 +106,23 @@ export function rejectionMessage(code: string | null): MessageKey {
 /** Lời báo khi server không nhận thêm mẫu (429): chờ các mẫu đang kiểm tra xong, hoặc đã hết lượt của hôm nay. */
 export function limitMessage(code: string): MessageKey {
   return code === "TOO_MANY_TODAY" ? "submitTooManyToday" : "submitTooMany";
+}
+
+const CORRECTABLE = new Set<SubmissionStage>(["accepted", "placement_failed", "placed", "in_tree"]);
+
+/** Mẫu đã được nhận và không còn việc nào đang chạy cho nó thì người nộp sửa được tên, ngày, tỉnh và vật chủ. */
+export function canCorrect(item: Pick<Submission, "status" | "stage">): boolean {
+  return item.status === "accepted" && CORRECTABLE.has(item.stage);
+}
+
+const CORRECTION_REFUSALS: ReadonlyMap<string, MessageKey> = new Map([
+  ["SAMPLE_BEING_CHECKED", "editBeingChecked"],
+  ["SAMPLE_NOT_EDITABLE", "editNotEditable"],
+  ["SUBMISSION_NOT_FOUND", "editNotFound"],
+  ["FORBIDDEN", "editForbidden"],
+]);
+
+/** Lời báo khi server không nhận một lần sửa; mã chưa biết dùng lời chung. */
+export function correctionMessage(code: string): MessageKey {
+  return CORRECTION_REFUSALS.get(code) ?? "editFailed";
 }
