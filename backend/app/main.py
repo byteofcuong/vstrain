@@ -55,6 +55,9 @@ _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 _PRIVATE_PATHS = ("/api/auth/", "/api/admin/", "/api/submissions")
 # Trần cho thân của một request ghi. Thứ lớn nhất API nhận là một file FASTA 2 MB bọc trong JSON.
 MAX_BODY_BYTES = 4 * 1024 * 1024
+# Thân của một request bị từ chối vẫn được đọc bỏ, tới chừng này byte, trước khi trả lời (xem `_discard_body`).
+# nginx không chuyển thân trên 5 MB, nên qua nginx mọi thân bị từ chối đều được đọc hết.
+_DISCARD_BYTES = 2 * MAX_BODY_BYTES
 
 
 def _refuse_write(request: Request) -> Response | None:
@@ -72,6 +75,23 @@ def _refuse_write(request: Request) -> Response | None:
     return None
 
 
+async def _discard_body(request: Request) -> None:
+    """Đọc bỏ thân của một request sắp bị từ chối.
+
+    Trả lời mà chưa đọc thân thì server đóng kết nối trong lúc proxy còn đang gửi, và nginx có lúc trả 502 thay
+    cho lời từ chối này (đo được 2 trong 160 request 4,5 MB). Thân khai dài hơn `_DISCARD_BYTES` thì không đọc:
+    việc này không được thành cách bắt server nhận cả gigabyte.
+    """
+    declared = request.headers.get("content-length", "")
+    if declared.isascii() and declared.isdigit() and int(declared) > _DISCARD_BYTES:
+        return
+    seen = 0
+    async for chunk in request.stream():
+        seen += len(chunk)
+        if seen > _DISCARD_BYTES:
+            return
+
+
 @app.middleware("http")
 async def guard_requests(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """Mọi request ghi phải mang header `X-Requested-With`, thứ frontend tự gắn.
@@ -82,6 +102,7 @@ async def guard_requests(request: Request, call_next: Callable[[Request], Awaita
     """
     refusal = None if request.method in _SAFE_METHODS else _refuse_write(request)
     if refusal is not None:
+        await _discard_body(request)
         response: Response = refusal
     else:
         try:
