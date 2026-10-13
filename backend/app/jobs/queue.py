@@ -57,8 +57,8 @@ def claim(session: Session, worker: str, kinds: frozenset[str] | None = None) ->
 def _close(session: Session, job: Job, status: JobStatus, **values: Any) -> bool:
     """Ghi kết cục của job, chỉ khi nó còn đang chạy; trả về có ghi được hay không.
 
-    Job có thể đã bị đánh dấu thất bại vì worker im lặng quá lâu. Khi worker đó chạy xong, nó không được ghi
-    đè lên kết cục đã có.
+    Job có thể đã bị đánh dấu thất bại vì worker im lặng quá lâu, hoặc đã bị admin huỷ. Khi worker đó chạy xong,
+    nó không được ghi đè lên kết cục đã có.
     """
     result = session.execute(
         update(Job)
@@ -78,12 +78,17 @@ def fail(session: Session, job: Job, error: str) -> bool:
     return _close(session, job, JobStatus.FAILED, error=error.replace("\x00", "")[-_ERROR_LIMIT:])
 
 
-def heartbeat(session: Session, job_id: int) -> None:
-    """Worker báo job còn đang được xử lý."""
-    session.execute(
+def heartbeat(session: Session, job_id: int) -> bool:
+    """Worker báo job còn đang được xử lý; trả `False` khi job không còn ở trạng thái đang chạy.
+
+    Job có thể đã bị admin huỷ, hoặc bị một worker khác coi là bỏ dở. Cả hai lần kết cục đã được ghi, nên worker
+    đang chạy nó dừng lại thay vì làm tiếp một việc mà kết quả sẽ bị bỏ.
+    """
+    result = session.execute(
         update(Job).where(Job.id == job_id, Job.status == JobStatus.RUNNING.value).values(heartbeat_at=func.now())
     )
     session.commit()
+    return result.rowcount == 1
 
 
 def fail_stale(session: Session, silent_for: dt.timedelta) -> int:

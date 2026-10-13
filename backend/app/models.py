@@ -246,13 +246,16 @@ class JobStatus(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    CANCELLED = "cancelled"  # admin huỷ khi job còn chờ hoặc đang chạy
 
 
 class Job(Base):
     """Một việc chạy nền. Bảng này chính là hàng đợi: worker lấy dòng `queued` bằng FOR UPDATE SKIP LOCKED."""
 
     __tablename__ = "job"
-    __table_args__ = (CheckConstraint("status IN ('queued', 'running', 'succeeded', 'failed')", name="status_known"),)
+    __table_args__ = (
+        CheckConstraint("status IN ('queued', 'running', 'succeeded', 'failed', 'cancelled')", name="status_known"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     kind: Mapped[str] = mapped_column(String(40))  # tên handler trong worker
@@ -280,7 +283,7 @@ class JobStep(Base):
     job_id: Mapped[int] = mapped_column(ForeignKey("job.id", ondelete="CASCADE"), index=True)
     position: Mapped[int] = mapped_column(Integer)  # thứ tự của bước trong job, từ 1
     name: Mapped[str] = mapped_column(String(60))
-    status: Mapped[str] = mapped_column(String(20))  # 'running' | 'succeeded' | 'failed'
+    status: Mapped[str] = mapped_column(String(20))  # 'running' | 'succeeded' | 'failed' | 'cancelled'
     started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     metrics: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))  # thời gian, CPU, bộ nhớ

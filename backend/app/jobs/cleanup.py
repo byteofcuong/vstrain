@@ -18,6 +18,7 @@ from app.models import Job, JobStatus
 # Tên thư mục do worker đặt: `job-<id>`. 18 chữ số là đủ cho mọi giá trị BIGINT.
 _WORK_DIR = re.compile(r"job-([0-9]{1,18})")
 _CHUNK = 1000
+_ENDED = (JobStatus.SUCCEEDED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value)
 
 
 def purge_work_dirs(session: Session, work_root: Path, older_than: dt.timedelta) -> int:
@@ -40,7 +41,7 @@ def purge_work_dirs(session: Session, work_root: Path, older_than: dt.timedelta)
         finished = session.scalars(
             select(Job.id).where(
                 Job.id.in_(job_ids[start : start + _CHUNK]),
-                Job.status.in_((JobStatus.SUCCEEDED.value, JobStatus.FAILED.value)),
+                Job.status.in_(_ENDED),
                 Job.finished_at < func.now() - older_than,
             )
         ).all()

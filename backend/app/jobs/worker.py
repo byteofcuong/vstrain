@@ -22,7 +22,7 @@ from app.accounts import service as accounts
 from app.jobs import queue
 from app.jobs.cleanup import purge_work_dirs
 from app.jobs.schedule import BUILD_JOB, enqueue_due_builds
-from app.jobs.steps import Handler, JobContext
+from app.jobs.steps import Handler, JobContext, JobStopped
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class Worker:
             work_dir = self.work_root / f"job-{job.id}"
             work_dir.mkdir(parents=True, exist_ok=True)
             context = JobContext(session=session, job=job, work_dir=work_dir)
-            with self._heartbeat(job.id):
+            with self._heartbeat(job.id, context.stop):
                 try:
                     handler = self.handlers.get(job.kind)
                     if handler is None:
@@ -86,7 +86,11 @@ class Worker:
                     if queue.finish(session, job, result):
                         log.info("Job %s succeeded", job.id)
                     else:
-                        log.warning("Job %s finished after it had been marked failed; result discarded", job.id)
+                        log.warning("Job %s finished after it had been closed; result discarded", job.id)
+                except JobStopped:
+                    # Kết cục của job đã được ghi bởi người huỷ nó; ở đây chỉ còn việc bỏ phần đang làm dở.
+                    log.warning("Job %s stopped: it was cancelled or given up on while it ran", job.id)
+                    session.rollback()
                 except Exception as error:
                     # Lỗi của một job không được làm worker dừng: ghi lại rồi lấy job kế tiếp.
                     log.exception("Job %s failed", job.id)
@@ -142,8 +146,11 @@ class Worker:
                 log.exception("Housekeeping failed")
 
     @contextmanager
-    def _heartbeat(self, job_id: int) -> Iterator[None]:
-        """Luồng phụ báo nhịp bằng kết nối riêng, vì luồng chính đang bận chạy công cụ."""
+    def _heartbeat(self, job_id: int, stop: threading.Event) -> Iterator[None]:
+        """Luồng phụ báo nhịp bằng kết nối riêng, vì luồng chính đang bận chạy công cụ.
+
+        Lần báo nhịp thấy job không còn đang chạy thì bật `stop`: công cụ đang chạy bị dừng, không bước nào bắt đầu.
+        """
         if self.heartbeat_seconds is None:
             yield
             return
@@ -154,7 +161,10 @@ class Worker:
             while not done.wait(self.heartbeat_seconds):
                 try:
                     with self.session_factory() as session:
-                        queue.heartbeat(session, job_id)
+                        still_running = queue.heartbeat(session, job_id)
+                    if not still_running:
+                        stop.set()
+                        return
                 except Exception:
                     log.exception("Heartbeat for job %s failed", job_id)
 

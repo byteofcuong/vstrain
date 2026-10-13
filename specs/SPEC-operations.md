@@ -124,6 +124,54 @@ Reviewer không viết code, làm ba bước: liệt kê 30 điều sẽ kiểm 
 - Tạo và khoá tài khoản trên giao diện (vẫn bằng lệnh quản trị).
 - Sửa đơn vị hành chính (thêm tỉnh, đổi hiệu lực): vẫn qua file seed.
 
+## Huỷ job và dọn bản dựng cũ (bổ sung sau mốc M7)
+
+Trạng thái: **đang làm**.
+
+Tới mốc M7 còn hai giới hạn ghi ở "Điều cần biết": một job đang chạy không dừng được (một lần dựng cây 5.000 mẫu mất hơn nửa giờ; bấm nhầm thì phải chờ hoặc khởi động lại container), và bản publish cũ không bao giờ bị xoá.
+
+### Huỷ job
+
+- Trạng thái mới của job: `cancelled` (migration 0011 nới ràng buộc của cột `status`; đi xuống thì job đã huỷ thành job hỏng với lỗi ghi rõ là đã bị huỷ).
+- `POST /api/admin/jobs/{id}/cancel`, chỉ admin. 404 `JOB_NOT_FOUND`; 409 `JOB_ALREADY_FINISHED` với job đã xong, đã hỏng hoặc đã huỷ.
+- **Job đang chờ** thành `cancelled` ngay; không worker nào nhận nó nữa.
+- **Job đang chạy** được ghi `cancelled` ngay trong database, rồi worker tự dừng:
+  - Worker báo nhịp mỗi 15 giây. Lần báo nhịp thấy job không còn ở trạng thái đang chạy thì dừng công cụ đang chạy, cả nhóm tiến trình của nó (SIGKILL).
+  - Trước khi bắt đầu mỗi bước, worker hỏi lại database; job không còn đang chạy thì không bước nào mới được bắt đầu.
+  - Bước bị dừng ghi trạng thái `cancelled`. Worker không ghi đè kết cục của job (quy tắc đã có từ mốc M2) và nhận job kế tiếp.
+- Cùng cơ chế áp dụng cho job bị đánh dấu hỏng vì worker im lặng quá lâu: khi worker đó quay lại, nó dừng việc thay vì chạy tiếp một việc mà kết quả sẽ bị bỏ.
+- **Việc đã ghi xong không được hoàn lại.** Bước chạy trong Python (chọn mẫu, publish) chạy hết rồi mới dừng. Lệnh huỷ tới đúng lúc bước publish đang chạy (dưới một giây) thì cây vẫn được publish, còn job ghi là đã huỷ.
+- Job đã huỷ **chạy lại được** như job hỏng, cùng quy tắc một lần. Lần nộp có job kiểm tra bị huỷ hiện "Việc kiểm tra bị lỗi", như khi job hỏng.
+- Thư mục làm việc của job đã huỷ được dọn như của job đã kết thúc khác.
+- Nhật ký `job_cancelled`: ai huỷ, job nào, lúc đó nó đang chờ hay đang chạy.
+- Giao diện: nút "Huỷ" ở chi tiết của job đang chờ hoặc đang chạy, hỏi lại một lần trước khi huỷ; tình trạng "Đã huỷ"; bộ lọc và dòng đếm có thêm số job đã huỷ.
+
+### Dọn bản dựng cũ
+
+Mỗi lần publish lại (sửa địa danh, sửa mẫu) để lại một thư mục `p-<hash>` không còn ai trỏ tới; mỗi lần dựng lại để lại build cũ cùng cây và bản publish của nó. Worker chung dọn hai thứ đó lúc rảnh, cùng nhịp với các việc dọn khác (mỗi giờ):
+
+1. **Bản publish đã bị thay thế:** thư mục `p-*` trong thư mục của một build mà dòng `build` không còn trỏ tới, cũ hơn `VS_PUBLICATION_RETENTION_DAYS` ngày (mặc định 7, ít nhất 1). Thời hạn này để trình duyệt đang mở bản cũ còn tải được các cột nó chưa tải.
+2. **Build cũ:** mỗi dataset giữ build hiện hành và `VS_KEEP_BUILDS` build mới nhất ngoài nó (mặc định 5; 0 là chỉ giữ build hiện hành). Build nằm ngoài số đó, được tạo trước đây hơn `VS_PUBLICATION_RETENTION_DAYS` ngày và không có job nào của nó còn chờ hay đang chạy thì bị xoá: thư mục `b<mã>` trước, dòng `build` sau (kéo theo danh sách mẫu của build). Xoá thư mục không xong thì dòng được giữ lại để lần sau thử tiếp.
+
+Giới hạn an toàn: chỉ xoá thư mục thật nằm đúng chỗ (`builds/<slug>/b<mã>` và `p-<12 chữ số hex>` ngay trong nó), ứng với một dòng `build` trong database; liên kết tượng trưng và thư mục tên lạ không bị đụng tới. Build hiện hành và bản publish nó đang trỏ tới không bao giờ bị xoá, với bất kỳ cấu hình nào.
+
+### Tiêu chí nghiệm thu
+
+| # | Tiêu chí | Ngưỡng |
+|---|---|---|
+| C1 | Huỷ job đang chờ: job thành `cancelled` và không worker nào nhận nó | Có test |
+| C2 | Huỷ job đang chạy một công cụ: tiến trình của công cụ và tiến trình con của nó bị dừng sau một nhịp báo, job vẫn là `cancelled`, worker nhận được job kế tiếp | Có test với tiến trình thật |
+| C3 | Sau khi job bị huỷ, không bước mới nào bắt đầu, kể cả khi nhịp báo kế tiếp chưa tới | Có test |
+| C4 | Job đã kết thúc không huỷ được (409); mã lạ (404); 401, 403 và header chống CSRF như các endpoint quản trị khác; có dòng nhật ký | Có test |
+| C5 | Job đã huỷ chạy lại được đúng một lần; lần nộp có job bị huỷ hiện là kiểm tra bị lỗi và rời tình trạng đó khi job được chạy lại | Có test |
+| C6 | Migration 0011 lên, xuống, lên lại được; đi xuống không làm mất job đã huỷ | Chạy thật trên database rỗng và database có job đã huỷ |
+| C7 | Trên stack thật: admin huỷ một lần dựng cây đang chạy trên giao diện; job dừng, tiến trình dựng cây không còn, worker rảnh để nhận việc khác | Test đầu-cuối |
+| C8 | Bản publish đã bị thay thế và quá hạn bị xoá; bản đang được trỏ tới và bản chưa quá hạn còn nguyên | Có test |
+| C9 | Build cũ ngoài số được giữ và quá hạn bị xoá cả thư mục lẫn dòng; build hiện hành, các build được giữ, build chưa quá hạn, build có job chưa xong còn nguyên; liên kết tượng trưng và thư mục tên lạ không bị đụng | Có test |
+| C10 | Worker chung chạy việc dọn này lúc rảnh; worker chỉ kiểm tra mẫu thì không | Có test |
+| C11 | Sau một lần dọn trên stack thật, cây hiện hành vẫn mở được và mọi file trong manifest của nó còn đủ | Chạy thật |
+| C12 | Phần này có reviewer độc lập đọc lại trước khi gộp (dừng tiến trình và xoá file là việc sai thì đắt) | mục review |
+
 ## Quyết định cho các câu hỏi mở
 
 1. Lịch do worker chung tự xét, không thêm service hay công cụ lập lịch nào.

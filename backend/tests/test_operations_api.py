@@ -79,6 +79,7 @@ ADMIN_ENDPOINTS = [
     ("GET", "/api/admin/jobs"),
     ("GET", "/api/admin/jobs/1"),
     ("POST", "/api/admin/jobs/1/retry"),
+    ("POST", "/api/admin/jobs/1/cancel"),
     ("PATCH", "/api/admin/datasets/dengue-denv1"),
     ("POST", "/api/admin/datasets/dengue-denv1/builds"),
     ("GET", "/api/admin/places/unresolved"),
@@ -161,7 +162,7 @@ def test_the_job_list_shows_the_newest_first_with_how_the_queue_is_doing(session
 
     assert [item["id"] for item in body["items"]] == [waiting.id, broken.id, done.id]
     assert (body["total"], body["limit"], body["offset"]) == (3, 50, 0)
-    assert body["counts"] == {"queued": 1, "running": 0, "succeeded": 1, "failed": 1}
+    assert body["counts"] == {"queued": 1, "running": 0, "succeeded": 1, "failed": 1, "cancelled": 0}
     assert 299 <= body["oldestQueuedSeconds"] <= 310
     first, second, third = body["items"]
     assert (first["kind"], first["status"], first["params"], first["priority"]) == (
@@ -187,7 +188,7 @@ def test_the_job_list_filters_by_status_and_kind_and_pages(session, client, admi
     assert (failed["total"], len(failed["items"])) == (3, 2)
     assert {item["kind"] for item in failed["items"]} == {"ingest_sample"}
     # Số job theo trạng thái là của cả hàng đợi, không phụ thuộc bộ lọc.
-    assert failed["counts"] == {"queued": 0, "running": 0, "succeeded": 1, "failed": 4}
+    assert failed["counts"] == {"queued": 0, "running": 0, "succeeded": 1, "failed": 4, "cancelled": 0}
     assert failed["oldestQueuedSeconds"] is None
     assert client.get("/api/admin/jobs?status=exploded").status_code == 422
     assert client.get("/api/admin/jobs?kind=" + "x" * 41).status_code == 422
@@ -662,3 +663,97 @@ def test_resolving_again_does_not_touch_samples_from_other_countries_or_ones_wit
     assert (empty.geo_status, empty.admin_unit_code) == ("missing", None)
     assert (resolved.geo_status, resolved.admin_unit_code) == ("province", "vn63:ha-noi")
     assert session.scalar(select(func.count()).select_from(Build)) == 0
+
+
+# --- Huỷ job ---
+
+
+def cancel(client, job_id: int):
+    return client.post(f"/api/admin/jobs/{job_id}/cancel", headers=BROWSER)
+
+
+def cancellations(session) -> list[tuple[int | None, str | None, dict]]:
+    rows = session.execute(
+        select(AuditLog.actor_id, AuditLog.subject, AuditLog.detail)
+        .where(AuditLog.action == "job_cancelled")
+        .order_by(AuditLog.id)
+    )
+    return [tuple(row) for row in rows]
+
+
+def test_cancelling_a_waiting_job_takes_it_out_of_the_queue(session, client, admin):
+    make_dataset(session)
+    waiting = queue.enqueue(session, "build_dataset", {"dataset": "dengue-denv1"})
+
+    response = cancel(client, waiting.id)
+
+    assert response.status_code == 200
+    assert (response.json()["id"], response.json()["status"]) == (waiting.id, "cancelled")
+    session.expire_all()
+    assert (waiting.status, waiting.started_at, waiting.finished_at is not None) == ("cancelled", None, True)
+    assert queue.claim(session, "w1") is None
+    assert cancellations(session) == [(admin.id, f"job:{waiting.id}", {"was": "queued"})]
+    # Dataset không còn job dựng cây nào chưa xong: xin dựng lại được ngay.
+    assert client.post("/api/admin/datasets/dengue-denv1/builds", headers=BROWSER).status_code == 202
+
+
+def test_cancelling_a_running_job_closes_it_at_once_and_what_the_worker_writes_later_is_dropped(session, client, admin):
+    queue.enqueue(session, "align_pending", {"lineage": "denv1"})
+    running = queue.claim(session, "w1")
+
+    response = cancel(client, running.id)
+
+    assert (response.status_code, response.json()["status"]) == (200, "cancelled")
+    session.expire_all()
+    assert (running.status, running.finished_at is not None) == ("cancelled", True)
+    assert cancellations(session) == [(admin.id, f"job:{running.id}", {"was": "running"})]
+    # Worker chưa kịp biết và làm xong việc: kết cục đã ghi không bị đè.
+    assert queue.finish(session, running, {"aligned": 3}) is False
+    assert queue.fail(session, running, "RuntimeError: too late") is False
+    session.expire_all()
+    assert (running.status, running.result, running.error) == ("cancelled", None, None)
+
+
+def test_a_job_that_has_ended_cannot_be_cancelled(session, client, admin):
+    for status in ("succeeded", "failed", "cancelled"):
+        ended = finished_job(session, "tool_versions", status)
+
+        refused = cancel(client, ended.id)
+
+        assert (refused.status_code, error_code(refused)) == (409, "JOB_ALREADY_FINISHED")
+        session.expire_all()
+        assert ended.status == status
+    missing = cancel(client, 999999)
+    assert (missing.status_code, error_code(missing)) == (404, "JOB_NOT_FOUND")
+    assert cancellations(session) == []
+
+
+def test_a_cancelled_check_shows_as_failed_to_the_lab_and_can_be_run_again_once(session, client, admin):
+    sample, job = submitted_sample(session, admin)
+    job.status, job.error = "queued", None
+    session.flush()
+    assert client.get(f"/api/submissions/{sample.internal_id}").json()["stage"] == "processing"
+
+    assert cancel(client, job.id).status_code == 200
+
+    assert client.get(f"/api/submissions/{sample.internal_id}").json()["stage"] == "failed"
+    again = client.post(f"/api/admin/jobs/{job.id}/retry", headers=BROWSER)
+    assert again.status_code == 201
+    new = session.get(Job, again.json()["id"])
+    assert (new.status, new.retry_of, new.params) == ("queued", job.id, {"sample_id": sample.id})
+    assert client.get(f"/api/submissions/{sample.internal_id}").json()["stage"] == "processing"
+    twice = client.post(f"/api/admin/jobs/{job.id}/retry", headers=BROWSER)
+    assert (twice.status_code, error_code(twice)) == (409, "JOB_ALREADY_RETRIED")
+
+
+def test_the_job_list_counts_cancelled_jobs_and_filters_by_them(session, client, admin):
+    cancelled = finished_job(session, "build_dataset", "cancelled", dataset="dengue-denv1")
+    finished_job(session, "tool_versions", "failed", error="RuntimeError: x")
+    queue.enqueue(session, "tool_versions")
+
+    everything = client.get("/api/admin/jobs").json()
+    only = client.get("/api/admin/jobs", params={"status": "cancelled"}).json()
+
+    assert everything["counts"] == {"queued": 1, "running": 0, "succeeded": 0, "failed": 1, "cancelled": 1}
+    assert [item["id"] for item in only["items"]] == [cancelled.id]
+    assert (only["total"], only["items"][0]["status"]) == (1, "cancelled")

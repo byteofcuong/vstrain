@@ -1,10 +1,12 @@
+import threading
+
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 
 from app.jobs import queue
-from app.jobs.steps import JobContext
+from app.jobs.steps import JobContext, JobStopped
 from app.jobs.tools import ToolFailed
-from app.models import JobStep
+from app.models import Job, JobStep
 
 
 @pytest.fixture
@@ -93,3 +95,53 @@ def test_a_timed_out_tool_leaves_its_last_output_in_the_step(session, context):
     (row,) = steps(session)
     assert row.status == "failed"
     assert "optimizing" in row.log_tail and "did not finish" in row.log_tail
+
+
+def close_as(session, job: Job, status: str) -> None:
+    """Điều API làm khi admin huỷ một job (hoặc một worker khác làm khi job bị coi là bỏ dở): ghi thẳng kết cục."""
+    session.execute(update(Job).where(Job.id == job.id).values(status=status, finished_at=func.now()))
+    session.commit()
+
+
+@pytest.mark.parametrize("status", ["cancelled", "failed"])
+def test_no_step_starts_once_the_job_is_no_longer_running(session, context, status):
+    with context.step("select"):
+        pass
+    close_as(session, context.job, status)
+    ran = []
+
+    with pytest.raises(JobStopped), context.step("tree"):
+        ran.append("tree")
+
+    assert ran == []
+    assert [(row.name, row.status) for row in steps(session)] == [("select", "succeeded")]
+    assert context.stop.is_set()
+
+
+def test_no_step_starts_once_stopping_was_asked(session, context):
+    context.stop.set()
+
+    with pytest.raises(JobStopped), context.step("tree"):
+        pass
+
+    assert steps(session) == []
+
+
+def test_a_tool_stopped_midway_leaves_its_step_marked_cancelled_with_what_it_had_printed(session, context):
+    hang = "import time; print('building the tree', flush=True); time.sleep(60)"
+    threading.Timer(0.7, context.stop.set).start()
+
+    with pytest.raises(JobStopped):
+        context.run_tool("tree", ["python3", "-c", hang], timeout=20)
+
+    (row,) = steps(session)
+    assert (row.status, row.finished_at is not None) == ("cancelled", True)
+    assert "building the tree" in row.log_tail
+
+
+def test_a_step_that_ends_because_the_job_stopped_is_cancelled_not_failed(session, context):
+    with pytest.raises(JobStopped), context.step("place"):
+        raise JobStopped("the job is no longer running")
+
+    (row,) = steps(session)
+    assert row.status == "cancelled"

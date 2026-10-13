@@ -23,7 +23,7 @@ MAX_PAGE_SIZE = 500
 _ERROR_LINE_CHARS = 300
 _SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,59}")
 
-JobStatusName = Literal["queued", "running", "succeeded", "failed"]
+JobStatusName = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 # Mã job là BIGINT: số lớn hơn thế bị từ chối ở đây, không tới được database.
 JobId = Annotated[int, Path(ge=1, le=2**63 - 1)]
 
@@ -48,6 +48,7 @@ class JobCounts(ApiModel):
     running: int
     succeeded: int
     failed: int
+    cancelled: int
 
 
 class JobPage(ApiModel):
@@ -230,7 +231,7 @@ def retry_job(job_id: JobId, admin: AdminUser, session: SessionDep) -> JobRef:
     except jobs.JobNotFound:
         raise _job_not_found(job_id) from None
     except jobs.NotFailed:
-        raise ApiError(409, "JOB_NOT_FAILED", "Only a failed job can be retried") from None
+        raise ApiError(409, "JOB_NOT_FAILED", "Only a failed or cancelled job can be retried") from None
     except jobs.AlreadyRetried:
         raise ApiError(409, "JOB_ALREADY_RETRIED", "This job has already been retried") from None
     except BuildAlreadyWaiting:
@@ -239,6 +240,20 @@ def retry_job(job_id: JobId, admin: AdminUser, session: SessionDep) -> JobRef:
         raise ApiError(409, "DATASET_GONE", "The dataset of this build no longer exists") from None
     session.commit()
     return JobRef(id=new.id)
+
+
+@router.post("/jobs/{job_id}/cancel")
+def cancel_job(job_id: JobId, admin: AdminUser, session: SessionDep) -> JobSummary:
+    """Huỷ một job đang chờ hoặc đang chạy. Job đang chạy dừng ở lần báo nhịp kế tiếp của worker."""
+    try:
+        job = jobs.cancel(session, admin, job_id)
+    except jobs.JobNotFound:
+        raise _job_not_found(job_id) from None
+    except jobs.AlreadyFinished:
+        raise ApiError(409, "JOB_ALREADY_FINISHED", "This job has already ended") from None
+    session.commit()
+    session.refresh(job)
+    return JobSummary(**_summary(job))
 
 
 # --- Lịch của dataset ---

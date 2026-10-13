@@ -627,6 +627,13 @@ def test_a_sample_that_passed_the_check_but_could_not_be_placed_says_so(session,
 
     assert stage_of(client, sample) == "placement_failed"
 
+    # Job bị admin huỷ giữa chừng cũng vậy: mẫu đã đạt, việc gắn chưa xong.
+    job.status = "cancelled"
+    session.flush()
+    assert stage_of(client, sample) == "placement_failed"
+    job.status = "failed"
+    session.flush()
+
     # Job đã bị dọn khỏi hàng đợi thì không còn gì nói rằng lần gắn đã hỏng.
     session.delete(job)
     session.flush()

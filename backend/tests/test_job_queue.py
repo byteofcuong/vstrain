@@ -193,3 +193,21 @@ def test_a_claim_limited_to_some_kinds_leaves_the_other_jobs_in_the_queue(sessio
     session.refresh(build)
     assert build.status == "queued"
     assert queue.claim(session, "general").id == build.id
+
+
+@pytest.mark.parametrize("closed_as", ["cancelled", "failed", "succeeded"])
+def test_heartbeat_says_when_the_job_is_no_longer_running(session, closed_as):
+    queue.enqueue(session, "noop")
+    job = queue.claim(session, "w1")
+
+    assert queue.heartbeat(session, job.id) is True
+
+    session.execute(text("UPDATE job SET status = :status WHERE id = :id"), {"status": closed_as, "id": job.id})
+    assert queue.heartbeat(session, job.id) is False
+
+
+def test_a_cancelled_job_is_not_handed_to_a_worker(session):
+    job = queue.enqueue(session, "noop")
+    session.execute(text("UPDATE job SET status = 'cancelled' WHERE id = :id"), {"id": job.id})
+
+    assert queue.claim(session, "w1") is None

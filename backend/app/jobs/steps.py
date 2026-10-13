@@ -4,6 +4,7 @@ Snakemake chỉ cho biết tiến độ qua log trên terminal. Ở đây mỗi 
 khi bắt đầu và khi kết thúc, nên giao diện thấy job đang ở bước nào, mất bao lâu và lỗi ở đâu.
 """
 
+import threading
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -11,13 +12,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.jobs import tools
-from app.models import Job, JobStep
+from app.models import Job, JobStatus, JobStep
 
 _LOG_TAIL_CHARS = 4000
+
+
+class JobStopped(BaseException):
+    """Job không còn ở trạng thái đang chạy (admin đã huỷ, hoặc nó bị coi là bỏ dở): việc dừng ở đây.
+
+    Không kế thừa `Exception`, như `asyncio.CancelledError`: handler có chỗ bắt `Exception` để ghi nhận một công cụ
+    hỏng rồi đi tiếp, và lệnh dừng phải đi xuyên qua những chỗ đó.
+    """
 
 
 @dataclass
@@ -36,6 +45,8 @@ class JobContext:
     job: Job
     work_dir: Path
     allowed_tools: frozenset[str] = tools.ALLOWED_TOOLS
+    # Lệnh dừng: worker bật nó khi lần báo nhịp thấy job không còn đang chạy; công cụ đang chạy bị dừng theo.
+    stop: threading.Event = field(default_factory=threading.Event)
     _steps: int = 0
 
     @property
@@ -48,8 +59,18 @@ class JobContext:
         if unknown:
             raise ValueError(f"Unknown job parameters: {', '.join(unknown)[:200]}")
 
+    def _stop_unless_running(self) -> None:
+        """Hỏi lại database trước mỗi bước: lần báo nhịp có thể chưa tới, mà bước kế tiếp có thể là publish."""
+        if not self.stop.is_set():
+            status = self.session.scalar(select(Job.status).where(Job.id == self.job.id))
+            if status == JobStatus.RUNNING.value:
+                return
+            self.stop.set()
+        raise JobStopped(f"Job {self.job.id} is no longer running")
+
     @contextmanager
     def step(self, name: str) -> Iterator[StepHandle]:
+        self._stop_unless_running()
         self._steps += 1
         row = JobStep(job_id=self.job.id, position=self._steps, name=name, status="running")
         self.session.add(row)
@@ -62,7 +83,8 @@ class JobContext:
         except BaseException as error:
             # Bỏ mọi thay đổi dở dang của bước rồi mới ghi trạng thái, để dòng job_step luôn ghi được.
             self.session.rollback()
-            self._close(row, "failed", handle, started, handle.log_tail or f"{type(error).__name__}: {error}")
+            status = "cancelled" if isinstance(error, JobStopped) else "failed"
+            self._close(row, status, handle, started, handle.log_tail or f"{type(error).__name__}: {error}")
             raise
         self._close(row, "succeeded", handle, started, handle.log_tail)
 
@@ -81,8 +103,17 @@ class JobContext:
             log_path = self.work_dir / f"{self._steps:02d}-{name}.log"
             try:
                 result = tools.run_tool(
-                    argv, cwd=self.work_dir, log_path=log_path, timeout=timeout, env=env, allowed=self.allowed_tools
+                    argv,
+                    cwd=self.work_dir,
+                    log_path=log_path,
+                    timeout=timeout,
+                    env=env,
+                    allowed=self.allowed_tools,
+                    stop=self.stop,
                 )
+            except tools.ToolStopped as error:
+                step.log_tail = f"{error.log_tail}\n{type(error).__name__}: {error}"
+                raise JobStopped(f"Job {self.job.id} is no longer running") from error
             except (tools.ToolFailed, tools.ToolTimeout) as error:
                 step.log_tail = f"{error.log_tail}\n{type(error).__name__}: {str(error).splitlines()[0]}"
                 raise

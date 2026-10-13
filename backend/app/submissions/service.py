@@ -55,6 +55,8 @@ MAX_PENDING = 20
 MAX_PER_DAY = 200
 _DAY = dt.timedelta(days=1)
 _WAITING = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
+# Job không chạy tới cùng: hỏng, hoặc bị admin huỷ giữa chừng.
+_STOPPED_SHORT = (JobStatus.FAILED.value, JobStatus.CANCELLED.value)
 
 # Việt Nam không có giờ mùa hè, nên một độ lệch cố định là đủ.
 _VIETNAM_TIME = dt.timezone(dt.timedelta(hours=7))
@@ -314,7 +316,7 @@ def _stage(status: str, job_status: str | None, in_tree: bool, placed: bool) -> 
         return "processing"
     # Job hỏng sau khi mẫu đã đạt là hỏng ở bước gắn; mẫu được gắn lại sau lần build kế tiếp. Job xong êm mà không
     # có chỗ gắn nào thì mới thật là chưa có cây để gắn.
-    return "placement_failed" if job_status == JobStatus.FAILED.value else "accepted"
+    return "placement_failed" if job_status in _STOPPED_SHORT else "accepted"
 
 
 def describe(session: Session, sample_ids: Sequence[int]) -> list[dict[str, Any]]:

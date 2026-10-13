@@ -1,14 +1,16 @@
 import datetime as dt
+import threading
 import time
 from contextlib import contextmanager
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text, update
 
 from app.jobs import queue
 from app.jobs.steps import JobContext
 from app.jobs.worker import Worker
 from app.models import Job, JobStep
+from tests.test_run_tool import SPAWN_CHILD, is_running
 
 
 def make_worker(session, tmp_path, handlers, **options) -> Worker:
@@ -319,3 +321,93 @@ def test_only_a_worker_that_builds_trees_checks_the_build_schedule():
     assert builds_trees(None)
     assert builds_trees(frozenset({"build_dataset", "place_pending"}))
     assert not builds_trees(frozenset({"ingest_sample"}))
+
+
+# --- Job bị huỷ trong lúc chạy ---
+
+
+@pytest.mark.parametrize("closed_as", ["cancelled", "failed"])
+def test_a_job_closed_while_its_tool_runs_is_stopped_and_the_worker_takes_the_next_job(committed, tmp_path, closed_as):
+    # `cancelled`: admin huỷ job. `failed`: một worker khác coi job là bỏ dở vì nhịp báo tới muộn. Cả hai lần,
+    # kết cục đã được ghi và việc đang chạy không còn ai cần.
+    def slow(context: JobContext) -> dict:
+        context.allowed_tools = frozenset({"python3"})
+        context.run_tool("tree", ["python3", "-c", SPAWN_CHILD], timeout=30)
+        return {"finished": True}
+
+    with committed.begin() as session:
+        job_id = queue.enqueue(session, "slow").id
+        next_id = queue.enqueue(session, "quick").id
+    pid_file = tmp_path / f"job-{job_id}" / "child.pid"
+
+    def close_once_the_tool_runs() -> None:
+        deadline = time.monotonic() + 10
+        while not pid_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        time.sleep(0.1)
+        with committed.begin() as other:
+            other.execute(update(Job).where(Job.id == job_id).values(status=closed_as, finished_at=func.now()))
+
+    closer = threading.Thread(target=close_once_the_tool_runs)
+    worker = Worker(
+        committed,
+        {"slow": slow, "quick": lambda _context: {"ok": True}},
+        name="w",
+        work_root=tmp_path,
+        heartbeat_seconds=0.1,
+    )
+    closer.start()
+    started = time.monotonic()
+
+    assert worker.run_one() is True
+
+    closer.join()
+    assert time.monotonic() - started < 10
+    time.sleep(0.2)
+    assert not is_running(int(pid_file.read_text()))
+    with committed() as check:
+        job = check.get(Job, job_id)
+        assert (job.status, job.result) == (closed_as, None)
+        assert check.scalars(select(JobStep.status).filter_by(job_id=job_id)).all() == ["cancelled"]
+    assert worker.run_one() is True
+    with committed() as check:
+        assert check.get(Job, next_id).status == "succeeded"
+
+
+def test_a_job_cancelled_between_two_steps_does_not_start_the_second(session, tmp_path):
+    # Không có luồng báo nhịp ở đây: việc dừng phải đến từ chính lần hỏi lại trước mỗi bước.
+    ran = []
+
+    def two_steps(context: JobContext) -> dict:
+        with context.step("select"):
+            ran.append("select")
+        context.session.execute(update(Job).where(Job.id == context.job.id).values(status="cancelled"))
+        context.session.commit()
+        with context.step("publish"):
+            ran.append("publish")
+        return {"published": True}
+
+    job = queue.enqueue(session, "two_steps")
+    after = queue.enqueue(session, "ok")
+    worker = make_worker(session, tmp_path, {"two_steps": two_steps, "ok": lambda _context: {"ok": True}})
+
+    assert [worker.run_one(), worker.run_one()] == [True, True]
+
+    session.expire_all()
+    assert ran == ["select"]
+    assert (job.status, job.result, job.error) == ("cancelled", None, None)
+    assert after.status == "succeeded"
+
+
+def test_what_a_handler_returns_after_its_job_was_cancelled_is_dropped(session, tmp_path):
+    def cancelled_at_the_end(context: JobContext) -> dict:
+        context.session.execute(update(Job).where(Job.id == context.job.id).values(status="cancelled"))
+        context.session.commit()
+        return {"finished": True}
+
+    job = queue.enqueue(session, "late")
+
+    assert make_worker(session, tmp_path, {"late": cancelled_at_the_end}).run_one() is True
+
+    session.expire_all()
+    assert (job.status, job.result) == ("cancelled", None)

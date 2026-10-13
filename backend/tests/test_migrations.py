@@ -2,6 +2,7 @@ import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 
 from app import schema
 from app.models import Base
@@ -62,6 +63,38 @@ def test_the_status_of_samples_is_not_dropped_while_some_of_them_are_not_public(
             connection.execute(text("UPDATE sample SET status = 'accepted'"))
         schema.downgrade(url, "0008")
         assert "submission" not in table_names(url)
+    finally:
+        engine.dispose()
+        drop_database(name)
+
+
+def test_a_cancelled_job_becomes_a_failed_one_when_the_schema_goes_back_to_where_jobs_could_not_be_cancelled():
+    name = f"{TEST_DATABASE}_cancelled"
+    url = recreate_database(name)
+    engine = create_engine(url)
+    try:
+        schema.upgrade(url)
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO job (kind, status) VALUES ('build_dataset', 'cancelled')"))
+            connection.execute(
+                text("INSERT INTO job (kind, status, error) VALUES ('tool_versions', 'failed', 'RuntimeError: x')")
+            )
+
+        schema.downgrade(url, "0010")
+
+        with engine.begin() as connection:
+            rows = connection.execute(text("SELECT kind, status, error FROM job ORDER BY id")).all()
+            assert [tuple(row) for row in rows] == [
+                ("build_dataset", "failed", "Cancelled by an administrator"),
+                ("tool_versions", "failed", "RuntimeError: x"),
+            ]
+            with pytest.raises(IntegrityError):
+                with connection.begin_nested():
+                    connection.execute(text("INSERT INTO job (kind, status) VALUES ('noop', 'cancelled')"))
+
+        schema.upgrade(url)
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO job (kind, status) VALUES ('noop', 'cancelled')"))
     finally:
         engine.dispose()
         drop_database(name)

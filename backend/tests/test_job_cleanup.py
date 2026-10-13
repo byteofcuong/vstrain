@@ -91,3 +91,12 @@ def test_a_worker_without_a_retention_period_removes_nothing(session, tmp_path):
     worker.run_forever(poll_seconds=0.01, stop=stop)
 
     assert old.is_dir()
+
+
+def test_the_work_directory_of_a_cancelled_job_is_removed_like_any_other_that_ended(session, tmp_path):
+    old = job_with_folder(session, tmp_path, "cancelled", 9)
+    recent = job_with_folder(session, tmp_path, "cancelled", 1)
+
+    assert purge_work_dirs(session, tmp_path, WEEK) == 1
+
+    assert not old.exists() and recent.is_dir()
