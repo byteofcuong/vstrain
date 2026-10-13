@@ -1119,6 +1119,11 @@ div.notice {
     display: block;
     overflow-x: auto;
   }
+
+  /* Bảng đã cuộn ngang được, nên cột tên người giữ đủ rộng để đọc thay vì vỡ ra từng âm tiết. */
+  .records--people tbody th {
+    min-width: 11rem;
+  }
 }
 
 /* Trang quản trị: công việc nền, lịch dựng cây, địa danh */

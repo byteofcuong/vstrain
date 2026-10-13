@@ -171,7 +171,7 @@ export function UsersPanel() {
         </div>
       )}
       {loaded.state === "ready" && (
-        <table className="records">
+        <table className="records records--people">
           <thead>
             <tr>
               <th scope="col">{t("accountName")}</th>

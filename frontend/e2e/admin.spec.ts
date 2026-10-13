@@ -56,7 +56,7 @@ test("the administration pages turn away a guest and a lab account", async ({ pa
 
   await logIn(page, lab);
   await expect(page.getByRole("link", { name: "Quản trị" })).toHaveCount(0);
-  for (const section of ["jobs", "datasets", "places"]) {
+  for (const section of ["jobs", "datasets", "places", "users"]) {
     await page.goto(`/#/admin/${section}`);
     await expect(page.getByRole("main")).toContainText("Trang này chỉ dành cho quản trị viên.");
     await expect(page.locator("table")).toHaveCount(0);
@@ -64,6 +64,7 @@ test("the administration pages turn away a guest and a lab account", async ({ pa
   // Trang chỉ là lớp ngoài: chính API từ chối tài khoản này.
   expect((await page.request.get("/api/admin/jobs")).status()).toBe(403);
   expect((await page.request.get("/api/admin/places/unresolved")).status()).toBe(403);
+  expect((await page.request.get("/api/admin/users")).status()).toBe(403);
 });
 
 test("an administrator gives a dataset a build schedule, and it is still there after a reload", async ({ page }) => {
