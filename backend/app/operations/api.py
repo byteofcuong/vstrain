@@ -22,7 +22,6 @@ router = APIRouter(prefix="/api/admin", tags=["operations"])
 MAX_PAGE_SIZE = 500
 _ERROR_LINE_CHARS = 300
 _SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,59}")
-_ALIAS_KEY = re.compile(r"[a-z0-9]{1,100}")
 
 JobStatusName = Literal["queued", "running", "succeeded", "failed"]
 # Mã job là BIGINT: số lớn hơn thế bị từ chối ở đây, không tới được database.
@@ -309,6 +308,10 @@ def add_alias(body: AliasIn, admin: AdminUser, session: SessionDep) -> AliasAdde
         raise ApiError(
             422, "EMPTY_PLACE", INVALID_PARAMETERS, [{"field": "text", "message": "No letters or digits"}]
         ) from None
+    except places.PlaceTooLong:
+        raise ApiError(
+            422, "PLACE_TOO_LONG", INVALID_PARAMETERS, [{"field": "text", "message": "The spelling is too long"}]
+        ) from None
     except places.UnknownUnit:
         raise ApiError(
             422, "UNKNOWN_UNIT", INVALID_PARAMETERS, [{"field": "unitCode", "message": "No unit with this code"}]
@@ -323,7 +326,8 @@ def add_alias(body: AliasIn, admin: AdminUser, session: SessionDep) -> AliasAdde
 def remove_alias(key: str, admin: AdminUser, session: SessionDep) -> AliasRemoved:
     """Xoá một tên thay thế do admin thêm; mẫu được phân giải lại như lúc thêm."""
     try:
-        if not _ALIAS_KEY.fullmatch(key):
+        # Khoá do `place_key` sinh ra chỉ gồm chữ và số (của bất kỳ bảng chữ nào); thứ khác thì không thể có.
+        if not key.isalnum():
             raise LookupError(key)
         removed = places.remove_alias(session, admin, key)
     except LookupError:

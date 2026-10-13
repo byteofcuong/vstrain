@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from sqlalchemy import select, text
 
+from app import cli
 from app.build.inputs import start_build
 from app.build.selection import Choice, inputs_hash, select_samples
 from app.jobs import queue, schedule
@@ -247,6 +248,23 @@ def test_a_build_asked_for_by_hand_ignores_the_schedule_but_not_a_build_already_
     with pytest.raises(LookupError):
         request_build(session, "no-such-dataset")
     assert len([job for job in build_jobs(session) if job.status == "queued"]) == 1
+
+
+def test_the_enqueue_command_cannot_double_a_build_either(session):
+    # Lệnh `python -m app.cli enqueue` là đường xếp job có từ trước khi có lịch; nó phải qua cùng một cửa.
+    dataset = scheduled(session, hours=None)
+
+    first = cli.enqueue_job(session, "build_dataset", {"dataset": dataset.slug}, priority=5)
+
+    assert (first.params, first.priority, first.status) == ({"dataset": dataset.slug}, 5, "queued")
+    with pytest.raises(BuildAlreadyWaiting):
+        cli.enqueue_job(session, "build_dataset", {"dataset": dataset.slug}, priority=0)
+    for params in ({"dataset": "no-such-dataset"}, {}, {"dataset": 7}):
+        with pytest.raises(LookupError):
+            cli.enqueue_job(session, "build_dataset", params, priority=0)
+    assert len(build_jobs(session)) == 1
+    other = cli.enqueue_job(session, "tool_versions", {"note": "x"}, priority=3)
+    assert (other.kind, other.params, other.priority) == ("tool_versions", {"note": "x"}, 3)
 
 
 def test_two_workers_checking_the_schedule_at_once_queue_one_build(committed, engine, monkeypatch):

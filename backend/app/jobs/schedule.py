@@ -68,7 +68,7 @@ def enqueue_due_builds(session: Session, now: dt.datetime) -> list[int]:
     return queued
 
 
-def request_build(session: Session, slug: str) -> Job:
+def request_build(session: Session, slug: str, *, priority: int = 0) -> Job:
     """Xếp một job dựng cây theo yêu cầu của người vận hành, không xét hạn và không xét đầu vào. Chỉ flush.
 
     `LookupError` nếu không có dataset; `BuildAlreadyWaiting` nếu nó đã có job dựng cây chưa xong.
@@ -78,4 +78,4 @@ def request_build(session: Session, slug: str) -> Job:
         raise LookupError(f"No dataset with slug {slug!r}")
     if _has_waiting_build(session, slug):
         raise BuildAlreadyWaiting(f"A build of {slug} is already waiting or running")
-    return queue.enqueue(session, BUILD_JOB, {"dataset": slug})
+    return queue.enqueue(session, BUILD_JOB, {"dataset": slug}, priority=priority)

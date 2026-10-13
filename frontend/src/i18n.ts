@@ -492,6 +492,10 @@ const MESSAGES = {
     vi: "Cách viết này không có chữ hay số nào để so khớp.",
     en: "This spelling has no letters or digits to match on.",
   },
+  adminError_PLACE_TOO_LONG: {
+    vi: "Cách viết này quá dài để lưu làm tên thay thế.",
+    en: "This spelling is too long to keep as an alternative name.",
+  },
   adminError_UNKNOWN_UNIT: { vi: "Không có đơn vị này.", en: "There is no such unit." },
   adminError_SEED_ALIAS: {
     vi: "Cách viết này có sẵn trong dữ liệu khởi tạo, không bỏ được ở đây.",

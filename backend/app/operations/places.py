@@ -21,12 +21,18 @@ from app.models import AdminUnit, AppUser, Build, BuildSample, DatasetDef, Job, 
 PUBLISH_JOB = "publish_build"
 _UNIT_CODE = re.compile(r"[a-z0-9]+:[a-z0-9-]+")
 _MAX_SPELLINGS = 5
+# Khoá nằm trong `place_alias.key` và, sau tiền tố "place:", trong `audit_log.subject`; cả hai cột dài 100 ký tự.
+MAX_KEY_CHARS = 80
 # Mọi thay đổi bảng tên thay thế lần lượt từng cái một: mỗi thay đổi phân giải lại mẫu dựa trên cả bảng.
 _ALIAS_LOCK = 0x76735F616C696173  # "vs_alias"
 
 
 class EmptyPlace(ValueError):
     """Cách viết không có chữ hay số nào, nên không có khoá để so khớp."""
+
+
+class PlaceTooLong(ValueError):
+    """Khoá của cách viết dài hơn chỗ để lưu nó."""
 
 
 class UnknownUnit(ValueError):
@@ -147,6 +153,8 @@ def add_alias(session: Session, actor: AppUser, *, text: str, unit_code: str) ->
     key = place_key(text)
     if not key:
         raise EmptyPlace("The spelling has no letters or digits")
+    if len(key) > MAX_KEY_CHARS:
+        raise PlaceTooLong(f"The key of this spelling is longer than {MAX_KEY_CHARS} characters")
     _serialise_alias_changes(session)
     if (session.get(AdminUnit, unit_code) if _UNIT_CODE.fullmatch(unit_code) else None) is None:
         raise UnknownUnit("No administrative unit with this code")

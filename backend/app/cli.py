@@ -6,8 +6,10 @@ import getpass
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app import schema
 from app.accounts import service as accounts
@@ -15,6 +17,7 @@ from app.build.datasets import seed_datasets
 from app.db import SessionLocal
 from app.geo.seed import seed_geo
 from app.jobs import queue
+from app.jobs.schedule import BUILD_JOB, BuildAlreadyWaiting, request_build
 from app.models import Job, JobStep
 from app.samples.importer import import_genbank
 from app.samples.report import geo_report
@@ -49,10 +52,26 @@ def run_geo_report(_args: argparse.Namespace) -> None:
     print()
 
 
+def enqueue_job(session: Session, kind: str, params: dict[str, Any], *, priority: int) -> Job:
+    """Xếp một job từ dòng lệnh. Job dựng cây đi qua `request_build`, như nút "Dựng ngay" và như lịch.
+
+    Nhờ vậy lệnh này không xếp được job dựng cây thứ hai cho một dataset đang có một job chưa xong.
+    """
+    if kind == BUILD_JOB:
+        slug = params.get("dataset")
+        if not isinstance(slug, str):
+            raise LookupError('A build needs the slug of a dataset: --params \'{"dataset": "..."}\'')
+        return request_build(session, slug, priority=priority)
+    return queue.enqueue(session, kind, params, priority=priority)
+
+
 def run_enqueue(args: argparse.Namespace) -> None:
-    with SessionLocal.begin() as session:
-        job = queue.enqueue(session, args.kind, json.loads(args.params), priority=args.priority)
-        print(job.id)
+    try:
+        with SessionLocal.begin() as session:
+            job = enqueue_job(session, args.kind, json.loads(args.params), priority=args.priority)
+            print(job.id)
+    except (LookupError, BuildAlreadyWaiting) as refused:
+        raise SystemExit(str(refused)) from None
 
 
 def run_job(args: argparse.Namespace) -> None:

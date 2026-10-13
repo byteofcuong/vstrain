@@ -81,6 +81,7 @@ const ADMIN_ERRORS: ReadonlyMap<string, MessageKey> = new Map([
   ["BUILD_ALREADY_WAITING", "adminError_BUILD_ALREADY_WAITING"],
   ["ALIAS_EXISTS", "adminError_ALIAS_EXISTS"],
   ["EMPTY_PLACE", "adminError_EMPTY_PLACE"],
+  ["PLACE_TOO_LONG", "adminError_PLACE_TOO_LONG"],
   ["UNKNOWN_UNIT", "adminError_UNKNOWN_UNIT"],
   ["SEED_ALIAS", "adminError_SEED_ALIAS"],
   ["FORBIDDEN", "adminError_FORBIDDEN"],

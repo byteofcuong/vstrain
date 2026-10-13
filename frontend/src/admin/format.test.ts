@@ -91,6 +91,7 @@ describe("adminErrorMessage", () => {
       "BUILD_ALREADY_WAITING",
       "ALIAS_EXISTS",
       "EMPTY_PLACE",
+      "PLACE_TOO_LONG",
       "UNKNOWN_UNIT",
       "SEED_ALIAS",
       "FORBIDDEN",

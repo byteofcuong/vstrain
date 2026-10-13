@@ -606,6 +606,41 @@ def test_an_alias_added_by_an_administrator_can_be_taken_back_but_a_seeded_one_c
     assert (missing.status_code, error_code(missing)) == (404, "ALIAS_NOT_FOUND")
 
 
+def test_a_spelling_in_another_script_can_be_mapped_and_taken_back(session, client, admin):
+    # `place_key` giữ mọi chữ và số, không riêng a-z: khoá của một cách viết bằng chữ Kirin là chữ Kirin (đã bỏ dấu).
+    sample = unresolved(session, "Ханой")
+
+    added = add_alias(client, "Ханой", "vn63:ha-noi")
+
+    assert (added.status_code, added.json()["key"], added.json()["changedSamples"]) == (201, "ханои", 1)
+    removed = client.delete("/api/admin/places/aliases/ханои", headers=BROWSER)
+    assert (removed.status_code, removed.json()["changedSamples"]) == (200, 1)
+    session.expire_all()
+    assert session.get(PlaceAlias, "ханои") is None
+    assert sample.geo_status == "unresolved"
+
+
+def test_a_spelling_whose_key_does_not_fit_is_refused_rather_than_failing(session, client, admin):
+    before = session.scalar(select(func.count()).select_from(PlaceAlias))
+
+    fits = add_alias(client, "a" * 80, "vn63:ha-noi")
+    too_long = add_alias(client, "b" * 81, "vn63:ha-noi")
+
+    assert fits.status_code == 201
+    assert (too_long.status_code, error_code(too_long)) == (422, "PLACE_TOO_LONG")
+    assert session.scalar(select(func.count()).select_from(PlaceAlias)) == before + 1
+
+
+@pytest.mark.parametrize("key", ["thu%20duc", "thu-duc", "a" * 101, "thuduc%00", "%27%3B--"])
+def test_a_key_no_alias_can_have_is_not_found(session, client, admin, key):
+    add_alias(client, "Thu Duc", "vn63:ho-chi-minh")
+
+    response = client.delete(f"/api/admin/places/aliases/{key}", headers=BROWSER)
+
+    assert (response.status_code, error_code(response)) == (404, "ALIAS_NOT_FOUND")
+    assert session.get(PlaceAlias, "thuduc") is not None
+
+
 def test_resolving_again_does_not_touch_samples_from_other_countries_or_ones_with_nothing_to_resolve(
     session, client, admin
 ):
