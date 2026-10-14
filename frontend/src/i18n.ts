@@ -554,8 +554,8 @@ const MESSAGES = {
   jobCancelKeep: { vi: "Để nó chạy", en: "Let it run" },
   jobCancelledWaiting: { vi: "Đã huỷ việc {id}.", en: "Job {id} has been cancelled." },
   jobCancelledRunning: {
-    vi: "Đã huỷ việc {id}. Phần đang chạy sẽ dừng trong vòng 15 giây.",
-    en: "Job {id} has been cancelled. What is running stops within 15 seconds.",
+    vi: "Đã huỷ việc {id}. Phần đang chạy sẽ dừng ở lần báo nhịp kế tiếp của worker, trong khoảng 15 giây.",
+    en: "Job {id} has been cancelled. What is running stops at the next heartbeat of the worker, in about 15 seconds.",
   },
   jobRetried: { vi: "Đã xếp việc {id} để chạy lại.", en: "Job {id} has been queued to run it again." },
   jobRetryOf: { vi: "Chạy lại của việc {id}", en: "A rerun of job {id}" },

@@ -1375,3 +1375,9 @@ div.notice {
 .inline-form button {
   justify-self: start;
 }
+
+/* Mã của một việc là một con số: không bao giờ bị ngắt giữa các chữ số. */
+.records tbody th.records__id {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}

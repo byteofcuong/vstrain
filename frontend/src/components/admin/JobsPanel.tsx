@@ -173,7 +173,9 @@ export function JobsPanel() {
             {loaded.page.items.map((job) => (
               <Fragment key={job.id}>
                 <tr data-status={job.status} data-job={job.id}>
-                  <th scope="row">{job.id}</th>
+                  <th scope="row" className="records__id">
+                    {job.id}
+                  </th>
                   <td>{jobKindLabel(job.kind, lang)}</td>
                   <td>{jobSubject(job.params)}</td>
                   <td>

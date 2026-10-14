@@ -203,7 +203,9 @@ test("an administrator cancels a build while it runs; the tools stop and the wor
   await details.getByRole("button", { name: "Huỷ việc này" }).click();
   await details.getByRole("button", { name: `Huỷ việc ${first.id}` }).click();
 
-  await expect(notice(page)).toHaveText(`Đã huỷ việc ${first.id}. Phần đang chạy sẽ dừng trong vòng 15 giây.`);
+  await expect(notice(page)).toHaveText(
+    `Đã huỷ việc ${first.id}. Phần đang chạy sẽ dừng ở lần báo nhịp kế tiếp của worker, trong khoảng 15 giây.`,
+  );
   await expect(row.locator(".state")).toHaveText("Đã huỷ");
   // Không ai bấm gì: trang tự tải lại cho tới khi bước đang chạy hiện ra là đã dừng.
   await expect(tree).toContainText("Đã huỷ", { timeout: 30_000 });
