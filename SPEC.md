@@ -141,7 +141,7 @@ def place_key(raw: str) -> str:
 ## API conventions
 
 - JSON và tham số truy vấn dùng camelCase (`dateFrom`, `internalId`); mã Python dùng snake_case, chuyển đổi nằm ở lớp `ApiModel`.
-- Mọi lỗi có một dạng: `{"error": {"code": "SAMPLE_NOT_FOUND", "message": "...", "details": [{"field": "...", "message": "..."}]}}`. `code` dành cho máy, giao diện dịch theo mã này; `details` chỉ có ở lỗi 422. Một mục của `details` có thể kèm `code` riêng của nó (ví dụ `SEQUENCE_TOO_SHORT`), để giao diện dịch được từng lỗi của form.
+- Mọi lỗi có một dạng: `{"error": {"code": "SAMPLE_NOT_FOUND", "message": "...", "details": [{"field": "...", "message": "..."}]}}`. `code` dành cho máy, giao diện dịch theo mã này; `details` chỉ có ở lỗi 422. Một mục của `details` có thể kèm `code` riêng của nó (ví dụ `SEQUENCE_TOO_SHORT`), để giao diện dịch được từng lỗi của form. Một vài mã mang thêm trường riêng bên cạnh `code` và `message` (bổ sung sau mốc M7): `IDENTICAL_SEQUENCE` (409) có `matches` và `matchCount`, xem `specs/SPEC-submission.md`.
 - Request ghi (POST, PUT, PATCH, DELETE) phải mang header `X-Requested-With`, khai `Content-Length`, và thân không quá 4 MB; không thì bị từ chối trước khi thân được đọc (403, 411, 413).
 - Endpoint danh sách luôn phân trang: `{"items": [...], "total": n, "limit": l, "offset": o}`, `limit` tối đa 500.
 - Thay đổi về sau chỉ thêm trường, không đổi nghĩa hay kiểu của trường đã có.

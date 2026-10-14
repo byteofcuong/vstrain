@@ -475,6 +475,7 @@ def submitted_by(session, user, *, name: str, status: str) -> Sample:
         host=None,
         fasta=f">x\n{GENOME}\n",
         today=dt.date(2026, 1, 1),
+        allow_identical=True,  # một phòng có thể có nhiều mẫu cùng chuỗi trong test
     )
     sample.status = status
     session.flush()
@@ -552,6 +553,18 @@ def test_a_sample_another_lab_has_not_made_public_is_never_mentioned(session, cl
 
     assert response.status_code == 201
     assert "phòng khác" not in response.text
+
+
+def test_the_unpublished_samples_of_other_labs_do_not_count_even_beside_a_public_one(session, client, lab):
+    other = make_user(session, "other@example.org")
+    for status in ["received", "rejected", "hidden"]:
+        submitted_by(session, other, name=f"Mẫu {status} của phòng khác", status=status)
+    with_sequence(add_sample(session, display_name="DENV1/VN/2019", accession="OQ000001"))
+
+    error = identical(submit(client, fasta=f">y\n{GENOME}\n"))
+
+    assert error["matchCount"] == 1
+    assert [match["displayName"] for match in error["matches"]] == ["DENV1/VN/2019"]
 
 
 def test_a_public_sample_of_another_lab_is_named_without_its_internal_id(session, client, lab):

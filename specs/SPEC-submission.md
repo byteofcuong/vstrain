@@ -123,7 +123,7 @@ Các test backend nằm ở cuối `tests/test_submissions_api.py`. Kiểm chứ
 
 ## Báo chuỗi giống hệt khi nộp (bổ sung sau mốc M7)
 
-Trạng thái: **đang làm**.
+Trạng thái: **đã triển khai và đã qua review độc lập** (2026-10-15).
 
 Vấn đề: hai lần nộp cùng một chuỗi thành hai mẫu, hai tip tạm chồng lên nhau, và lần dựng cây sau có hai tip cho một ca bệnh. Nhưng chuỗi giống hệt không có nghĩa là nộp trùng: hai ca bệnh trong cùng một ổ dịch có thể mang genome y hệt. Trong 59.551 bản ghi GenBank của dengue chỉ có 46.446 chuỗi khác nhau; 3.965 chuỗi xuất hiện ở hơn một bản ghi. Vì vậy hệ thống **báo và hỏi lại**, không cấm.
 
@@ -154,6 +154,44 @@ Vấn đề: hai lần nộp cùng một chuỗi thành hai mẫu, hai tip tạm
 | D7 | File sai vẫn nhận 422 dù chuỗi giống hệt; vượt trần vẫn nhận 429 | cùng file |
 | D8 | Migration 0012 lên, xuống, lên lại; trên database phát triển (59.551 chuỗi) câu tìm dùng index | `test_migrations.py`; `EXPLAIN ANALYZE` |
 | D9 | Form: lời báo nêu mẫu giống hệt, "Vẫn nộp" nộp được, sửa một trường thì lời báo biến mất | `frontend/e2e/submission.spec.ts` trên stack thật; unit test cho phần đọc lỗi |
+
+### Kết quả (2026-10-15)
+
+| # | Kết quả | Kiểm bằng |
+|---|---|---|
+| D1 | Đạt | `test_submissions_api.py`: 409 nêu mẫu cũ kèm mã; số mẫu, lần nộp, job không đổi; nhật ký chỉ có lần nộp đầu; với trần mỗi ngày là 2, một mẫu nữa vẫn được nhận sau lần bị hỏi lại |
+| D2 | Đạt | Cùng file: 201, nhật ký `[{}, {"identical_to": 1}]`; không có mẫu giống hệt thì `allowIdentical` không đổi gì |
+| D3 | Đạt | Cùng file: accession có, mã nội bộ là `null` |
+| D4 | Đạt | Cùng file: mẫu đang chờ, bị từ chối, bị ẩn của phòng khác không được nêu và không được đếm, kể cả khi đứng cạnh một bản ghi công khai (`matchCount` là 1); mẫu đã đạt của phòng khác được nêu tên, không có mã nội bộ |
+| D5 | Đạt | Cùng file: chữ thường, U, xuống dòng kiểu Windows và dòng tiêu đề khác vẫn là giống hệt; khác một nucleotide là khác |
+| D6 | Đạt | Cùng file: 7 mẫu giống hệt, nêu 5, mẫu của mình trước dù bản ghi GenBank mới hơn |
+| D7 | Đạt | Cùng file |
+| D8 | Đạt | `test_migrations.py` (lên, xuống, lên lại; model khớp schema kể cả index). Database phát triển: `docker compose run --rm init` (0011 → 0012); `EXPLAIN ANALYZE` câu tìm trên 59.551 chuỗi: quét cả bảng 17,9 ms trước khi có index, `Index Scan using ix_sample_sequence_sha256` 0,25 ms sau |
+| D9 | Đạt | `frontend/e2e/submission.spec.ts`, cả qua nginx: genome GenBank thật bị hỏi lại, lời hỏi nêu bản ghi GenBank và nhận con trỏ, chưa có gì được lưu; đổi tỉnh thì lời hỏi biến mất; "Vẫn nộp" nhận mẫu và mẫu thành tip tạm trong 30 giây. Ảnh: `do-dac/results/W13-nop-trung/anh/` (1280 px, 390 px, tiếng Anh; không tràn ngang, không lỗi trang) |
+
+Thêm: hai lần nộp cùng một chuỗi cùng lúc từ một tài khoản (hai luồng, session thật) cho một 201 và một 409 (`test_submissions_commit.py`).
+
+Lệnh và kết quả (Git Bash): `pytest` trong image api → 766 passed, 17 skipped; trong image worker → 783 passed; `ruff` sạch. Frontend: `npm run test` → 298 passed; `typecheck`, `lint` sạch; `npm run e2e` → 54 passed; `npm run e2e:web` → 61 passed. Mutation check: 19 chỗ sửa thử ở backend, 18 bị bắt; chỗ còn lại (trả accession cho cả mẫu nộp) là điều kiện thừa vì mẫu nộp không có accession. 7 chỗ ở frontend, cả 7 bị bắt (một chỗ bằng test đầu-cuối). Một chỗ ở backend sống sót lúc đầu (không xếp mẫu của mình trước): test tạo bản ghi GenBank trước mẫu của mình, nên "mới nhất trước" cho cùng thứ tự; test được đổi thứ tự tạo và bắt được nó.
+
+Về cách làm: test được viết trước mã; trên mã cũ 8 test backend và 5 test frontend hỏng. Các test cũ từng nộp cùng một chuỗi nhiều lần nay dùng mỗi lần một chuỗi. Ba script đo đạc ngoài repo cố ý nộp lại genome GenBank (`do-dac/scripts/w7-nop-mau/do_thoi_gian_nop.mjs`, `thu_serotype.mjs`, `w10-sua-mau/chup_man_hinh.mjs`) nay gửi `allowIdentical: true`; chưa chạy lại.
+
+### Review độc lập (2026-10-15)
+
+Một reviewer không viết mã này làm hai bước: viết danh sách 14 điều cần kiểm từ yêu cầu, rồi mới đọc diff và bằng chứng. Kết quả: 13 điều đạt, 1 điều chỉ kiểm được một phần (các script ngoài repo), không điều nào không đạt; kết luận chấp nhận.
+
+| Phát hiện | Xử lý |
+|---|---|
+| `SPEC.md` vẫn mô tả dạng lỗi chỉ có `code`, `message`, `details` | Sửa: ghi rằng một vài mã mang thêm trường |
+| Mục đặc tả này còn ghi "đang làm", chưa có cột kết quả | Sửa |
+| Chưa có test trộn một mẫu được phép biết với mẫu chưa công khai của phòng khác để xem `matchCount` không đếm mẫu sau | Sửa: thêm test; nó bắt được chỗ sửa thử "so với mọi mẫu" |
+| Form nhận ra file đổi qua tên, cỡ và thời điểm sửa, không qua nội dung: thay file khác nội dung mà cùng ba thứ đó thì lời đồng ý vẫn còn | Không đổi: rất khó xảy ra, và đọc nội dung file ở mỗi lần vẽ lại form là quá đắt |
+
+Reviewer không chạy lệnh nào (chỉ đọc mã, patch và file bằng chứng), và không mở hai script đo đạc còn lại (`w9-danh-gia/thu_request_qua_lon.mjs`, `w7-nop-mau/chup_man_hinh.mjs`); hai script này gửi request quá cỡ hoặc file sai, nên không tới bước so chuỗi.
+
+### Điều cần biết
+
+- Hai phòng xét nghiệm nộp cùng một chuỗi thì cả hai đều được nhận mà không ai được hỏi, chừng nào mẫu của phòng trước chưa được công khai: không phòng nào được biết về mẫu chưa công khai của phòng kia.
+- Lần bị hỏi lại không được ghi nhật ký và không bị tính vào trần nào. Một tài khoản có thể dùng nó để hỏi một chuỗi đã có trong dữ liệu công khai hay chưa, điều vốn đã tra được trên GenBank.
 
 ## Chưa làm
 

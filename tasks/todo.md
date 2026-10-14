@@ -599,6 +599,22 @@ Không thêm dependency hay image: chứng chỉ tự ký tạo bằng `openssl`
 
 **Kiểm chứng (2026-10-15):** `npm run e2e:https` → 3 passed khi stack bật kèm file HTTPS; bật lại bản HTTP thì `npm run e2e:web` → 61 passed, `VS_COOKIE_SECURE` không còn được đặt.
 
+## Phase 18: báo chuỗi giống hệt khi nộp (sau mốc M7)
+
+Đặc tả: mục "Báo chuỗi giống hệt khi nộp" của `specs/SPEC-submission.md`. Không thêm dependency; migration 0012 thêm index cho hash của chuỗi.
+
+- [x] T18.1 `POST /api/submissions` trả 409 `IDENTICAL_SEQUENCE` (kèm `matches`, `matchCount`) khi chuỗi giống hệt một mẫu người nộp được phép biết; `allowIdentical: true` thì nhận. Kiểm chứng: `tests/test_submissions_api.py`, `test_submissions_commit.py`, `test_migrations.py`
+- [x] T18.2 Form nộp hiện lời hỏi lại và nút "Vẫn nộp"; sửa form thì lời hỏi biến mất. Kiểm chứng: `src/submit/form.test.ts`, `src/api.test.ts`, `frontend/e2e/submission.spec.ts`
+- [x] T18.3 Reviewer độc lập đọc lại; sửa ba phát hiện nhỏ. Kiểm chứng: mục review của đặc tả
+
+**Kiểm chứng (2026-10-15):** backend `pytest` trong image api → 766 passed, 17 skipped; trong image worker → 783 passed; `ruff` sạch. Frontend: `npm run test` → 298 passed; `typecheck`, `lint` sạch; `npm run e2e` → 54 passed; `npm run e2e:web` → 61 passed.
+
+## Phase 19: thử README trên một bản clone sạch (sau mốc M7)
+
+- [x] T19.1 Clone `main` (`463c7c3`) ra thư mục mới, chạy từng bước của README với database mới (`-p vstrain-thu`, volume riêng). Kết quả: cả sáu bước chạy được đúng như viết; gióng 39 giây, dựng cây DENV1 704 giây (README ghi "chừng nửa phút" và "khoảng 11 phút"); cây 1.959 tip, không lỗi console; phần HTTPS cũng chạy được. Hai image build lại không dùng cache (mọi phiên bản đã ghim vẫn cài được). Không có gì trong README phải sửa. Ghi chép: `do-dac/results/W14-thu-readme/`
+
+**Chưa thử được:** một máy thật sự mới. Image nền (`python:3.12-slim`, `nextstrain/base`, `postgres:16`, `nginx`) đã có sẵn trong Docker của máy này, và bước nạp dữ liệu dùng file GenBank đã có thay vì chạy workflow `ingest` của nextstrain/dengue.
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.
