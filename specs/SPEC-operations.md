@@ -112,8 +112,8 @@ Reviewer không viết code, làm ba bước: liệt kê 30 điều sẽ kiểm 
 - Dữ liệu GenBank hiện có không còn địa danh Việt Nam nào chưa khớp, nên trang sửa địa danh chưa có việc thật để làm; nó dành cho lần nhập kế tiếp. Các phép đo và test đầu-cuối tự tạo cách viết lạ rồi trả lại như cũ.
 - Hash đầu vào không thấy thay đổi của công cụ, tham số pipeline hay định nghĩa clade. Sau những thay đổi đó admin bấm "Dựng ngay".
 - Lịch chưa được để chạy qua nhiều ngày trên dữ liệu thật: bằng chứng là test với đồng hồ được truyền vào và một lần chạy vòng lặp worker với công cụ thật.
-- Bản publish cũ không bị xoá khi có bản mới (1,7 MB mỗi bản ở DENV1).
-- Job hỏng không tự chạy lại; chưa huỷ được một job đang chạy.
+- Bản publish cũ không bị xoá khi có bản mới (1,7 MB mỗi bản ở DENV1). *Sau mốc M7: đã có việc dọn, xem mục "Huỷ job và dọn bản dựng cũ".*
+- Job hỏng không tự chạy lại; chưa huỷ được một job đang chạy. *Sau mốc M7: huỷ được, xem cùng mục.*
 - Migration 0010 mới được thử lên, xuống rồi lên lại trên database rỗng và chạy một lần trên database phát triển; chưa có test với dữ liệu có sẵn. Mọi cột mới đều cho phép để trống.
 
 ## Ngoài phạm vi
@@ -126,7 +126,7 @@ Reviewer không viết code, làm ba bước: liệt kê 30 điều sẽ kiểm 
 
 ## Huỷ job và dọn bản dựng cũ (bổ sung sau mốc M7)
 
-Trạng thái: **đang làm**.
+Trạng thái: **đã triển khai và đã qua review độc lập** (2026-10-14).
 
 Tới mốc M7 còn hai giới hạn ghi ở "Điều cần biết": một job đang chạy không dừng được (một lần dựng cây 5.000 mẫu mất hơn nửa giờ; bấm nhầm thì phải chờ hoặc khởi động lại container), và bản publish cũ không bao giờ bị xoá.
 
@@ -160,7 +160,7 @@ Bổ sung sau review (2026-10-14):
 - Một thư mục `p-*` chỉ bị xoá khi chính nó cũng được ghi trước mốc thời hạn. Một lần publish ghi thư mục mới trước rồi mới đổi con trỏ trong database; thư mục vừa ghi mà chưa ai trỏ tới có thể là bản sắp thành bản hiện hành.
 - Dataset không có thư mục thật `builds/<slug>` (ổ dữ liệu chưa gắn, hoặc là một liên kết) thì không có gì của nó bị đụng tới, kể cả dòng của build dở dang không có file nào. Hệ quả: dòng của build hỏng thuộc một dataset chưa từng publish thì không bao giờ bị dọn.
 - Mỗi build bị xoá được commit ngay sau khi thư mục của nó mất. Một dataset không đọc được thư mục (lỗi quyền chẳng hạn) được ghi log và bỏ qua, không chặn các dataset khác.
-- Việc dọn chạy trong vòng lặp của worker chung, giữa hai job, nên không chạy cùng lúc với một lần publish. Chạy hai worker chung là ngoài thiết kế này; phép kiểm tra thời điểm ghi ở trên là lớp bảo vệ cho trường hợp đó.
+- Việc dọn chạy trong vòng lặp của worker chung, giữa hai job, nên không chạy cùng lúc với một lần publish. Chạy hai worker chung là ngoài thiết kế này; phép kiểm tra thời điểm ghi ở trên chỉ che một phần trường hợp đó (publish ra thư mục mới, không che publish lại đúng nội dung của một bản cũ).
 
 ### Tiêu chí nghiệm thu
 
@@ -178,6 +178,55 @@ Bổ sung sau review (2026-10-14):
 | C10 | Worker chung chạy việc dọn này lúc rảnh; worker chỉ kiểm tra mẫu thì không | Có test |
 | C11 | Sau một lần dọn trên stack thật, cây hiện hành vẫn mở được và mọi file trong manifest của nó còn đủ | Chạy thật |
 | C12 | Phần này có reviewer độc lập đọc lại trước khi gộp (dừng tiến trình và xoá file là việc sai thì đắt) | mục review |
+
+### Kết quả (2026-10-14)
+
+| # | Kết quả | Kiểm bằng |
+|---|---|---|
+| C1 | Đạt | `test_operations_api.py`: job đang chờ thành `cancelled`, `claim` không trả nó; `test_job_queue.py`: job đã huỷ không được giao cho worker |
+| C2 | Đạt | `test_worker.py`: worker thật, nhịp báo 0,1 giây, công cụ là một tiến trình Python sinh một tiến trình `sleep` con; huỷ (và cả trường hợp bị coi là bỏ dở) thì cả hai tiến trình chết, job giữ kết cục đã ghi, worker chạy xong job kế tiếp. `test_run_tool.py`: dừng cả nhóm tiến trình; lệnh dừng có sẵn thì không tiến trình nào được tạo |
+| C3 | Đạt | `test_job_steps.py`, `test_worker.py`: job bị đóng giữa hai bước thì bước sau không bắt đầu, không cần nhịp báo; lệnh dừng đi xuyên qua handler bắt mọi `Exception` |
+| C4 | Đạt | `test_operations_api.py`: 409 với job đã xong, đã hỏng, đã huỷ; 404; 401, 403, thiếu header chống CSRF; nhật ký ghi người huỷ và tình trạng lúc huỷ; lệnh huỷ được lưu qua các request (session thật); job xong đúng lúc bị huỷ chỉ có một kết cục (hai luồng thật) |
+| C5 | Đạt | `test_operations_api.py`, `test_submissions_api.py` |
+| C6 | Đạt | `test_migrations.py`: lên, xuống, lên lại trên database rỗng; đi xuống khi có job đã huỷ biến nó thành job hỏng ghi rõ lý do. Database phát triển: `docker compose run --rm init` (0010 → 0011) |
+| C7 | Đạt | `frontend/e2e/admin.spec.ts`, cả qua nginx: huỷ một lần dựng cây 400 mẫu khi IQ-TREE đang chạy. Đo riêng (`do-dac/results/W12-huy-va-don/huy_mot_lan_dung_cay.json`): lệnh huỷ được ghi sau 0,06–0,10 giây; Augur và IQ-TREE biến khỏi worker sau 13,6–15,7 giây |
+| C8 | Đạt | `test_prune.py` |
+| C9 | Đạt | `test_prune.py`: số build giữ lại, từng điều kiện riêng chặn việc xoá, build hiện hành với `VS_KEEP_BUILDS=0`, liên kết ở mọi cấp, tên lạ, thư mục không xoá được, thư mục gốc không có hay rỗng, dataset không đọc được, lỗi không lường trước sau khi đã xoá |
+| C10 | Đạt | `test_prune.py`: việc dọn định kỳ của worker chung gọi việc dọn build; `main()` truyền đúng hai cấu hình, worker chỉ kiểm tra mẫu thì không dọn |
+| C11 | Đạt | Chạy thật (`do-dac/scripts/w12-huy-job/thu_don_ban_dung.py`): với đồng hồ hiện tại không có gì bị xoá; với đồng hồ tám ngày sau, bản publish đã bị thay thế bị xoá, bản hiện hành còn đủ 9 file đúng hash, test đầu-cuối của trang xem cây vẫn qua |
+| C12 | Đạt | Mục "Review độc lập (2026-10-14)" ngay dưới |
+
+Lệnh và kết quả (Git Bash): `pytest` trong image api → 752 passed, 17 skipped; trong image worker → 769 passed; `ruff` sạch. Frontend: `npm run test` → 292 passed; `typecheck`, `lint` sạch; `npm run e2e` → 54 passed; `npm run e2e:web` → 60 passed. Mutation check: 23 chỗ sửa thử ở phần huỷ job, 39 ở phần dọn build (gồm bản viết lại sau review); tất cả bị bắt trừ một chỗ đã thành thừa (kiểm tra thư mục gốc có tồn tại, nay đã được phép kiểm tra thư mục của từng dataset che).
+
+Về cách làm: test được viết trước mã. Với phần huỷ job, test chạy trên khung rỗng thì 24 test hỏng; với phần dọn build, 14 trên 19. Năm test còn lại của phần dọn là loại "không được xoá gì", qua được cả trên khung rỗng; độ nhạy của chúng dựa vào mutation check.
+
+Ghi nhận trong lúc thử trên stack phát triển: script thử việc dọn bị chạy hai lần do một lỗi trong dòng lệnh. Lần đầu, với đồng hồ tám ngày sau, nó xoá cả bốn bản publish thật đã bị thay thế của DENV1 (để lại từ các lần sửa địa danh và sửa mẫu trước đó), đúng theo quy tắc; bản hiện hành không bị đụng tới.
+
+### Review độc lập (2026-10-14)
+
+Một reviewer không viết mã này làm hai bước: viết danh sách 35 điều cần kiểm từ yêu cầu, rồi mới đọc diff và bằng chứng. Kết quả: 31 điều đạt, 3 điều không đạt, 1 điều chưa kết luận được. Phần huỷ job đạt mọi điều. Mỗi phát hiện được đối chiếu lại với mã trước khi sửa, và test cho nó được thấy hỏng trước khi sửa.
+
+| Phát hiện | Xử lý |
+|---|---|
+| Việc dọn chỉ commit một lần ở cuối: một dataset hỏng ở giữa thì các dòng đã xoá quay lại, trỏ vào thư mục đã mất; một dataset hỏng mãi thì chặn việc dọn của mọi dataset khác | Sửa: commit ngay sau mỗi build; dataset không đọc được thì ghi log và bỏ qua |
+| Một lần publish ghi thư mục mới trước rồi mới đổi con trỏ; nếu việc dọn chạy đúng giữa hai việc đó (cần hai worker chung, hôm nay không có), thư mục mới bị coi là bản đã bị thay thế | Sửa: thư mục `p-*` phải được ghi trước mốc thời hạn mới bị xoá. Đặc tả ghi rõ chỉ chạy một worker chung |
+| Chỉ kiểm tra liên kết tượng trưng ở cấp cuối của đường dẫn | Sửa: `builds/<slug>` và `b<mã>` cũng phải là thư mục thật |
+| Ổ dữ liệu chưa gắn nhưng chỗ gắn vẫn có thì dòng của các build cũ bị xoá | Sửa: dataset không có thư mục thật thì không gì của nó bị đụng tới |
+| Chưa có test cho việc `main()` truyền đúng cấu hình; `SPEC.md` chưa nói tới việc dọn | Sửa |
+| Một tiến trình con tự tạo phiên mới (`setsid`) thì thoát khỏi lệnh dừng cả nhóm | Không đổi: Augur và IQ-TREE không làm vậy; test đầu-cuối cho thấy chúng không còn sau khi huỷ |
+| Build hỏng hoặc bị huỷ cũng được tính vào số build được giữ, nên một loạt lần dựng hỏng đẩy các build tốt cũ ra ngoài | Không đổi: đúng với đặc tả; build hiện hành không bao giờ bị đụng tới |
+
+Bản sửa được chính reviewer đó đọc lại và chấp nhận. Hai ghi chú còn lại, đã đưa vào "Điều cần biết": phép kiểm tra thời điểm ghi chỉ che trường hợp publish ra một thư mục mới (publish lại đúng nội dung của một bản cũ thì thư mục cũ giữ thời điểm ghi cũ), nên với hai worker chung nó không đủ; và nếu thư mục của dataset có mà phần chứa các build cũ chưa được gắn thì dòng của chúng vẫn bị xoá.
+
+Reviewer không chạy lệnh nào (chỉ đọc mã, patch và file bằng chứng), và không đọc các file kết quả mutation.
+
+### Điều cần biết
+
+- Lệnh huỷ có hiệu lực trong database ngay, nhưng công cụ đang chạy chỉ dừng ở lần báo nhịp kế tiếp của worker (mỗi 15 giây). Bước chạy bằng Python (chọn mẫu, publish, gióng từng mẫu) chạy hết rồi mới dừng.
+- Thời gian chạy của job đã huỷ tính tới lúc bấm huỷ; bước bị dừng ghi thời gian tới lúc nó dừng thật.
+- Dòng của build hỏng thuộc một dataset chưa từng publish (không có thư mục `builds/<slug>`) không bao giờ bị dọn.
+- Chỉ chạy một worker chung. Hai worker chung cùng dọn và cùng publish là ngoài thiết kế này.
+- Việc dọn coi "thư mục của build không còn" là build đã mất file khi thư mục `builds/<slug>` có mặt. Nếu thư mục đó có mà phần chứa các build cũ nằm trên một ổ khác chưa được gắn, dòng của các build cũ đó vẫn bị xoá. Cấu hình hiện tại để cả `builds/` trên một volume nên không gặp trường hợp này.
 
 ## Quyết định cho các câu hỏi mở
 

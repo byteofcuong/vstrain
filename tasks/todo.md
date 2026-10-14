@@ -491,7 +491,7 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 - Dữ liệu thật hiện không có địa danh Việt Nam nào chưa khớp; trang sửa địa danh dành cho lần nhập kế tiếp.
 - Hash đầu vào không thấy thay đổi của công cụ, tham số pipeline hay định nghĩa clade; sau đó phải bấm "Dựng ngay".
 - Lịch chưa được để chạy qua nhiều ngày trên dữ liệu thật.
-- Bản publish cũ không bị xoá; job hỏng không tự chạy lại; chưa huỷ được job đang chạy.
+- Bản publish cũ không bị xoá; job hỏng không tự chạy lại; chưa huỷ được job đang chạy. *(Sau mốc M7: đã có huỷ và dọn, Phase 15.)*
 - Còn mở từ mốc M5: sửa mẫu đã nộp (S3), tiêu chí 1 ở 5.000 tip, tiêu chí 1b. Hai tiêu chí sau thuộc mốc M7.
 
 ## Phase 11: `evaluation` (mốc M7)
@@ -567,6 +567,19 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 **Kiểm chứng (2026-10-14):** backend `pytest` trong image api → 697 passed, 17 skipped; trong image worker → 714 passed; `ruff` sạch. Frontend: `npm run test` → 290 passed; `typecheck`, `lint` sạch; `npm run e2e` → 53 passed; `npm run e2e:web` → 59 passed. Mutation check: 36 chỗ sửa thử, cả 36 bị bắt.
 
 **Điều cần biết:** không có "quên mật khẩu" qua email; mật khẩu admin đặt không bị ép đổi; hệ thống không giữ lại admin cuối cùng. Lỗi reviewer tìm ra (gửi nhiều lần đoán cùng lúc thì chỉ bị đếm một) không lộ ra trong 32 mutant ban đầu, vì mutant chỉ sửa mã đang có chứ không nghĩ ra trường hợp còn thiếu.
+
+## Phase 15: huỷ job và dọn bản dựng cũ (sau mốc M7)
+
+Đặc tả: mục "Huỷ job và dọn bản dựng cũ" của `specs/SPEC-operations.md`. Không thêm dependency; migration 0011 nới ràng buộc tình trạng của job.
+
+- [x] T15.1 Trạng thái `cancelled`, `POST /api/admin/jobs/{id}/cancel`; worker dừng công cụ đang chạy (cả nhóm tiến trình) ở lần báo nhịp kế tiếp và không bắt đầu bước mới. Kiểm chứng: `tests/test_run_tool.py`, `test_job_steps.py`, `test_worker.py`, `test_operations_api.py`
+- [x] T15.2 Nút huỷ (hỏi lại một lần) ở chi tiết công việc; tình trạng, bộ lọc và dòng đếm "đã huỷ"; job đã huỷ chạy lại được. Kiểm chứng: `frontend/e2e/admin.spec.ts` huỷ một lần dựng cây thật khi IQ-TREE đang chạy
+- [x] T15.3 Worker chung dọn bản publish đã bị thay thế và build cũ (`VS_PUBLICATION_RETENTION_DAYS`, `VS_KEEP_BUILDS`). Kiểm chứng: `tests/test_prune.py`; chạy thật trên dữ liệu DENV1
+- [x] T15.4 Reviewer độc lập đọc lại; sửa bốn phát hiện về việc dọn, mỗi cái có test. Kiểm chứng: mục review của đặc tả
+
+**Kiểm chứng (2026-10-14):** backend `pytest` trong image api → 752 passed, 17 skipped; trong image worker → 769 passed; `ruff` sạch. Frontend: `npm run test` → 292 passed; `typecheck`, `lint` sạch; `npm run e2e` → 54 passed; `npm run e2e:web` → 60 passed.
+
+**Điều cần biết:** công cụ dừng ở lần báo nhịp kế tiếp (đo được 13,6–15,7 giây sau khi bấm); bước chạy bằng Python chạy hết rồi mới dừng; chỉ chạy một worker chung.
 
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
