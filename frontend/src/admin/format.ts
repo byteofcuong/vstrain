@@ -71,8 +71,14 @@ export function jobSubject(params: Record<string, unknown>): string {
   return text(params.dataset) || text(params.sample_id, "#") || text(params.build_id, "build ") || text(params.lineage);
 }
 
-export function queueIsBusy(counts: JobCounts): boolean {
-  return counts.queued + counts.running > 0;
+/**
+ * Còn việc chờ hoặc đang chạy, tức trang công việc phải tự hỏi lại. Xét cả phần đếm lẫn các dòng đang hiện: hai
+ * thứ đến từ hai câu truy vấn, nên một job kết thúc giữa hai câu thì dòng của nó còn "đang chạy" trong khi phần
+ * đếm đã hết việc.
+ */
+export function queueIsBusy(page: { counts: JobCounts; items: readonly { status: JobStatus }[] }): boolean {
+  const unfinished = (status: JobStatus) => status === "queued" || status === "running";
+  return page.counts.queued + page.counts.running > 0 || page.items.some((job) => unfinished(job.status));
 }
 
 /**

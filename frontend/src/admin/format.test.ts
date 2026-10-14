@@ -78,9 +78,19 @@ describe("jobs", () => {
   });
 
   it("knows the queue is busy while anything waits or runs", () => {
-    expect(queueIsBusy({ queued: 0, running: 0, succeeded: 9, failed: 2, cancelled: 3 })).toBe(false);
-    expect(queueIsBusy({ queued: 1, running: 0, succeeded: 0, failed: 0, cancelled: 0 })).toBe(true);
-    expect(queueIsBusy({ queued: 0, running: 1, succeeded: 0, failed: 0, cancelled: 0 })).toBe(true);
+    const idle = { queued: 0, running: 0, succeeded: 9, failed: 2, cancelled: 3 };
+    expect(queueIsBusy({ counts: idle, items: [] })).toBe(false);
+    expect(queueIsBusy({ counts: { ...idle, queued: 1 }, items: [] })).toBe(true);
+    expect(queueIsBusy({ counts: { ...idle, running: 1 }, items: [] })).toBe(true);
+    expect(queueIsBusy({ counts: idle, items: [{ status: "failed" }, { status: "succeeded" }] })).toBe(false);
+  });
+
+  it("stays busy while a job on the page has not ended, even when the counts say otherwise", () => {
+    // Danh sách và phần đếm là hai câu truy vấn: một job kết thúc giữa hai câu thì dòng của nó còn "đang chạy" mà
+    // phần đếm đã không còn việc nào. Trang phải hỏi lại, không thì dòng đó đứng yên ở "đang chạy".
+    const idle = { queued: 0, running: 0, succeeded: 1, failed: 1, cancelled: 0 };
+    expect(queueIsBusy({ counts: idle, items: [{ status: "running" }] })).toBe(true);
+    expect(queueIsBusy({ counts: idle, items: [{ status: "failed" }, { status: "queued" }] })).toBe(true);
   });
 
   it("offers to cancel a job that has not ended, and to run again one that stopped short", () => {

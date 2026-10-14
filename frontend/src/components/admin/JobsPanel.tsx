@@ -82,7 +82,7 @@ export function JobsPanel() {
     return () => controller.abort();
   }, [load]);
 
-  const busy = loaded.state === "ready" && queueIsBusy(loaded.page.counts);
+  const busy = loaded.state === "ready" && queueIsBusy(loaded.page);
   const settling = loaded.state === "ready" && Date.now() < settleUntil;
   useEffect(() => {
     if (!(busy || settling) || refreshes.current >= REFRESH_LIMIT) return;
