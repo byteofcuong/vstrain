@@ -591,13 +591,14 @@ def test_sequences_are_compared_as_the_check_stores_them(client, lab):
 
 
 def test_at_most_five_matches_are_named_mine_first_then_newest_first(session, client, lab):
-    for number in range(4):
-        with_sequence(add_sample(session, display_name=f"genbank-{number}"))
+    # Mẫu của mình có trước, bản ghi GenBank có sau (mã lớn hơn): chỉ xếp theo "mới nhất trước" thì GenBank đứng đầu.
     for number in range(3):
         assert (
             submit(client, displayName=f"mine-{number}", fasta=f">x\n{GENOME}\n", allowIdentical=True).status_code
             == 201
         )
+    for number in range(4):
+        with_sequence(add_sample(session, display_name=f"genbank-{number}"))
 
     error = identical(submit(client, fasta=f">x\n{GENOME}\n"))
 
