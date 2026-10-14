@@ -10,3 +10,5 @@ node_modules/
 dist/
 # Môi trường cục bộ
 .env
+# Chứng chỉ của bản HTTPS (deploy/make-dev-cert.sh): khoá bí mật không đưa vào git
+/deploy/certs/

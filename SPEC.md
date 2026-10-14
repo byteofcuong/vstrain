@@ -41,7 +41,7 @@ Mỗi module có đặc tả riêng ở `specs/SPEC-<module id>.md`, viết ngay
 | Cơ sở dữ liệu | PostgreSQL 16 | Kiêm hàng đợi job (`FOR UPDATE SKIP LOCKED`) |
 | Công cụ sinh học | Augur 34.1.4, Nextclade 3.24, IQ-TREE 3.0.1, TreeTime 0.12.1 | Đúng phiên bản đã đo |
 | Frontend | React 19, TypeScript, Vite, Zustand | Cây vẽ bằng Canvas, bản đồ vẽ bằng SVG; không dùng thư viện bản đồ (ADR-007) |
-| Triển khai | Docker Compose trên một máy; nginx 1.28 là cổng vào (`http://127.0.0.1:8080`) | Chưa có HTTPS, chưa lên server |
+| Triển khai | Docker Compose trên một máy; nginx 1.28 là cổng vào (`http://127.0.0.1:8080`) | HTTPS tuỳ chọn qua `deploy/docker-compose.https.yml` (`https://127.0.0.1:8443`, chứng chỉ tự ký); chưa lên server |
 
 Lý do của từng lựa chọn lớn được ghi thành ADR trong `docs/decisions/`.
 
@@ -89,6 +89,7 @@ Build:          npm run build
 Test đầu-cuối:  npm run e2e             (Playwright; cần backend đang chạy và dataset dengue-denv1 đã có build)
 Test qua nginx: npm run e2e:web         (cùng bộ test, cộng kiểm tra của nginx; cần `npm run build` và service `web` đang chạy;
                                          test cuối dùng hết lượt đăng nhập của máy, nên chờ một phút trước lần chạy kế tiếp)
+Test bản HTTPS: npm run e2e:https       (cần stack bật kèm `deploy/docker-compose.https.yml` và chứng chỉ trong `deploy/certs/`)
 Dựng bản đồ:    npm run build:map       (ghi lại src/map/vn-map.json; chạy khi file đường biên hoặc file seed địa danh đổi)
 ```
 
@@ -96,7 +97,9 @@ Test đầu-cuối tự build frontend rồi phục vụ bản build ở cổng 
 
 ### Bản triển khai trên máy
 
-`docker compose ... up -d` bật thêm service `web` (nginx) ở `http://127.0.0.1:8080`: đây là địa chỉ để dùng webapp. Nó phát `frontend/dist`, nên phải chạy `npm run build` trước; chưa build thì trang trả 404. Build lại frontend không cần khởi động lại nginx. Sửa `deploy/nginx.conf` thì nạp lại bằng `docker compose -f deploy/docker-compose.yml exec web nginx -s reload`. Lý do của cấu hình ở `docs/decisions/ADR-006-*.md`.
+`docker compose ... up -d` bật thêm service `web` (nginx) ở `http://127.0.0.1:8080`: đây là địa chỉ để dùng webapp. Nó phát `frontend/dist`, nên phải chạy `npm run build` trước; chưa build thì trang trả 404. Build lại frontend không cần khởi động lại nginx. Sửa `deploy/nginx.conf` hay các file trong `deploy/nginx/` thì nạp lại bằng `docker compose -f deploy/docker-compose.yml exec web nginx -s reload`. Lý do của cấu hình ở `docs/decisions/ADR-006-*.md`.
+
+Bản HTTPS: `sh deploy/make-dev-cert.sh` (một lần) rồi `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.https.yml up -d`. nginx khi đó đọc `deploy/nginx-https.conf.template`; phần dùng chung với bản HTTP nằm ở `deploy/nginx/http.conf` (cấp `http`) và `deploy/nginx/site.conf` (thân của `server`). Cổng 8080 chỉ còn chuyển hướng, nên `npm run e2e:web` chỉ chạy được sau khi bật lại stack không kèm file HTTPS.
 
 ## Project Structure
 
@@ -190,7 +193,7 @@ Trần của tiêu chí 4 và 4b do chính dữ liệu quyết định: 1.999 b�
 ## Assumptions
 
 1. Tên "VietStrain" là tạm.
-2. Chạy trên một máy bằng Docker Compose; chưa có HTTPS, chưa triển khai lên server.
+2. Chạy trên một máy bằng Docker Compose; chưa triển khai lên server. HTTPS là tuỳ chọn, mới thử với chứng chỉ tự ký.
 3. Pathogen đầu tiên là dengue; bốn serotype là bốn dataset; làm DENV1 trước.
 4. Chỉ genome có ít nhất 10.000 nucleotide hợp lệ mới vào build; bản ghi ngắn hơn vẫn được lưu và tra cứu.
 5. Giao diện mặc định tiếng Việt, có tiếng Anh; trình duyệt desktop hiện đại; chưa tối ưu cho điện thoại.

@@ -6,6 +6,8 @@ export const SUBMISSION = "submission.spec.ts";
 export const ADMIN = "admin.spec.ts";
 /** Test giới hạn đăng nhập của nginx. Nó dùng hết lượt đăng nhập của máy chạy test, nên chạy sau cùng. */
 export const LIMITS = "limits.spec.ts";
+/** Test của bản triển khai sau HTTPS; chạy bằng cấu hình riêng (`playwright.https.config.ts`). */
+export const HTTPS = "https.spec.ts";
 
 /**
  * Ba nhóm test: `viewer` chạy song song và chỉ đọc; `submission` rồi `admin` chạy sau khi `viewer` xong, lần lượt
@@ -14,7 +16,7 @@ export const LIMITS = "limits.spec.ts";
  */
 export function projects(viewerIgnore: string[], { throughGateway = false } = {}) {
   const groups = [
-    { name: "viewer", testIgnore: [...viewerIgnore, SUBMISSION, ADMIN, LIMITS] },
+    { name: "viewer", testIgnore: [...viewerIgnore, SUBMISSION, ADMIN, LIMITS, HTTPS] },
     { name: "submission", testMatch: SUBMISSION, dependencies: ["viewer"], fullyParallel: false },
     { name: "admin", testMatch: ADMIN, dependencies: ["submission"], fullyParallel: false },
   ];

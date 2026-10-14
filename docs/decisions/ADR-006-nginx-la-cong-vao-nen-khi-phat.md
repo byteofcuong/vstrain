@@ -57,5 +57,5 @@ Mỗi dataset của webapp có trần số mẫu (2.000 với DENV1), nên file 
 - Một origin: cookie phiên đăng nhập (mốc M5) sẽ là same-origin, không cần CORS.
 - Chính sách CSP chặn mọi script, style hay kết nối ra ngoài origin. Bản đồ (mốc M4) phải dùng dữ liệu tự host; nếu cần nguồn ngoài thì phải sửa chính sách này một cách có chủ ý.
 - Bộ test đầu-cuối chạy được qua nginx (`npm run e2e:web`): 9 test của viewer cộng 5 test của chính cấu hình này. Sửa thử 15 chỗ trong `nginx.conf`, cả 15 đều bị test bắt.
-- Chưa có HTTPS; cổng chỉ mở trên `127.0.0.1`. Đưa lên server cần thêm chứng chỉ và `Strict-Transport-Security`.
+- Chưa có HTTPS; cổng chỉ mở trên `127.0.0.1`. Đưa lên server cần thêm chứng chỉ và `Strict-Transport-Security`. *Sau mốc M7: đã có bản HTTPS tuỳ chọn (`deploy/docker-compose.https.yml`): cùng phần thân `server` với bản HTTP (`deploy/nginx/site.conf`), TLS 1.2 và 1.3, HTTP/2, cổng HTTP chỉ chuyển hướng, cookie phiên mang cờ `Secure`. `Strict-Transport-Security` để `max-age=0` trên máy phát triển, vì HSTS áp cho mọi cổng của một tên và nhớ HTTPS cho `localhost` sẽ làm hỏng các trang HTTP khác trên máy; trên server có tên miền thì đặt một năm. Kiểm bằng `frontend/e2e/https.spec.ts`.*
 - Sửa `nginx.conf` xong phải nạp lại: `docker compose -f deploy/docker-compose.yml exec web nginx -s reload`.

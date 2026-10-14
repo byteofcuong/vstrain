@@ -102,7 +102,16 @@ docker compose -f deploy/docker-compose.yml exec api \
 
 **6. Mở** <http://127.0.0.1:8080> và đăng nhập. Từ đây không cần dòng lệnh nữa: ở trang Quản trị, admin đặt lịch dựng cây và tạo tài khoản cho các phòng xét nghiệm (tab Tài khoản; ở đó cũng khoá, mở khoá và đặt lại mật khẩu). Ai cũng tự đổi được mật khẩu của mình: bấm vào tên mình ở thanh đầu trang.
 
-Cấu hình này dành cho một máy phát triển: mật khẩu database là mặc định, cổng chỉ mở trên `127.0.0.1`, chưa có HTTPS.
+Cấu hình này dành cho một máy phát triển: mật khẩu database là mặc định, cổng chỉ mở trên `127.0.0.1`.
+
+**HTTPS (tuỳ chọn).** Tạo một chứng chỉ tự ký rồi bật stack kèm file `docker-compose.https.yml`:
+
+```bash
+sh deploy/make-dev-cert.sh      # Git Bash; chứng chỉ nằm ở deploy/certs/, không đưa vào git
+docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.https.yml up -d
+```
+
+Webapp khi đó ở <https://127.0.0.1:8443> (trình duyệt cảnh báo vì chứng chỉ tự ký). Cổng 8080 chỉ còn chuyển hướng sang đó, cookie phiên mang cờ `Secure`, nginx chỉ nhận TLS 1.2 và 1.3. Quay về bản HTTP: chạy lại `up -d` chỉ với file chính. Trên server thật, đặt chứng chỉ do một nơi cấp chứng chỉ ký vào `deploy/certs/` với cùng tên file, `VS_HTTPS_PORT=443` và `VS_HSTS_MAX_AGE=31536000`.
 
 ## Test
 
@@ -119,6 +128,7 @@ npm run typecheck
 npm run lint
 npm run e2e         # Playwright trên stack đang chạy; cần bộ dữ liệu dengue-denv1 đã có cây
 npm run e2e:web     # cùng bộ test, đi qua nginx
+npm run e2e:https   # kiểm tra bản HTTPS; cần stack bật kèm docker-compose.https.yml
 ```
 
 Hai lệnh pytest dùng chung một database test, nên chạy lần lượt, không chạy cùng lúc.
@@ -141,7 +151,7 @@ data/               dữ liệu nạp vào và file build sinh ra; không nằm 
 
 ## Giới hạn
 
-- Chạy trên một máy bằng Docker Compose; chưa triển khai lên server, chưa có HTTPS, chưa đo dưới tải.
+- Chạy trên một máy bằng Docker Compose; chưa triển khai lên server, chưa đo dưới tải. HTTPS mới được thử với chứng chỉ tự ký.
 - Mọi số đo dùng DENV1 và một máy (8 nhân, 13 GB cho Docker).
 - Giới hạn đăng nhập theo địa chỉ IP nằm ở nginx (30 lần liền nhau, sau đó một lần mỗi 2 giây). Trên Docker Desktop mọi người dùng tới nginx với cùng một địa chỉ, nên ở máy phát triển giới hạn này là chung.
 - Không có tự đăng ký và không có "quên mật khẩu" qua email (hệ thống không gửi thư): tài khoản do admin tạo, người quên mật khẩu nhờ admin đặt lại. Mật khẩu admin đặt không bị ép đổi ở lần đăng nhập đầu.

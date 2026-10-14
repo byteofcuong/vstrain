@@ -82,6 +82,7 @@ services:
       - "127.0.0.1:8080:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx:/etc/nginx/vietstrain:ro   # phần dùng chung của bản HTTP và bản HTTPS
       - ../frontend/dist:/usr/share/nginx/html:ro
       - ../data/builds:/srv/builds:ro
 

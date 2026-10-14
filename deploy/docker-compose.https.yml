@@ -1,0 +1,28 @@
+# Bật HTTPS cho bản triển khai. Dùng chồng lên file chính, từ thư mục gốc của repo:
+#
+#   sh deploy/make-dev-cert.sh      (một lần; chứng chỉ tự ký nằm ở deploy/certs/, không đưa vào git)
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.https.yml up -d
+#
+# Webapp khi đó ở https://127.0.0.1:8443; cổng 8080 chỉ còn chuyển hướng sang đó. Quay về bản HTTP: chạy lại
+# `up -d` chỉ với file chính.
+
+services:
+  api:
+    environment:
+      VS_COOKIE_SECURE: "true"     # cookie phiên không bao giờ đi qua kết nối không mã hoá
+
+  web:
+    environment:
+      VS_HTTPS_PORT: ${VS_HTTPS_PORT:-8443}     # cổng HTTPS người dùng thấy; trên server thật là 443
+      VS_HSTS_MAX_AGE: ${VS_HSTS_MAX_AGE:-0}    # xem ghi chú trong nginx-https.conf.template
+    ports: !override
+      - "127.0.0.1:8080:80"
+      - "127.0.0.1:${VS_HTTPS_PORT:-8443}:443"
+    # Thay hẳn danh sách của file chính: image nginx tự ghi conf.d/default.conf từ template, nên file đó không được
+    # là một mount chỉ đọc.
+    volumes: !override
+      - ./nginx-https.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx:/etc/nginx/vietstrain:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ../frontend/dist:/usr/share/nginx/html:ro
+      - ../data/builds:/srv/builds:ro

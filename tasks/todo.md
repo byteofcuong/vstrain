@@ -590,6 +590,15 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 **Kiểm chứng (2026-10-15):** frontend `npm run test` → 293 passed; `typecheck`, `lint` sạch; `npm run e2e` → 54 passed; `npm run e2e:web` → 61 passed, nginx từ chối đúng 20 request (của test giới hạn), không request nào của các test khác.
 
+## Phase 17: HTTPS tuỳ chọn (sau mốc M7)
+
+Không thêm dependency hay image: chứng chỉ tự ký tạo bằng `openssl` của Git Bash; nginx dùng module SSL và HTTP/2 có sẵn trong image.
+
+- [x] T17.1 Tách phần dùng chung của nginx ra `deploy/nginx/` (cấp `http` và thân `server`); bản HTTP không đổi hành vi. Kiểm chứng: `e2e/deploy.spec.ts` và cả `npm run e2e:web` trước và sau khi tách
+- [x] T17.2 `deploy/docker-compose.https.yml`, `deploy/nginx-https.conf.template`, `deploy/make-dev-cert.sh`: cổng 8443 với TLS 1.2 và 1.3, HTTP/2; cổng 8080 chuyển hướng mọi đường dẫn; cookie phiên `Secure`; HSTS `max-age=0` ở máy phát triển. Kiểm chứng: `npm run e2e:https` (3 test, hỏng trước khi có cấu hình: không có gì nghe ở 8443); `openssl s_client` cho thấy TLS 1.3 và ALPN `h2`, TLS 1.1 bị từ chối
+
+**Kiểm chứng (2026-10-15):** `npm run e2e:https` → 3 passed khi stack bật kèm file HTTPS; bật lại bản HTTP thì `npm run e2e:web` → 61 passed, `VS_COOKIE_SECURE` không còn được đặt.
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.
