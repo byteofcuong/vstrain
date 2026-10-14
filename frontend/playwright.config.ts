@@ -4,17 +4,21 @@ import { defineConfig } from "@playwright/test";
 export const SUBMISSION = "submission.spec.ts";
 /** Test của các trang quản trị. Chúng xếp job và thêm dataset tạm, nên cũng chạy riêng. */
 export const ADMIN = "admin.spec.ts";
+/** Test giới hạn đăng nhập của nginx. Nó dùng hết lượt đăng nhập của máy chạy test, nên chạy sau cùng. */
+export const LIMITS = "limits.spec.ts";
 
 /**
  * Ba nhóm test: `viewer` chạy song song và chỉ đọc; `submission` rồi `admin` chạy sau khi `viewer` xong, lần lượt
- * từng test, vì chúng ghi vào dữ liệu dùng chung (mỗi nhóm tự dọn những gì nó tạo ra).
+ * từng test, vì chúng ghi vào dữ liệu dùng chung (mỗi nhóm tự dọn những gì nó tạo ra). Khi chạy qua nginx có
+ * thêm nhóm thứ tư, `limits`, sau tất cả.
  */
-export function projects(viewerIgnore: string[]) {
-  return [
-    { name: "viewer", testIgnore: [...viewerIgnore, SUBMISSION, ADMIN] },
+export function projects(viewerIgnore: string[], { throughGateway = false } = {}) {
+  const groups = [
+    { name: "viewer", testIgnore: [...viewerIgnore, SUBMISSION, ADMIN, LIMITS] },
     { name: "submission", testMatch: SUBMISSION, dependencies: ["viewer"], fullyParallel: false },
     { name: "admin", testMatch: ADMIN, dependencies: ["submission"], fullyParallel: false },
   ];
+  return throughGateway ? [...groups, { name: "limits", testMatch: LIMITS, dependencies: ["admin"] }] : groups;
 }
 
 /**

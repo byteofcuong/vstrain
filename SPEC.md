@@ -87,7 +87,8 @@ Kiểm tra kiểu:  npm run typecheck
 Lint và format: npm run lint            (eslint và prettier --check)
 Build:          npm run build
 Test đầu-cuối:  npm run e2e             (Playwright; cần backend đang chạy và dataset dengue-denv1 đã có build)
-Test qua nginx: npm run e2e:web         (cùng bộ test, cộng kiểm tra của nginx; cần `npm run build` và service `web` đang chạy)
+Test qua nginx: npm run e2e:web         (cùng bộ test, cộng kiểm tra của nginx; cần `npm run build` và service `web` đang chạy;
+                                         test cuối dùng hết lượt đăng nhập của máy, nên chờ một phút trước lần chạy kế tiếp)
 Dựng bản đồ:    npm run build:map       (ghi lại src/map/vn-map.json; chạy khi file đường biên hoặc file seed địa danh đổi)
 ```
 

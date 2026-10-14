@@ -28,6 +28,7 @@ Không: tự đăng ký, đăng nhập qua bên thứ ba, đặt lại mật kh�
 - Đăng nhập thất bại vì lý do nào cũng trả 401 `INVALID_CREDENTIALS` với cùng một thông báo, tốn cùng một lần băm và để lại một dòng nhật ký.
 - Câu trả lời ở `/api/auth/` và `/api/admin/` mang `Cache-Control: no-store`. Lỗi chưa lường trước trả 500 `INTERNAL_ERROR`, không kèm chi tiết.
 - Năm lần sai liên tiếp trong 15 phút thì khoá tài khoản 15 phút, kể cả với mật khẩu đúng.
+- Giới hạn theo địa chỉ IP (bổ sung sau mốc M7), đặt ở nginx chứ không ở API: 30 lần đăng nhập liền nhau từ một địa chỉ, sau đó một lần mỗi 2 giây. Request vượt giới hạn nhận 429 `TOO_MANY_LOGINS` cùng dạng lỗi với API, do nginx trả, không tới API và không tốn lần băm nào. Mục đích: một máy không chiếm hết bốn chỗ băm của mọi người, và việc thử một mật khẩu trên nhiều tài khoản chậm lại. Con số được chọn sao cho bộ test đầu-cuối (đăng nhập dồn khoảng 20 lần trong 20 giây) và một phòng xét nghiệm dùng chung một địa chỉ không chạm tới nó. Trên Docker Desktop mọi request từ máy chủ tới nginx mang cùng một địa chỉ (cổng của mạng Docker), nên ở máy phát triển giới hạn này là chung cho mọi người dùng. Kiểm bằng `frontend/e2e/limits.spec.ts` (chỉ chạy qua nginx).
 - Lỗi theo dạng chung của API (`SPEC.md`: `code`, `message`, và `details` chỉ ở lỗi 422): 401 `NOT_AUTHENTICATED`, 403 `FORBIDDEN`.
 - Nhật ký: `login`, `login_failed`, `login_locked`, `login_refused`, `logout`, `user_created`. Không ghi email đã thử.
 

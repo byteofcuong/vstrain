@@ -178,6 +178,10 @@ const MESSAGES = {
     vi: "Máy chủ đang kiểm tra nhiều lần đăng nhập cùng lúc. Thử lại sau giây lát.",
     en: "The server is checking many logins at once. Try again in a moment.",
   },
+  loginTooMany: {
+    vi: "Có quá nhiều lần đăng nhập từ mạng của bạn trong thời gian ngắn. Thử lại sau một phút.",
+    en: "Too many logins have come from your network in a short time. Try again in a minute.",
+  },
   loginError: {
     vi: "Không đăng nhập được vì lỗi của máy chủ hoặc đường truyền. Thử lại.",
     en: "Could not log in because of a server or network problem. Try again.",

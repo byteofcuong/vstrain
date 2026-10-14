@@ -143,6 +143,7 @@ data/               dữ liệu nạp vào và file build sinh ra; không nằm 
 
 - Chạy trên một máy bằng Docker Compose; chưa triển khai lên server, chưa có HTTPS, chưa đo dưới tải.
 - Mọi số đo dùng DENV1 và một máy (8 nhân, 13 GB cho Docker).
+- Giới hạn đăng nhập theo địa chỉ IP nằm ở nginx (30 lần liền nhau, sau đó một lần mỗi 2 giây). Trên Docker Desktop mọi người dùng tới nginx với cùng một địa chỉ, nên ở máy phát triển giới hạn này là chung.
 - Không có tự đăng ký và không có "quên mật khẩu" qua email (hệ thống không gửi thư): tài khoản do admin tạo, người quên mật khẩu nhờ admin đặt lại. Mật khẩu admin đặt không bị ép đổi ở lần đăng nhập đầu.
 - Mỗi lần nộp một chuỗi, và chuỗi của mẫu đã nộp không sửa được (chuỗi khác là mẫu khác).
 - Vùng của 34 đơn vị hành chính mới chưa có nguồn chính thức nên chưa được gán; mã đơn vị là mã nội bộ.

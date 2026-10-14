@@ -581,6 +581,15 @@ Mỗi mục một việc, một lệnh kiểm chứng, một commit. Làm xong m
 
 **Điều cần biết:** công cụ dừng ở lần báo nhịp kế tiếp (đo được 13,6–15,7 giây sau khi bấm); bước chạy bằng Python chạy hết rồi mới dừng; chỉ chạy một worker chung.
 
+## Phase 16: giới hạn đăng nhập theo địa chỉ IP (sau mốc M7)
+
+Đặc tả: mục "Thiết kế" của `specs/SPEC-accounts.md`. Chỉ đổi cấu hình nginx và một lời báo ở trang đăng nhập.
+
+- [x] T16.1 nginx: 30 lần đăng nhập liền nhau từ một địa chỉ, sau đó một lần mỗi 2 giây; vượt thì 429 `TOO_MANY_LOGINS` cùng dạng lỗi với API. Trang đăng nhập có lời báo riêng. Kiểm chứng: `frontend/e2e/limits.spec.ts` (hỏng trước khi đổi cấu hình: 40 trên 40 request tới API)
+- [x] T16.2 Sửa lỗi tìm ra khi chạy bộ test: trang công việc ngừng tự tải lại khi một job kết thúc đúng giữa câu truy vấn danh sách và câu truy vấn phần đếm, nên dòng của nó đứng yên ở "Đang chạy". Nay trang còn hỏi lại khi một dòng đang hiện chưa kết thúc. Kiểm chứng: `src/admin/format.test.ts` (hỏng trước khi sửa)
+
+**Kiểm chứng (2026-10-15):** frontend `npm run test` → 293 passed; `typecheck`, `lint` sạch; `npm run e2e` → 54 passed; `npm run e2e:web` → 61 passed, nginx từ chối đúng 20 request (của test giới hạn), không request nào của các test khác.
+
 ## Quyết định cho các câu hỏi mở (mặc định đề xuất trong đặc tả, áp dụng tới khi bạn đổi)
 - Build frontend bằng Node 24 portable trên máy; chạy được offline hoàn toàn (không font, không CDN ngoài).
 - Định dạng cột giữ JSON. Số đo ở T6.11 không cho lý do để đổi: `tree.json` 3,48 MB ở 35 nghìn tip và 10,05 MB ở 100 nghìn tip, khung hình đầu 313 ms và 464 ms (máy cục bộ, chưa nén). Xét lại nếu phép đo trên mạng chậm cho kết quả khác.

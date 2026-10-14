@@ -9,6 +9,8 @@ import { useT } from "../state/store";
 const FAILURES: Record<string, MessageKey> = {
   INVALID_CREDENTIALS: "loginWrong",
   LOGIN_BUSY: "loginBusy",
+  // Lời từ chối của nginx (giới hạn theo địa chỉ IP), không phải của API.
+  TOO_MANY_LOGINS: "loginTooMany",
 };
 
 export function LoginPage() {
