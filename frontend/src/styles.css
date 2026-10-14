@@ -1240,6 +1240,27 @@ div.notice {
 }
 
 /* Câu hỏi lại trước khi huỷ một việc. */
+/* Lời hỏi lại khi chuỗi vừa nộp giống hệt một mẫu đã có: một câu hỏi, không phải một lỗi, nên chữ giữ màu thường. */
+.identical {
+  margin: 0 0 1rem;
+  padding: 0.25rem 0 0.25rem 1rem;
+  border-left: 3px solid var(--warn);
+}
+
+.identical__title {
+  font-weight: 600;
+}
+
+.identical ul {
+  margin: 0 0 0.6rem;
+  padding-left: 1.2rem;
+}
+
+.identical__name {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
 .job__ask {
   margin: 0.5rem 0 0.75rem;
 }

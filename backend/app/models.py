@@ -146,7 +146,8 @@ class SampleSequence(Base):
     sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), primary_key=True)
     sequence: Mapped[str] = mapped_column(Text)
     length: Mapped[int] = mapped_column(Integer)
-    sha256: Mapped[str] = mapped_column(String(64))  # để biết chuỗi có đổi không mà không phải so cả chuỗi
+    # Để biết chuỗi có đổi không mà không phải so cả chuỗi, và để tìm mẫu có chuỗi giống hệt lúc nộp.
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
 
 
 class SampleAlignment(Base):

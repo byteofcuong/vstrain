@@ -121,12 +121,46 @@ Các test backend nằm ở cuối `tests/test_submissions_api.py`. Kiểm chứ
 - Mỗi lần sửa một tip chính thức xếp một việc publish lại (khoảng 0,2 giây ở cây 2.000 tip); không có trần riêng cho số lần sửa.
 - Admin không sửa hộ được. Muốn sửa dữ liệu của một phòng xét nghiệm thì phòng đó tự sửa, hoặc admin ẩn mẫu.
 
+## Báo chuỗi giống hệt khi nộp (bổ sung sau mốc M7)
+
+Trạng thái: **đang làm**.
+
+Vấn đề: hai lần nộp cùng một chuỗi thành hai mẫu, hai tip tạm chồng lên nhau, và lần dựng cây sau có hai tip cho một ca bệnh. Nhưng chuỗi giống hệt không có nghĩa là nộp trùng: hai ca bệnh trong cùng một ổ dịch có thể mang genome y hệt. Trong 59.551 bản ghi GenBank của dengue chỉ có 46.446 chuỗi khác nhau; 3.965 chuỗi xuất hiện ở hơn một bản ghi. Vì vậy hệ thống **báo và hỏi lại**, không cấm.
+
+### Thiết kế
+
+- So bằng SHA-256 của chuỗi đã qua bước kiểm tra (chữ hoa, U đổi thành T, bỏ xuống dòng và dòng tiêu đề), với cột `sample_sequence.sha256` đã có. Bản ghi GenBank được lưu theo cùng quy tắc (đã kiểm: mọi chuỗi chỉ gồm chữ hoa IUPAC, và hash lưu khớp với hash tính lại bằng SQL). Migration 0012 thêm index cho cột này.
+- Chỉ so với những mẫu người nộp **được phép biết**: mẫu do chính tài khoản đó nộp (mọi tình trạng), và mẫu công khai (`accepted`: bản ghi GenBank và mẫu đã đạt của phòng khác). Mẫu chưa công khai của phòng khác (đang chờ, bị từ chối, bị ẩn) không bao giờ được nhắc tới: báo "giống hệt một mẫu" là để lộ rằng mẫu đó tồn tại.
+- Có mẫu giống hệt và request không mang `allowIdentical: true` thì trả 409 `IDENTICAL_SEQUENCE`; không gì được ghi, và lần đó không bị tính vào hai trần số mẫu. Lỗi này mang thêm hai trường ngoài `code` và `message`: `matches` (nhiều nhất 5 mẫu: của chính mình trước, rồi mới nhất trước) và `matchCount` (tổng số). Mỗi mẫu có `displayName`, `source` (`genbank` hoặc `submission`), `mine`, `internalId` (chỉ với mẫu của chính mình) và `accession` (chỉ với bản ghi GenBank).
+- Gửi lại với `allowIdentical: true` thì mẫu được nhận như mọi lần nộp khác; nhật ký `sample_submitted` ghi số mẫu giống hệt lúc đó (`identical_to`), để admin thấy mẫu nào được nộp dù đã có cảnh báo.
+- Thứ tự kiểm tra không đổi, chỉ thêm bước cuối: trần số mẫu (429), rồi nội dung (422), rồi chuỗi giống hệt (409). File sai không bao giờ nhận cảnh báo giống hệt.
+- Sửa mẫu không đổi chuỗi nên không qua bước này.
+
+### Giao diện
+
+- Form nộp nhận 409 thì hiện lời báo ngay trên nút gửi: danh sách mẫu giống hệt (tên; "mẫu bạn đã nộp" kèm mã, "GenBank" kèm accession, hoặc "mẫu một phòng xét nghiệm khác đã nộp"), một câu giải thích rằng hai ca bệnh vẫn có thể có chuỗi giống hệt, và nút "Vẫn nộp".
+- Sửa bất kỳ trường nào hay chọn file khác thì lời báo biến mất: lời đồng ý chỉ áp cho đúng nội dung vừa được báo.
+
+### Tiêu chí nghiệm thu
+
+| # | Tiêu chí | Kiểm bằng |
+|---|---|---|
+| D1 | Nộp lại đúng chuỗi mình đã nộp: 409 `IDENTICAL_SEQUENCE` nêu mẫu cũ; không mẫu, job hay dòng nhật ký nào được thêm, và lần đó không bị tính vào trần mỗi ngày | `test_submissions_api.py` |
+| D2 | Gửi lại với `allowIdentical: true`: 201, mẫu mới được xếp kiểm tra; nhật ký ghi số mẫu giống hệt | cùng file |
+| D3 | Chuỗi giống hệt một bản ghi GenBank: 409 nêu accession, không nêu mã nội bộ | cùng file |
+| D4 | Chuỗi giống hệt một mẫu chưa công khai của phòng khác (đang chờ, bị từ chối, bị ẩn): 201, không nhắc gì tới mẫu đó. Giống hệt mẫu đã đạt của phòng khác: 409 nêu tên, không nêu mã nội bộ | cùng file |
+| D5 | So sau khi chuẩn hoá: chữ thường, U, xuống dòng và dòng tiêu đề khác nhau vẫn là giống hệt; khác một nucleotide là khác | cùng file |
+| D6 | Nhiều nhất 5 mẫu được nêu, của mình trước, kèm tổng số | cùng file |
+| D7 | File sai vẫn nhận 422 dù chuỗi giống hệt; vượt trần vẫn nhận 429 | cùng file |
+| D8 | Migration 0012 lên, xuống, lên lại; trên database phát triển (59.551 chuỗi) câu tìm dùng index | `test_migrations.py`; `EXPLAIN ANALYZE` |
+| D9 | Form: lời báo nêu mẫu giống hệt, "Vẫn nộp" nộp được, sửa một trường thì lời báo biến mất | `frontend/e2e/submission.spec.ts` trên stack thật; unit test cho phần đọc lỗi |
+
 ## Chưa làm
 
 - Nộp nhiều chuỗi một lần.
 - Tip tạm trên bản đồ: bản đồ chỉ đếm tip của build.
 - Lọc tip tạm theo thuộc tính (tỉnh, vật chủ, genotype).
-- Phát hiện nộp trùng: hai lần nộp cùng một chuỗi thành hai mẫu.
+- Phát hiện nộp trùng: hai lần nộp cùng một chuỗi thành hai mẫu. *Sau mốc M7: hệ thống báo chuỗi giống hệt và hỏi lại, xem mục "Báo chuỗi giống hệt khi nộp".*
 - Xếp lại job kiểm tra đã hỏng. Mẫu của nó hiện "Việc kiểm tra bị lỗi" và ở lại trạng thái `received`; hiện chỉ có cách nộp lại. Thuộc trang theo dõi job của mốc M6.
 - Trần tổng số mẫu tạm của một dataset, và phân trang cho `GET .../placements`. Hiện số mẫu tạm chỉ bị chặn qua trần 200 mẫu mỗi tài khoản mỗi ngày.
 - Test cho hai job của cùng một mẫu chạy đồng thời. Phân tích tĩnh không thấy cuộc đua gây sai (chỗ gắn được ghi đè theo khoá chính), nhưng chưa có test.

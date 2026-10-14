@@ -11,7 +11,7 @@ from collections.abc import Callable, Sequence
 from contextlib import suppress
 from typing import Any, Protocol, TypeVar
 
-from sqlalchemy import func, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.accounts.service import record
@@ -53,6 +53,8 @@ MAX_PENDING = 20
 # Số mẫu một người được nộp trong 24 giờ. Mẫu được kiểm tra trong khoảng một giây rồi không còn là "đang chờ", nên
 # trần ở trên không giới hạn tổng số; mỗi mẫu được nhận là một mẫu tạm phải gắn lại sau từng lần build.
 MAX_PER_DAY = 200
+# Số mẫu giống hệt được nêu tên trong lời hỏi lại; tổng số luôn được báo.
+MAX_IDENTICAL_NAMED = 5
 _DAY = dt.timedelta(days=1)
 _WAITING = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
 # Job không chạy tới cùng: hỏng, hoặc bị admin huỷ giữa chừng.
@@ -69,6 +71,15 @@ class TooManyPending(RuntimeError):
 
 class TooManyToday(RuntimeError):
     """Người nộp đã nộp hết số mẫu được phép trong 24 giờ."""
+
+
+class IdenticalSequence(RuntimeError):
+    """Chuỗi vừa nộp giống hệt chuỗi của mẫu mà người nộp được phép biết; chờ người nộp xác nhận."""
+
+    def __init__(self, matches: list[dict[str, Any]], total: int) -> None:
+        super().__init__(f"{total} samples have this exact sequence")
+        self.matches = matches
+        self.total = total
 
 
 class NotTheSubmitter(PermissionError):
@@ -120,6 +131,35 @@ def _unit_of(session: Session, code: str, date: CollectionDate | None) -> AdminU
     return unit
 
 
+def identical_samples(session: Session, user: AppUser, sha256: str) -> tuple[list[dict[str, Any]], int]:
+    """Các mẫu có đúng chuỗi này mà `user` được phép biết, của chính mình trước rồi mới nhất trước; kèm tổng số.
+
+    Được phép biết: mẫu do chính `user` nộp (mọi tình trạng) và mẫu công khai (`accepted`). Mẫu chưa công khai của
+    người khác không bao giờ được tính: nói rằng nó giống hệt là để lộ rằng nó tồn tại.
+    """
+    mine = func.coalesce(Submission.submitter_id == user.id, false())
+    found = (
+        select(Sample, mine.label("mine"))
+        .join(SampleSequence, SampleSequence.sample_id == Sample.id)
+        .outerjoin(Submission, Submission.sample_id == Sample.id)
+        .where(SampleSequence.sha256 == sha256, or_(mine, Sample.status == SampleStatus.ACCEPTED.value))
+    )
+    total = session.scalar(select(func.count()).select_from(found.subquery())) or 0
+    rows = session.execute(found.order_by(mine.desc(), Sample.id.desc()).limit(MAX_IDENTICAL_NAMED)).all()
+    matches = [
+        {
+            "display_name": sample.display_name,
+            "source": sample.source,
+            "mine": is_mine,
+            # Mã nội bộ chỉ cho mẫu của chính mình (để tìm lại trong "Mẫu của tôi"); accession chỉ cho bản ghi GenBank.
+            "internal_id": sample.internal_id if is_mine else None,
+            "accession": sample.accession if sample.source == "genbank" else None,
+        }
+        for sample, is_mine in rows
+    ]
+    return matches, total
+
+
 def _checked_with_unit(
     session: Session, check: Callable[[], _Checked], *, collection_date: str, unit_code: str, today: dt.date
 ) -> tuple[_Checked, AdminUnit]:
@@ -154,10 +194,12 @@ def submit(
     host: str | None,
     fasta: str,
     today: dt.date,
+    allow_identical: bool = False,
 ) -> Sample:
     """Lưu một mẫu vừa nộp ở trạng thái `received` và xếp job kiểm tra nó.
 
-    Ném `InvalidSubmission` kèm mọi lỗi tìm được, `TooManyPending` hoặc `TooManyToday`; khi đó chưa có gì được ghi.
+    Ném `InvalidSubmission` kèm mọi lỗi tìm được, `TooManyPending`, `TooManyToday`, hoặc `IdenticalSequence` khi chuỗi
+    giống hệt một mẫu đã có và người nộp chưa xác nhận (`allow_identical`); khi đó chưa có gì được ghi.
     """
     # Khoá dòng của tài khoản cho tới khi request này commit hoặc bị huỷ: các request cùng lúc của một người lần
     # lượt đếm rồi ghi, nên không cùng lọt qua hai trần bên dưới.
@@ -195,6 +237,11 @@ def submit(
         unit_code=unit_code,
         today=today,
     )
+    # Hai lần nộp cùng lúc của một tài khoản đi lần lượt nhờ khoá ở trên, nên lần sau thấy mẫu của lần trước.
+    sha256 = hashlib.sha256(cleaned.sequence.encode("ascii")).hexdigest()
+    matches, identical_to = identical_samples(session, user, sha256)
+    if identical_to and not allow_identical:
+        raise IdenticalSequence(matches, identical_to)
 
     sample = Sample(
         display_name=cleaned.display_name,
@@ -219,13 +266,15 @@ def submit(
             sample_id=sample.id,
             sequence=cleaned.sequence,
             length=len(cleaned.sequence),
-            sha256=hashlib.sha256(cleaned.sequence.encode("ascii")).hexdigest(),
+            sha256=sha256,
         )
     )
     # Đứng trước job dựng cây trong hàng đợi: người nộp đang chờ kết quả.
     job = queue.enqueue(session, INGEST_JOB, {"sample_id": sample.id}, priority=queue.INTERACTIVE)
     session.add(Submission(sample_id=sample.id, submitter_id=user.id, job_id=job.id))
-    record(session, user.id, "sample_submitted", f"sample:{sample.internal_id}")
+    # Mẫu được nộp dù đã được báo là giống hệt: nhật ký giữ lại số mẫu giống hệt lúc đó.
+    noted = {"identical_to": identical_to} if identical_to else {}
+    record(session, user.id, "sample_submitted", f"sample:{sample.internal_id}", **noted)
     session.flush()
     return sample
 

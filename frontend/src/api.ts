@@ -59,6 +59,8 @@ export class ApiError extends Error {
     readonly code: string,
     message: string,
     readonly details: FieldProblem[] = [],
+    /** Trường riêng của một vài mã lỗi, ngoài `code`, `message` và `details` (ví dụ `matches` của `IDENTICAL_SEQUENCE`). */
+    readonly extra: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -66,16 +68,16 @@ export class ApiError extends Error {
 
 /** Biến một câu trả lời lỗi thành `ApiError`. */
 async function failure(response: Response): Promise<ApiError> {
-  // Lỗi của API có dạng {"error": {"code", "message"}}; thứ khác (proxy, mất mạng) thì không.
-  const body = (await response.json().catch(() => null)) as {
-    error?: { code?: string; message?: string; details?: FieldProblem[] };
-  } | null;
-  const details = Array.isArray(body?.error?.details) ? body.error.details : [];
+  // Lỗi của API có dạng {"error": {"code", "message", ...}}; thứ khác (proxy, mất mạng) thì không.
+  const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+  const error = typeof body?.error === "object" && body.error !== null ? (body.error as Record<string, unknown>) : {};
+  const { code, message, details, ...extra } = error;
   return new ApiError(
     response.status,
-    body?.error?.code ?? "HTTP_ERROR",
-    body?.error?.message ?? response.statusText,
-    details,
+    typeof code === "string" ? code : "HTTP_ERROR",
+    typeof message === "string" ? message : response.statusText,
+    Array.isArray(details) ? (details as FieldProblem[]) : [],
+    extra,
   );
 }
 
@@ -188,8 +190,12 @@ export interface SubmissionPage {
   offset: number;
 }
 
-export function submitSample(input: SubmissionInput): Promise<Submission> {
-  return send<Submission>("POST", "/api/submissions", input);
+/**
+ * Nộp một mẫu. `allowIdentical`: người nộp đã được báo chuỗi giống hệt một mẫu đã có (409 `IDENTICAL_SEQUENCE`) và
+ * xác nhận đây là một mẫu khác.
+ */
+export function submitSample(input: SubmissionInput, { allowIdentical = false } = {}): Promise<Submission> {
+  return send<Submission>("POST", "/api/submissions", allowIdentical ? { ...input, allowIdentical } : input);
 }
 
 /** Thứ form sửa mẫu gửi đi: các trường người nộp khai, không có chuỗi. */

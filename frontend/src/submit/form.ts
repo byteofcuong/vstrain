@@ -1,4 +1,4 @@
-import type { AdminUnit, Submission, SubmissionStage } from "../api";
+import type { AdminUnit, ApiError, Submission, SubmissionStage } from "../api";
 import type { MessageKey } from "../i18n";
 
 /**
@@ -125,4 +125,52 @@ const CORRECTION_REFUSALS: ReadonlyMap<string, MessageKey> = new Map([
 /** Lời báo khi server không nhận một lần sửa; mã chưa biết dùng lời chung. */
 export function correctionMessage(code: string): MessageKey {
   return CORRECTION_REFUSALS.get(code) ?? "editFailed";
+}
+
+/** Một mẫu có chuỗi giống hệt chuỗi vừa nộp, ở mức người nộp được phép biết. */
+export interface IdenticalSample {
+  displayName: string;
+  source: "genbank" | "submission";
+  mine: boolean;
+  /** Chỉ với mẫu của chính người nộp. */
+  internalId: string | null;
+  /** Chỉ với bản ghi GenBank. */
+  accession: string | null;
+}
+
+export interface IdenticalSamples {
+  /** Vài mẫu đầu, của chính mình trước. */
+  matches: IdenticalSample[];
+  /** Tổng số mẫu giống hệt. */
+  total: number;
+}
+
+const orNull = (value: unknown) => value === null || typeof value === "string";
+
+function isIdenticalSample(value: unknown): value is IdenticalSample {
+  if (typeof value !== "object" || value === null) return false;
+  const match = value as Record<string, unknown>;
+  return (
+    typeof match.displayName === "string" &&
+    (match.source === "genbank" || match.source === "submission") &&
+    typeof match.mine === "boolean" &&
+    orNull(match.internalId) &&
+    orNull(match.accession)
+  );
+}
+
+/** Các mẫu giống hệt mà lời hỏi lại 409 `IDENTICAL_SEQUENCE` nêu; `null` với lỗi khác hoặc câu trả lời không đọc được. */
+export function identicalSamples(error: ApiError): IdenticalSamples | null {
+  const { matches, matchCount } = error.extra;
+  if (error.code !== "IDENTICAL_SEQUENCE" || !Array.isArray(matches)) return null;
+  const readable = matches.filter(isIdenticalSample);
+  const total = typeof matchCount === "number" && Number.isInteger(matchCount) ? matchCount : 0;
+  return { matches: readable, total: Math.max(total, readable.length) };
+}
+
+/** Mẫu giống hệt là của ai, nói theo cách một phòng xét nghiệm hiểu. */
+export function identicalSampleNote(match: IdenticalSample): { key: MessageKey; values: Record<string, string> } {
+  if (match.mine) return { key: "identicalMine", values: { id: match.internalId ?? "" } };
+  if (match.source === "genbank") return { key: "identicalGenbank", values: { accession: match.accession ?? "" } };
+  return { key: "identicalOther", values: {} };
 }

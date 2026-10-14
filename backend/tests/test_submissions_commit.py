@@ -101,19 +101,14 @@ def test_requests_sent_at_the_same_moment_cannot_get_past_the_limit_of_waiting_s
 
     monkeypatch.setattr(service, "check_submission", slow_check)
     log_in(client, "lab@example.org")
-    body = {
-        "displayName": "Hà_Nội/01/2024",
-        "collectionDate": "2024-01-15",
-        "unitCode": "vn63:ha-noi",
-        "host": None,
-        "fasta": f">mau\n{GENOME}\n",
-    }
     statuses: list[int] = []
 
-    def attempt():
+    def attempt(number: int):
+        # Mỗi lần một chuỗi riêng: lần nộp trùng chuỗi bị hỏi lại, và test này chỉ thử trần số mẫu đang chờ.
+        body = submission(GENOME[:-4] + "ACGT"[number % 4] * 2 + "ACGT"[number // 4] * 2)
         statuses.append(client.post("/api/submissions", json=body, headers=BROWSER).status_code)
 
-    threads = [threading.Thread(target=attempt) for _ in range(8)]
+    threads = [threading.Thread(target=attempt, args=(number,)) for number in range(8)]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -123,3 +118,41 @@ def test_requests_sent_at_the_same_moment_cannot_get_past_the_limit_of_waiting_s
     with sessions() as check:
         assert len(check.scalars(select(Sample)).all()) == 3
         assert len(check.scalars(select(Job)).all()) == 3
+
+
+def submission(sequence: str = GENOME) -> dict:
+    return {
+        "displayName": "Hà_Nội/01/2024",
+        "collectionDate": "2024-01-15",
+        "unitCode": "vn63:ha-noi",
+        "host": None,
+        "fasta": f">mau\n{sequence}\n",
+    }
+
+
+def test_the_same_sequence_sent_twice_at_the_same_moment_is_taken_once_and_questioned_once(real, monkeypatch):
+    # Hai lần nộp của một tài khoản đi lần lượt (khoá dòng tài khoản), nên lần sau thấy mẫu của lần trước. Không
+    # khoá thì cả hai cùng không thấy gì và cùng được nhận.
+    client, sessions = real
+    check_submission = service.check_submission
+
+    def slow_check(**fields):
+        time.sleep(0.05)
+        return check_submission(**fields)
+
+    monkeypatch.setattr(service, "check_submission", slow_check)
+    log_in(client, "lab@example.org")
+    statuses: list[int] = []
+
+    def attempt():
+        statuses.append(client.post("/api/submissions", json=submission(), headers=BROWSER).status_code)
+
+    threads = [threading.Thread(target=attempt) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sorted(statuses) == [201, 409]
+    with sessions() as check:
+        assert len(check.scalars(select(Sample)).all()) == 1

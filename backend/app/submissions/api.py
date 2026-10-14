@@ -41,6 +41,8 @@ class SubmissionIn(ApiModel):
     # Nội dung file FASTA dưới dạng văn bản. Trần ở đây rộng hơn giới hạn thật một chút, để file hơi quá cỡ
     # nhận lỗi `FASTA_TOO_LARGE` có mã thay vì một lỗi chung.
     fasta: str = Field(max_length=MAX_FASTA_CHARS + 1024 * 1024)
+    # Người nộp đã được báo chuỗi giống hệt một mẫu đã có và xác nhận đây là một mẫu khác.
+    allow_identical: bool = False
 
 
 class CorrectionIn(ApiModel):
@@ -50,6 +52,16 @@ class CorrectionIn(ApiModel):
     collection_date: str = Field(max_length=100)
     unit_code: str = Field(max_length=100)
     host: str | None = Field(max_length=4000)
+
+
+class IdenticalMatch(ApiModel):
+    """Một mẫu có chuỗi giống hệt chuỗi vừa nộp, ở mức người nộp được phép biết."""
+
+    display_name: str
+    source: Literal["genbank", "submission"]
+    mine: bool
+    internal_id: str | None
+    accession: str | None
 
 
 class DatasetRef(ApiModel):
@@ -150,9 +162,18 @@ def submit(body: SubmissionIn, user: CurrentUser, session: SessionDep) -> Submis
             host=body.host,
             fasta=body.fasta,
             today=service.today_in_vietnam(),
+            allow_identical=body.allow_identical,
         )
     except InvalidSubmission as error:
         raise _invalid(error) from None
+    except service.IdenticalSequence as error:
+        matches = [IdenticalMatch.model_validate(match).model_dump(by_alias=True) for match in error.matches]
+        raise ApiError(
+            409,
+            "IDENTICAL_SEQUENCE",
+            "Samples with this exact sequence exist; send again with allowIdentical if this is another sample",
+            extra={"matches": matches, "matchCount": error.total},
+        ) from None
     except service.TooManyPending:
         raise ApiError(
             429, "TOO_MANY_PENDING", "Too many of your submissions are still being checked; try again shortly"

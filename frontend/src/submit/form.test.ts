@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { AdminUnit, SubmissionStage } from "../api";
 import { translate, type MessageKey } from "../i18n";
+import { ApiError } from "../api";
 import {
   canCorrect,
   correctionMessage,
+  identicalSamples,
+  identicalSampleNote,
   limitMessage,
   problemMessage,
   provincesOn,
@@ -225,5 +228,56 @@ describe("correctionMessage", () => {
     }
     expect(correctionMessage("SOMETHING_NEW")).toBe("editFailed");
     expect(correctionMessage("constructor")).toBe("editFailed");
+  });
+});
+
+describe("identicalSamples", () => {
+  const mine = { displayName: "Mẫu cũ", source: "submission", mine: true, internalId: "S0000001", accession: null };
+  const genbank = { displayName: "DENV1/VN/2019", source: "genbank", mine: false, internalId: null, accession: "OQ1" };
+  const refusal = (extra: Record<string, unknown>) => new ApiError(409, "IDENTICAL_SEQUENCE", "Identical", [], extra);
+
+  it("reads the samples a refusal names and how many there are in all", () => {
+    expect(identicalSamples(refusal({ matches: [mine, genbank], matchCount: 7 }))).toEqual({
+      matches: [mine, genbank],
+      total: 7,
+    });
+  });
+
+  it("is not fooled by another refusal or by an answer it cannot read", () => {
+    expect(
+      identicalSamples(new ApiError(409, "SOMETHING_ELSE", "x", [], { matches: [mine], matchCount: 1 })),
+    ).toBeNull();
+    expect(identicalSamples(refusal({}))).toBeNull();
+    expect(identicalSamples(refusal({ matches: "nope", matchCount: 1 }))).toBeNull();
+    // Một mục không đọc được bị bỏ, các mục khác vẫn được nêu; tổng số không bao giờ nhỏ hơn số mục.
+    expect(identicalSamples(refusal({ matches: [mine, { displayName: 3 }], matchCount: "x" }))).toEqual({
+      matches: [mine],
+      total: 1,
+    });
+  });
+});
+
+describe("identicalSampleNote", () => {
+  it("says whose sample it is, in the words a lab would use", () => {
+    const vi = (note: ReturnType<typeof identicalSampleNote>) => translate("vi", note.key, note.values);
+    expect(
+      vi(
+        identicalSampleNote({
+          displayName: "a",
+          source: "submission",
+          mine: true,
+          internalId: "S0000001",
+          accession: null,
+        }),
+      ),
+    ).toBe("mẫu bạn đã nộp, mã S0000001");
+    expect(
+      vi(identicalSampleNote({ displayName: "a", source: "genbank", mine: false, internalId: null, accession: "OQ1" })),
+    ).toBe("bản ghi GenBank OQ1");
+    expect(
+      vi(
+        identicalSampleNote({ displayName: "a", source: "submission", mine: false, internalId: null, accession: null }),
+      ),
+    ).toBe("mẫu một phòng xét nghiệm khác đã nộp");
   });
 });

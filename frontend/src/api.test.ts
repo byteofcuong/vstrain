@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, getMe, logIn, logOut } from "./api";
+import { ApiError, getMe, logIn, logOut, submitSample } from "./api";
 
 const USER = { email: "lab@example.org", displayName: "Phòng xét nghiệm A", role: "submitter" };
 
@@ -51,6 +51,33 @@ describe("logIn", () => {
     const error = await logIn("lab@example.org", "x").catch((caught: unknown) => caught);
 
     expect(error).toMatchObject({ status: 502, code: "HTTP_ERROR" });
+  });
+});
+
+describe("submitSample", () => {
+  const SAMPLE = { displayName: "Mẫu", collectionDate: "2024", unitCode: "vn63:ha-noi", host: null, fasta: ">a\nACGT" };
+
+  it("keeps the fields a refusal carries besides its code, so the form can name the identical samples", async () => {
+    const matches = [
+      { displayName: "Mẫu cũ", source: "submission", mine: true, internalId: "S0000001", accession: null },
+    ];
+    answer(409, { error: { code: "IDENTICAL_SEQUENCE", message: "Identical", matches, matchCount: 1 } });
+
+    const error = await submitSample(SAMPLE).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ status: 409, code: "IDENTICAL_SEQUENCE", extra: { matches, matchCount: 1 } });
+    expect((error as ApiError).extra).not.toHaveProperty("code");
+  });
+
+  it("says the lab has confirmed another sample only when asked to", async () => {
+    const fetch = answer(201, {});
+
+    await submitSample(SAMPLE);
+    await submitSample(SAMPLE, { allowIdentical: true });
+
+    const bodies = fetch.mock.calls.map(([, init]) => JSON.parse(init?.body as string));
+    expect(bodies[0]).toEqual(SAMPLE);
+    expect(bodies[1]).toEqual({ ...SAMPLE, allowIdentical: true });
   });
 });
 

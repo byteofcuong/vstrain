@@ -137,8 +137,22 @@ test("a lab submits a genome and finds it on the tree as a provisional sample wi
   await province(page).selectOption({ label: "Hà Nội" });
   await page.getByLabel("File FASTA").setInputFiles(fastaFile("mau.fasta", `>ten trong file\n${genome.sequence}\n`));
 
-  const started = Date.now();
+  // Genome lấy từ GenBank nên đã có trong hệ thống: form hỏi lại, nêu bản ghi đó, và chưa có gì được lưu.
   await submitButton(page).click();
+  const question = page.getByRole("alert").filter({ hasText: "Chuỗi này giống hệt" });
+  await expect(question).toContainText("bản ghi GenBank");
+  await expect(question).toContainText("Hai ca bệnh khác nhau vẫn có thể có chuỗi giống hệt");
+  await expect(question).toBeFocused();
+  expect((await (await page.request.get("/api/submissions")).json()).total).toBe(0);
+  // Đổi một trường thì lời hỏi không còn đúng với thứ sẽ được gửi, nên biến mất; gửi lại thì được hỏi lại.
+  await province(page).selectOption({ label: "Hải Phòng" });
+  await expect(question).toHaveCount(0);
+  await province(page).selectOption({ label: "Hà Nội" });
+  await submitButton(page).click();
+  await expect(question).toBeVisible();
+
+  const started = Date.now();
+  await question.getByRole("button", { name: "Vẫn nộp" }).click();
 
   // Sang trang "Mẫu của tôi": có lời báo đã nhận, và dòng của mẫu tự chuyển sang "mẫu tạm" khi worker làm xong.
   await expect(page).toHaveURL(/#\/mine$/);

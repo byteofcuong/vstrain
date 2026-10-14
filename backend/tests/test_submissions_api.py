@@ -1,11 +1,13 @@
 import datetime as dt
 import hashlib
+import itertools
 import json
 import unicodedata
 from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select, update
+from sqlalchemy.orm import object_session
 
 from app.accounts import passwords
 from app.accounts import service as accounts
@@ -37,6 +39,17 @@ from tests.support import add_sample, make_build
 PASSWORD = "mật khẩu đủ dài"
 BROWSER = {"X-Requested-With": "vietstrain"}
 GENOME = "ACGT" * 2650  # 10.600 nucleotide: nằm trong khoảng độ dài của một genome dengue
+_variants = itertools.count(1)
+
+
+def fresh_genome() -> str:
+    """Một genome chưa ai nộp: 12 vị trí đầu ghi một số đếm bằng bốn chữ A, C, G, T.
+
+    Hai lần nộp cùng một chuỗi bị hỏi lại (409), nên các test không thử điều đó dùng mỗi lần một chuỗi riêng.
+    """
+    number = next(_variants)
+    head = "".join("ACGT"[(number >> (2 * place)) & 3] for place in range(12))
+    return head + GENOME[12:]
 
 
 @pytest.fixture(autouse=True)
@@ -70,7 +83,7 @@ def payload(**changes) -> dict:
         "collectionDate": "2024-01-15",
         "unitCode": "vn63:ha-noi",
         "host": "Homo sapiens",
-        "fasta": f">ten trong file\n{GENOME}\n",
+        "fasta": f">ten trong file\n{fresh_genome()}\n",
     }
     return body | changes
 
@@ -101,7 +114,7 @@ def test_a_submission_is_stored_as_received_and_queued_for_checking(session, cli
     # Một job dựng cây đã chờ sẵn trong hàng đợi từ trước khi mẫu được nộp.
     build_job = queue.enqueue(session, "build_dataset", {"dataset": "dengue-denv1"})
 
-    response = submit(client)
+    response = submit(client, fasta=f">ten trong file\n{GENOME}\n")
 
     assert response.status_code == 201
     body = response.json()
@@ -429,6 +442,184 @@ def test_a_genbank_sample_is_not_somebodys_submission(session, client, lab):
     imported = add_sample(session)
 
     assert client.get(f"/api/submissions/{imported.internal_id}").status_code == 404
+
+
+# --- Chuỗi giống hệt một mẫu đã có ---
+
+
+def identical(response) -> dict:
+    error = response.json()["error"]
+    assert (response.status_code, error["code"]) == (409, "IDENTICAL_SEQUENCE")
+    return error
+
+
+def with_sequence(sample: Sample, sequence: str = GENOME) -> Sample:
+    sample_sequence = SampleSequence(
+        sample_id=sample.id,
+        sequence=sequence,
+        length=len(sequence),
+        sha256=hashlib.sha256(sequence.encode()).hexdigest(),
+    )
+    object_session(sample).add(sample_sequence)
+    object_session(sample).flush()
+    return sample
+
+
+def submitted_by(session, user, *, name: str, status: str) -> Sample:
+    sample = service.submit(
+        session,
+        user,
+        display_name=name,
+        collection_date="2024-01-15",
+        unit_code="vn63:ha-noi",
+        host=None,
+        fasta=f">x\n{GENOME}\n",
+        today=dt.date(2026, 1, 1),
+    )
+    sample.status = status
+    session.flush()
+    return sample
+
+
+def submissions_logged(session) -> list[dict]:
+    query = select(AuditLog.detail).where(AuditLog.action == "sample_submitted").order_by(AuditLog.id)
+    return list(session.scalars(query))
+
+
+def test_sending_a_sequence_again_is_stopped_with_the_sample_it_matches_and_nothing_is_stored(
+    session, client, lab, monkeypatch
+):
+    first = submit(client, fasta=f">a\n{GENOME}\n").json()
+    monkeypatch.setattr(service, "MAX_PER_DAY", 2)
+
+    again = submit(client, displayName="Một tên khác", fasta=f">b\n{GENOME}\n")
+
+    error = identical(again)
+    assert error["matchCount"] == 1
+    assert error["matches"] == [
+        {
+            "internalId": first["internalId"],
+            "displayName": "Hà_Nội/01/2024",
+            "source": "submission",
+            "accession": None,
+            "mine": True,
+        }
+    ]
+    assert counts(session) == (1, 1, 1)
+    assert submissions_logged(session) == [{}]
+    # Lần bị hỏi lại không chiếm chỗ trong trần mỗi ngày: với trần 2, một mẫu nữa vẫn được nhận.
+    assert submit(client).status_code == 201
+
+
+def test_a_lab_that_says_it_is_another_sample_gets_it_taken_and_the_log_keeps_the_warning(session, client, lab):
+    submit(client, fasta=f">a\n{GENOME}\n")
+
+    taken = submit(client, fasta=f">b\n{GENOME}\n", allowIdentical=True)
+
+    assert taken.status_code == 201
+    assert taken.json()["status"] == "received"
+    assert counts(session) == (2, 2, 2)
+    assert submissions_logged(session) == [{}, {"identical_to": 1}]
+
+
+def test_allowing_an_identical_sequence_changes_nothing_when_there_is_none(session, client, lab):
+    assert submit(client, allowIdentical=True).status_code == 201
+    assert submissions_logged(session) == [{}]
+
+
+def test_a_sequence_already_in_genbank_is_named_by_its_accession_not_by_its_internal_id(session, client, lab):
+    with_sequence(add_sample(session, display_name="DENV1/VN/2019", accession="OQ000001"))
+
+    error = identical(submit(client, fasta=f">x\n{GENOME}\n"))
+
+    assert error["matches"] == [
+        {
+            "internalId": None,
+            "displayName": "DENV1/VN/2019",
+            "source": "genbank",
+            "accession": "OQ000001",
+            "mine": False,
+        }
+    ]
+
+
+@pytest.mark.parametrize("status", ["received", "rejected", "hidden"])
+def test_a_sample_another_lab_has_not_made_public_is_never_mentioned(session, client, lab, status):
+    other = make_user(session, "other@example.org")
+    submitted_by(session, other, name="Mẫu chưa công khai của phòng khác", status=status)
+
+    response = submit(client, fasta=f">y\n{GENOME}\n")
+
+    assert response.status_code == 201
+    assert "phòng khác" not in response.text
+
+
+def test_a_public_sample_of_another_lab_is_named_without_its_internal_id(session, client, lab):
+    other = make_user(session, "other@example.org")
+    submitted_by(session, other, name="Mẫu đã công khai của phòng khác", status="accepted")
+
+    error = identical(submit(client, fasta=f">y\n{GENOME}\n"))
+
+    assert error["matches"] == [
+        {
+            "internalId": None,
+            "displayName": "Mẫu đã công khai của phòng khác",
+            "source": "submission",
+            "accession": None,
+            "mine": False,
+        }
+    ]
+
+
+def test_my_own_sample_is_named_whatever_became_of_it(session, client, lab):
+    for status in ["rejected", "hidden"]:
+        mine = submitted_by(session, lab, name=f"Mẫu {status}", status=status)
+        error = identical(submit(client, fasta=f">y\n{GENOME}\n"))
+        assert [match["internalId"] for match in error["matches"]] == [mine.internal_id]
+        session.delete(mine)
+        session.flush()
+
+
+def test_sequences_are_compared_as_the_check_stores_them(client, lab):
+    submit(client, fasta=f">a\n{GENOME}\n")
+    lines = "\r\n".join(GENOME.lower().replace("t", "u")[start : start + 60] for start in range(0, len(GENOME), 60))
+
+    assert identical(submit(client, fasta=f">mot ten hoan toan khac\r\n{lines}\r\n"))["matchCount"] == 1
+    one_letter_off = GENOME[:100] + "T" + GENOME[101:]
+    assert one_letter_off != GENOME
+    assert submit(client, fasta=f">b\n{one_letter_off}\n").status_code == 201
+
+
+def test_at_most_five_matches_are_named_mine_first_then_newest_first(session, client, lab):
+    for number in range(4):
+        with_sequence(add_sample(session, display_name=f"genbank-{number}"))
+    for number in range(3):
+        assert (
+            submit(client, displayName=f"mine-{number}", fasta=f">x\n{GENOME}\n", allowIdentical=True).status_code
+            == 201
+        )
+
+    error = identical(submit(client, fasta=f">x\n{GENOME}\n"))
+
+    assert error["matchCount"] == 7
+    assert [(match["displayName"], match["mine"]) for match in error["matches"]] == [
+        ("mine-2", True),
+        ("mine-1", True),
+        ("mine-0", True),
+        ("genbank-3", False),
+        ("genbank-2", False),
+    ]
+
+
+def test_a_bad_file_or_a_full_queue_is_reported_before_an_identical_sequence(session, client, lab, monkeypatch):
+    submit(client, fasta=f">a\n{GENOME}\n")
+
+    bad = submit(client, fasta=f">a\n{GENOME}\n", collectionDate="2999-01-01")
+    assert (bad.status_code, codes(bad)) == (422, [("collectionDate", "DATE_IN_FUTURE")])
+
+    monkeypatch.setattr(service, "MAX_PENDING", 1)
+    full = submit(client, fasta=f">a\n{GENOME}\n")
+    assert (full.status_code, full.json()["error"]["code"]) == (429, "TOO_MANY_PENDING")
 
 
 # --- Tình trạng của một mẫu đã nộp ---

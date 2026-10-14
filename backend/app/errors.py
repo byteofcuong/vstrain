@@ -1,7 +1,8 @@
 """Một dạng lỗi duy nhất cho mọi endpoint: `{"error": {"code", "message", "details"}}`.
 
 `code` dành cho máy (giao diện dịch theo mã này), `message` dành cho người phát triển, `details` chỉ có khi lỗi
-gắn với từng tham số.
+gắn với từng tham số. Một vài mã mang thêm trường riêng của nó (`extra`), ví dụ `IDENTICAL_SEQUENCE` nêu các mẫu
+giống hệt.
 """
 
 from http import HTTPStatus
@@ -15,12 +16,20 @@ INVALID_PARAMETERS = "Invalid request parameters"
 
 
 class ApiError(Exception):
-    def __init__(self, status_code: int, code: str, message: str, details: list[dict[str, str]] | None = None) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        code: str,
+        message: str,
+        details: list[dict[str, str]] | None = None,
+        extra: dict[str, object] | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.code = code
         self.message = message
         self.details = details
+        self.extra = extra
 
 
 def invalid_parameter(field: str, message: str) -> ApiError:
@@ -29,9 +38,14 @@ def invalid_parameter(field: str, message: str) -> ApiError:
 
 
 def error_response(
-    status_code: int, code: str, message: str, details: list[dict[str, str]] | None = None
+    status_code: int,
+    code: str,
+    message: str,
+    details: list[dict[str, str]] | None = None,
+    extra: dict[str, object] | None = None,
 ) -> JSONResponse:
-    error: dict[str, object] = {"code": code, "message": message}
+    # Trường thêm không được đè lên ba trường chung.
+    error: dict[str, object] = {**(extra or {}), "code": code, "message": message}
     if details:
         error["details"] = details
     return JSONResponse({"error": error}, status_code=status_code)
@@ -48,7 +62,7 @@ def internal_error() -> JSONResponse:
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def api_error(_request: Request, error: ApiError) -> JSONResponse:
-        return error_response(error.status_code, error.code, error.message, error.details)
+        return error_response(error.status_code, error.code, error.message, error.details, error.extra)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_request: Request, error: RequestValidationError) -> JSONResponse:

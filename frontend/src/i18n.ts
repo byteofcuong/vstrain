@@ -227,6 +227,19 @@ const MESSAGES = {
     en: "One genome, at most 2 MB. The name written in the file is not used.",
   },
   submitting: { vi: "Đang gửi…", en: "Sending…" },
+  identicalTitle: {
+    vi: "Chuỗi này giống hệt chuỗi của {count} mẫu đã có:",
+    en: "This exact sequence is already in {count} sample(s):",
+  },
+  identicalMine: { vi: "mẫu bạn đã nộp, mã {id}", en: "a sample you submitted, {id}" },
+  identicalGenbank: { vi: "bản ghi GenBank {accession}", en: "GenBank record {accession}" },
+  identicalOther: { vi: "mẫu một phòng xét nghiệm khác đã nộp", en: "submitted by another laboratory" },
+  identicalMore: { vi: "và {count} mẫu khác.", en: "and {count} more." },
+  identicalExplain: {
+    vi: "Hai ca bệnh khác nhau vẫn có thể có chuỗi giống hệt, nhất là trong cùng một ổ dịch. Nếu đây là một mẫu khác, bấm “Vẫn nộp”. Nếu bạn vừa gửi lại một mẫu đã nộp thì không cần làm gì thêm.",
+    en: "Two different cases can carry the exact same sequence, especially within one outbreak. If this is another sample, choose “Submit anyway”. If you sent a sample you had already submitted, there is nothing more to do.",
+  },
+  submitAnyway: { vi: "Vẫn nộp", en: "Submit anyway" },
   submitNeedsLogin: { vi: "Đăng nhập để nộp mẫu.", en: "Log in to submit a sample." },
   submitFailed: {
     vi: "Không gửi được vì lỗi của máy chủ hoặc đường truyền. Thử lại.",
