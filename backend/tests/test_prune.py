@@ -2,6 +2,7 @@
 
 import datetime as dt
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -59,6 +60,10 @@ def make_build(
             (folder / name).mkdir()
             (folder / name / "manifest.json").write_text("{}")
             (folder / name / "tree.json").write_text("{}")
+            # Thư mục publish mang thời điểm nó được ghi: bản đang dùng lúc lần publish gần nhất, các bản trước nó
+            # lúc build được dựng.
+            written = days_ago(published if name == publications[-1] else created).timestamp()
+            os.utime(folder / name, (written, written))
         build.path = f"{build_folder(dataset, build)}/{publications[-1]}"
         build.published_at = days_ago(published)
         session.flush()
@@ -131,6 +136,9 @@ def test_only_real_publication_folders_inside_the_build_are_touched(session, tmp
     (folder / "p-notahash").mkdir()
     (folder / ("p-" + "A" * 12)).mkdir()
     (folder / "notes").mkdir()
+    # Cũ như các bản publish bị thay thế, để chỉ cái tên quyết định chúng có bị đụng tới không.
+    for odd in ("p-notahash", "p-" + "A" * 12, "notes"):
+        os.utime(folder / odd, (days_ago(60).timestamp(), days_ago(60).timestamp()))
 
     assert run(session, tmp_path) == {"publications": 1, "builds": 0}
 
@@ -228,6 +236,8 @@ def test_a_build_whose_job_has_not_ended_is_not_removed(session, tmp_path):
     done.status = "cancelled"
     ended.job_id = done.id
     session.flush()
+    # Dataset đã có thư mục (bình thường là thư mục của build hiện hành): các build dở dang không để lại file nào.
+    (tmp_path / "dengue-denv1").mkdir()
 
     assert run(session, tmp_path, keep=0) == {"publications": 0, "builds": 1}
 
@@ -360,3 +370,167 @@ def test_the_housekeeping_of_the_general_worker_prunes_builds_along_with_session
     assert build_ids(session) == [current.id]
     assert names(root / "dengue-denv1") == [f"b{current.id:06d}"]
     assert session.scalar(select(func.count()).select_from(AuditLog)) == 0
+
+
+# --- Sau review ---
+
+
+def test_a_dataset_that_cannot_be_read_does_not_undo_or_block_the_others(session, tmp_path, monkeypatch, caplog):
+    # Dataset đầu dọn xong một build (thư mục đã mất); dataset sau hỏng khi đọc thư mục. Phần đã dọn phải được lưu,
+    # không thì dòng của build vừa xoá quay lại, trỏ vào một thư mục không còn; và dataset hỏng không chặn dataset khác.
+    first = make_dataset(session, "dengue-denv1")
+    gone = make_build(session, tmp_path, first, created=50, published=50)
+    first_current = make_build(session, tmp_path, first, created=40, published=40, current=True)
+    broken = make_dataset(session, "dengue-denv2")
+    broken_current = make_build(
+        session, tmp_path, broken, created=40, published=30, current=True, publications=(FIRST, SECOND)
+    )
+    last = make_dataset(session, "dengue-denv3")
+    also_gone = make_build(session, tmp_path, last, created=50, published=50)
+    last_current = make_build(session, tmp_path, last, created=40, published=40, current=True)
+    real_replaced = prune._replaced_publications
+
+    def unreadable(root, dataset, build, before):
+        if dataset.slug == "dengue-denv2":
+            raise PermissionError(13, "Permission denied", str(root / dataset.slug))
+        return real_replaced(root, dataset, build, before)
+
+    monkeypatch.setattr(prune, "_replaced_publications", unreadable)
+
+    with caplog.at_level(logging.WARNING):
+        assert run(session, tmp_path, keep=0) == {"publications": 0, "builds": 2}
+
+    assert "dengue-denv2" in caplog.text
+    session.rollback()  # thứ đã dọn phải đã được commit, không mất khi phần sau của lần dọn hỏng
+    assert build_ids(session) == [first_current.id, broken_current.id, last_current.id]
+    assert not folder_of(tmp_path, first, gone).exists()
+    assert not folder_of(tmp_path, last, also_gone).exists()
+
+
+def test_a_build_already_removed_stays_removed_when_a_later_step_fails_unexpectedly(session, tmp_path, monkeypatch):
+    # Lỗi không lường trước (database, lỗi lập trình) đi xuyên qua lần dọn. Thư mục của build đã xoá thì không lấy
+    # lại được, nên dòng của nó phải đã được lưu: không thì nó quay lại, trỏ vào một thư mục không còn.
+    first = make_dataset(session, "dengue-denv1")
+    gone = make_build(session, tmp_path, first, created=50, published=50)
+    current = make_build(session, tmp_path, first, created=40, published=40, current=True)
+    second = make_dataset(session, "dengue-denv2")
+    second_current = make_build(session, tmp_path, second, created=40, published=40, current=True)
+    real_replaced = prune._replaced_publications
+
+    def broken(root, dataset, build, before):
+        if dataset.slug == "dengue-denv2":
+            raise RuntimeError("the database went away")
+        return real_replaced(root, dataset, build, before)
+
+    monkeypatch.setattr(prune, "_replaced_publications", broken)
+
+    with pytest.raises(RuntimeError):
+        run(session, tmp_path, keep=0)
+
+    session.rollback()
+    assert build_ids(session) == [current.id, second_current.id]
+    assert not folder_of(tmp_path, first, gone).exists()
+
+
+def test_a_publication_written_just_now_is_not_taken_for_a_replaced_one(session, tmp_path):
+    # Một lần publish ghi thư mục mới trước, rồi mới đổi con trỏ trong database. Nếu việc dọn chạy đúng giữa hai việc
+    # đó, thư mục mới trông như một bản không ai trỏ tới; nó không được bị xoá chỉ vì lần publish trước đã cũ.
+    dataset = make_dataset(session)
+    build = make_build(session, tmp_path, dataset, created=60, published=30, current=True, publications=(FIRST,))
+    being_written = folder_of(tmp_path, dataset, build) / SECOND
+    being_written.mkdir()
+    (being_written / "manifest.json").write_text("{}")
+
+    assert prune_builds(session, now=dt.datetime.now(dt.UTC), retention=WEEK, keep=5, root=tmp_path) == {
+        "publications": 0,
+        "builds": 0,
+    }
+
+    assert being_written.is_dir()
+
+
+def test_a_dataset_folder_that_is_a_link_is_not_followed(session, tmp_path):
+    dataset = make_dataset(session)
+    outside = tmp_path / "elsewhere"
+    old = make_build(session, outside, dataset, created=50, published=50)
+    current = make_build(
+        session, outside, dataset, created=40, published=40, current=True, publications=(FIRST, SECOND)
+    )
+    root = tmp_path / "builds"
+    root.mkdir()
+    (root / "dengue-denv1").symlink_to(outside / "dengue-denv1", target_is_directory=True)
+
+    assert run(session, root, keep=0) == {"publications": 0, "builds": 0}
+
+    assert build_ids(session) == [old.id, current.id]
+    assert names(folder_of(outside, dataset, current)) == ["auspice.json", FIRST, SECOND]
+    assert folder_of(outside, dataset, old).is_dir()
+
+
+def test_a_build_folder_that_is_a_link_keeps_its_replaced_publications_too(session, tmp_path):
+    dataset = make_dataset(session)
+    outside = tmp_path / "elsewhere"
+    current = make_build(
+        session, outside, dataset, created=40, published=40, current=True, publications=(FIRST, SECOND)
+    )
+    root = tmp_path / "builds"
+    (root / "dengue-denv1").mkdir(parents=True)
+    folder_of(root, dataset, current).symlink_to(folder_of(outside, dataset, current), target_is_directory=True)
+
+    assert run(session, root, keep=0) == {"publications": 0, "builds": 0}
+
+    assert names(folder_of(outside, dataset, current)) == ["auspice.json", FIRST, SECOND]
+
+
+def test_no_row_is_removed_when_the_folder_of_its_dataset_is_not_there(session, tmp_path):
+    # Thư mục gốc có (chỗ gắn ổ dữ liệu), nhưng rỗng: ổ chưa được gắn. "Thư mục của build không có" lúc này không
+    # có nghĩa là build đã mất file, nên các dòng được giữ lại.
+    dataset = make_dataset(session)
+    elsewhere = tmp_path / "unmounted"
+    old = make_build(session, elsewhere, dataset, created=50, published=50)
+    unfinished = make_build(session, elsewhere, dataset, created=45)
+    current = make_build(session, elsewhere, dataset, created=40, published=40, current=True)
+    root = tmp_path / "builds"
+    root.mkdir()
+
+    assert run(session, root, keep=0) == {"publications": 0, "builds": 0}
+
+    assert build_ids(session) == [old.id, unfinished.id, current.id]
+
+
+def test_the_worker_takes_its_retention_and_the_number_of_builds_to_keep_from_the_settings(monkeypatch):
+    from app.jobs import worker as worker_module
+
+    seen = {}
+
+    def fake_housekeeping(**options):
+        seen.update(options)
+        return lambda _session: None
+
+    class FakeWorker:
+        def __init__(self, *_args, **options):
+            seen["housekeeping_given"] = options["housekeeping"] is not None
+
+        name = "fake"
+
+        def run_forever(self, **_options):
+            return None
+
+    monkeypatch.setattr(worker_module, "_housekeeping", fake_housekeeping)
+    monkeypatch.setattr(worker_module, "Worker", FakeWorker)
+    monkeypatch.setattr(worker_module.signal, "signal", lambda *_args: None)
+    monkeypatch.setattr(settings, "publication_retention_days", 9)
+    monkeypatch.setattr(settings, "keep_builds", 3)
+    monkeypatch.setattr(settings, "audit_retention_days", 400)
+
+    worker_module.main([])
+
+    assert seen == {
+        "audit_retention": dt.timedelta(days=400),
+        "publication_retention": dt.timedelta(days=9),
+        "keep_builds": 3,
+        "housekeeping_given": True,
+    }
+    seen.clear()
+    worker_module.main(["--only", "ingest_sample"])
+    assert seen == {"housekeeping_given": False}

@@ -153,7 +153,14 @@ Mỗi lần publish lại (sửa địa danh, sửa mẫu) để lại một th�
 1. **Bản publish đã bị thay thế:** thư mục `p-*` trong thư mục của một build mà dòng `build` không còn trỏ tới. Chúng bị xoá khi lần publish gần nhất của build đó đã cũ hơn `VS_PUBLICATION_RETENTION_DAYS` ngày (mặc định 7, ít nhất 1), tức là mọi bản khác đã bị thay thế ít nhất chừng ấy ngày. Thời hạn này để trình duyệt đang mở bản cũ còn tải được các cột nó chưa tải; tính theo lúc bị thay thế chứ không theo lúc được tạo, vì một bản publish dùng cả tháng rồi mới bị thay vẫn có người đang mở.
 2. **Build cũ:** mỗi dataset giữ build hiện hành và `VS_KEEP_BUILDS` build mới nhất ngoài nó (mặc định 5; 0 là chỉ giữ build hiện hành). Build nằm ngoài số đó bị xoá khi cả ba điều sau đúng: nó được tạo trước đây hơn `VS_PUBLICATION_RETENTION_DAYS` ngày; lần publish gần nhất của build hiện hành cũng đã cũ hơn chừng ấy (build vừa bị thay thế chưa bị xoá ngay); và job của nó không còn chờ hay đang chạy. Thư mục `b<mã>` bị xoá trước, dòng `build` sau (kéo theo danh sách mẫu của build). Xoá thư mục không xong thì dòng được giữ lại để lần sau thử tiếp.
 
-Giới hạn an toàn: chỉ xoá thư mục thật nằm đúng chỗ (`builds/<slug>/b<mã>` và `p-<12 chữ số hex>` ngay trong nó), ứng với một dòng `build` trong database; liên kết tượng trưng và thư mục tên lạ không bị đụng tới. Build hiện hành và bản publish nó đang trỏ tới không bao giờ bị xoá, với bất kỳ cấu hình nào.
+Giới hạn an toàn: chỉ xoá thư mục thật nằm đúng chỗ (`builds/<slug>/b<mã>` và `p-<12 chữ số hex>` ngay trong nó), ứng với một dòng `build` trong database; liên kết tượng trưng, ở bất kỳ cấp nào của đường dẫn, và thư mục tên lạ không bị đụng tới. Build hiện hành và bản publish nó đang trỏ tới không bao giờ bị xoá, với bất kỳ cấu hình nào.
+
+Bổ sung sau review (2026-10-14):
+
+- Một thư mục `p-*` chỉ bị xoá khi chính nó cũng được ghi trước mốc thời hạn. Một lần publish ghi thư mục mới trước rồi mới đổi con trỏ trong database; thư mục vừa ghi mà chưa ai trỏ tới có thể là bản sắp thành bản hiện hành.
+- Dataset không có thư mục thật `builds/<slug>` (ổ dữ liệu chưa gắn, hoặc là một liên kết) thì không có gì của nó bị đụng tới, kể cả dòng của build dở dang không có file nào. Hệ quả: dòng của build hỏng thuộc một dataset chưa từng publish thì không bao giờ bị dọn.
+- Mỗi build bị xoá được commit ngay sau khi thư mục của nó mất. Một dataset không đọc được thư mục (lỗi quyền chẳng hạn) được ghi log và bỏ qua, không chặn các dataset khác.
+- Việc dọn chạy trong vòng lặp của worker chung, giữa hai job, nên không chạy cùng lúc với một lần publish. Chạy hai worker chung là ngoài thiết kế này; phép kiểm tra thời điểm ghi ở trên là lớp bảo vệ cho trường hợp đó.
 
 ### Tiêu chí nghiệm thu
 

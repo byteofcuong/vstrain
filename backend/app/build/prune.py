@@ -33,22 +33,32 @@ def _real_folder(path: Path) -> bool:
     return not path.is_symlink() and path.is_dir()
 
 
-def _replaced_publications(root: Path, dataset: DatasetDef, build: Build) -> list[Path]:
-    """Các thư mục publish của `build` mà dòng build không còn trỏ tới."""
+def _replaced_publications(root: Path, dataset: DatasetDef, build: Build, before: dt.datetime) -> list[Path]:
+    """Các thư mục publish của `build` mà dòng build không còn trỏ tới, và đã được ghi trước `before`."""
     folder = build_folder(dataset, build)
     in_use = (build.path or "").removeprefix(f"{folder}/")
     # Dòng build phải trỏ vào một bản publish nằm ngay trong thư mục của chính nó; không thì không đoán.
-    if not _PUBLICATION.fullmatch(in_use) or not _real_folder(root / folder / in_use):
+    if (
+        not _real_folder(root / folder)
+        or not _PUBLICATION.fullmatch(in_use)
+        or not _real_folder(root / folder / in_use)
+    ):
         return []
+    # Một lần publish ghi thư mục mới trước rồi mới đổi con trỏ trong database: thư mục vừa ghi mà chưa ai trỏ tới
+    # có thể là bản sắp thành bản hiện hành, nên nó cũng phải cũ như thời hạn mới bị xoá.
+    limit = before.timestamp()
     return sorted(
         entry
         for entry in (root / folder).iterdir()
-        if _PUBLICATION.fullmatch(entry.name) and entry.name != in_use and _real_folder(entry)
+        if _PUBLICATION.fullmatch(entry.name)
+        and entry.name != in_use
+        and _real_folder(entry)
+        and entry.stat().st_mtime < limit
     )
 
 
 def _remove_build(session: Session, root: Path, dataset: DatasetDef, build_id: int) -> bool:
-    """Xoá thư mục rồi dòng của một build cũ; trả về có xoá được không. Chỉ flush.
+    """Xoá thư mục rồi dòng của một build cũ; trả về có xoá được không. Commit ngay sau mỗi build.
 
     Thư mục trước, dòng sau: hỏng giữa chừng thì còn một dòng trỏ tới thư mục đã mất, và lần dọn sau xoá nốt dòng
     đó. Làm ngược lại thì còn một thư mục không dòng nào biết tới, không bao giờ được dọn.
@@ -68,14 +78,19 @@ def _remove_build(session: Session, root: Path, dataset: DatasetDef, build_id: i
         log.warning("Could not remove the folder of build %s; its row is kept", build_id, exc_info=True)
         return False
     session.execute(delete(Build).where(Build.id == build_id))
-    session.flush()
+    # Thư mục đã mất thì việc xoá dòng phải được lưu ngay: phần sau của lần dọn có hỏng cũng không kéo nó lại.
+    session.commit()
     return True
 
 
 def prune_builds(
     session: Session, *, now: dt.datetime, retention: dt.timedelta, keep: int, root: Path | None = None
 ) -> dict[str, int]:
-    """Xoá bản publish đã bị thay thế và build cũ; trả về số thư mục publish và số build đã xoá. Chỉ flush.
+    """Xoá bản publish đã bị thay thế và build cũ; trả về số thư mục publish và số build đã xoá.
+
+    Mỗi build bị xoá được commit ngay. Một dataset không đọc được thư mục thì được ghi log và bỏ qua, không chặn các
+    dataset khác. Dataset không có thư mục thật `builds/<slug>` (ổ dữ liệu chưa gắn, hay là một liên kết) thì
+    không có gì của nó bị đụng tới, kể cả dòng của các build dở dang không có file nào.
 
     Mỗi dataset giữ build hiện hành và `keep` build mới nhất ngoài nó. Một build nằm ngoài số đó bị xoá khi nó được
     tạo trước `now - retention`, build hiện hành của dataset (nếu có) cũng được publish lần cuối trước mốc đó, và
@@ -93,30 +108,43 @@ def prune_builds(
     before = now - retention
 
     for dataset in session.scalars(select(DatasetDef).order_by(DatasetDef.id)).all():
-        builds = session.execute(
-            select(Build, Job.status)
-            .outerjoin(Job, Job.id == Build.job_id)
-            .where(Build.dataset_id == dataset.id)
-            .order_by(Build.id.desc())
-        ).all()
-        current = next((build for build, _ in builds if build.is_current), None)
-        others = [(build, job_status) for build, job_status in builds if not build.is_current]
-        # Build vừa bị thay thế chưa bị xoá ngay: người đang mở cây cũ còn tải các cột của nó.
-        settled = current is None or (current.published_at is not None and current.published_at < before)
-
-        staying = [build for build, _ in others[:keep]]
-        if current is not None:
-            staying.append(current)
-        for build, job_status in others[keep:]:
-            if settled and build.created_at < before and job_status not in _UNFINISHED:
-                removed["builds"] += _remove_build(session, root, dataset, build.id)
-            else:
-                staying.append(build)
-
-        for build in staying:
-            if build.published_at is None or build.published_at >= before:
-                continue
-            for folder in _replaced_publications(root, dataset, build):
-                shutil.rmtree(folder, ignore_errors=True)
-                removed["publications"] += not folder.exists()
+        if not _real_folder(root / dataset.slug):
+            continue
+        try:
+            _prune_dataset(session, root, dataset, before, keep, removed)
+        except OSError:
+            # Build nào đã xoá xong thì đã được commit; ở đây chưa có gì khác được ghi.
+            log.warning("Could not prune the builds of dataset %s", dataset.slug, exc_info=True)
     return removed
+
+
+def _prune_dataset(
+    session: Session, root: Path, dataset: DatasetDef, before: dt.datetime, keep: int, removed: dict[str, int]
+) -> None:
+    """Dọn một dataset; cộng số đã xoá vào `removed`."""
+    builds = session.execute(
+        select(Build, Job.status)
+        .outerjoin(Job, Job.id == Build.job_id)
+        .where(Build.dataset_id == dataset.id)
+        .order_by(Build.id.desc())
+    ).all()
+    current = next((build for build, _ in builds if build.is_current), None)
+    others = [(build, job_status) for build, job_status in builds if not build.is_current]
+    # Build vừa bị thay thế chưa bị xoá ngay: người đang mở cây cũ còn tải các cột của nó.
+    settled = current is None or (current.published_at is not None and current.published_at < before)
+
+    staying = [build for build, _ in others[:keep]]
+    if current is not None:
+        staying.append(current)
+    for build, job_status in others[keep:]:
+        if settled and build.created_at < before and job_status not in _UNFINISHED:
+            removed["builds"] += _remove_build(session, root, dataset, build.id)
+        else:
+            staying.append(build)
+
+    for build in staying:
+        if build.published_at is None or build.published_at >= before:
+            continue
+        for folder in _replaced_publications(root, dataset, build, before):
+            shutil.rmtree(folder, ignore_errors=True)
+            removed["publications"] += not folder.exists()
