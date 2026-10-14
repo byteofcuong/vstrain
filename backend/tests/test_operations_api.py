@@ -757,3 +757,83 @@ def test_the_job_list_counts_cancelled_jobs_and_filters_by_them(session, client,
     assert everything["counts"] == {"queued": 1, "running": 0, "succeeded": 0, "failed": 1, "cancelled": 1}
     assert [item["id"] for item in only["items"]] == [cancelled.id]
     assert (only["total"], only["items"][0]["status"]) == (1, "cancelled")
+
+
+def test_a_cancellation_is_saved_from_one_request_to_the_next(engine):
+    # Fixture `client` dùng chung một session nên không thấy được việc quên commit; ở đây mỗi request một session.
+    from fastapi.testclient import TestClient
+    from sqlalchemy.orm import sessionmaker
+
+    from app.main import app
+
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    with sessions.begin() as setup:
+        accounts.create_user(setup, email="boss@example.org", display_name="Quản trị", password=PASSWORD, role="admin")
+        job_id = queue.enqueue(setup, "tool_versions").id
+    try:
+        with TestClient(app) as real:
+            log_in(real, "boss@example.org")
+            assert cancel(real, job_id).status_code == 200
+            assert real.get(f"/api/admin/jobs/{job_id}").json()["status"] == "cancelled"
+        with sessions() as check:
+            assert check.get(Job, job_id).status == "cancelled"
+            assert (
+                check.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action == "job_cancelled")) == 1
+            )
+            assert queue.claim(check, "w1") is None
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text("TRUNCATE job, app_user, audit_log CASCADE"))
+
+
+def test_a_job_that_ends_while_it_is_being_cancelled_keeps_one_outcome(committed, engine, monkeypatch):
+    # Lệnh huỷ đọc thấy job đang chạy; đúng lúc đó worker ghi "xong" kèm kết quả. Không khoá dòng của job thì lệnh huỷ
+    # ghi đè lên: một job mang tình trạng "đã huỷ" mà lại có kết quả của một lần chạy trọn vẹn.
+    with committed.begin() as session:
+        boss = accounts.create_user(session, email="boss@example.org", display_name="Quản trị", password=PASSWORD)
+        queue.enqueue(session, "tool_versions")
+        boss_id = boss.id
+    with committed() as session:
+        job_id = queue.claim(session, "w1").id
+    read = threading.Event()
+    go_on = threading.Event()
+    record = jobs.record
+
+    def slow_record(*arguments, **options):
+        read.set()  # lệnh huỷ đã đọc job và sắp ghi
+        go_on.wait(10)
+        return record(*arguments, **options)
+
+    monkeypatch.setattr(jobs, "record", slow_record)
+    finished: list[bool] = []
+
+    def cancel_it() -> None:
+        with committed() as session:
+            jobs.cancel(session, session.get(AppUser, boss_id), job_id)
+            session.commit()
+
+    def finish_it() -> None:
+        with committed() as session:
+            finished.append(queue.finish(session, session.get(Job, job_id), {"versions": "..."}))
+
+    canceller = threading.Thread(target=cancel_it)
+    worker = threading.Thread(target=finish_it)
+    try:
+        canceller.start()
+        assert read.wait(10)
+        worker.start()
+        worker.join(0.5)
+        waited = worker.is_alive()  # worker phải chờ lệnh huỷ ghi xong
+        go_on.set()
+        canceller.join(10)
+        worker.join(10)
+
+        with committed() as session:
+            job = session.get(Job, job_id)
+            assert waited
+            assert finished == [False]
+            assert (job.status, job.result) == ("cancelled", None)
+    finally:
+        go_on.set()
+        with engine.begin() as connection:
+            connection.execute(text("TRUNCATE job, app_user, audit_log CASCADE"))

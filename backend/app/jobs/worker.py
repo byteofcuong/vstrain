@@ -19,6 +19,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.accounts import service as accounts
+from app.build.prune import prune_builds
 from app.jobs import queue
 from app.jobs.cleanup import purge_work_dirs
 from app.jobs.schedule import BUILD_JOB, enqueue_due_builds
@@ -192,11 +193,17 @@ def builds_trees(kinds: frozenset[str] | None) -> bool:
     return kinds is None or BUILD_JOB in kinds
 
 
-def _housekeeping(audit_retention: dt.timedelta) -> Chore:
+def _housekeeping(*, audit_retention: dt.timedelta, publication_retention: dt.timedelta, keep_builds: int) -> Chore:
     def purge(session: Session) -> None:
-        removed = accounts.purge_stale(session, now=dt.datetime.now(dt.UTC), audit_retention=audit_retention)
+        now = dt.datetime.now(dt.UTC)
+        removed = accounts.purge_stale(session, now=now, audit_retention=audit_retention)
         if any(removed.values()):
             log.info("Removed %(sessions)s expired sessions and %(audit_rows)s old audit rows", removed)
+        # Phiên và nhật ký được lưu trước, để việc dọn file bên dưới có hỏng cũng không kéo chúng theo.
+        session.commit()
+        pruned = prune_builds(session, now=now, retention=publication_retention, keep=keep_builds)
+        if any(pruned.values()):
+            log.info("Removed %(publications)s replaced publications and %(builds)s old builds", pruned)
 
     return purge
 
@@ -229,7 +236,13 @@ def main(argv: list[str] | None = None) -> None:
         work_retention=dt.timedelta(days=settings.work_retention_days),
         kinds=kinds,
         schedule=(lambda session: enqueue_due_builds(session, dt.datetime.now(dt.UTC))) if general else None,
-        housekeeping=_housekeeping(dt.timedelta(days=settings.audit_retention_days)) if general else None,
+        housekeeping=_housekeeping(
+            audit_retention=dt.timedelta(days=settings.audit_retention_days),
+            publication_retention=dt.timedelta(days=settings.publication_retention_days),
+            keep_builds=settings.keep_builds,
+        )
+        if general
+        else None,
     )
     log.info("Worker %s waiting for jobs: %s", worker.name, ", ".join(sorted(kinds or HANDLERS)))
     worker.run_forever(stop=stop)

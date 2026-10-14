@@ -170,7 +170,8 @@ def test_a_tool_is_not_started_once_stopping_was_asked(tmp_path):
     with pytest.raises(ToolStopped):
         run(tmp_path, "python3", "-c", "import pathlib; pathlib.Path('ran').write_text('x')", stop=stop)
 
-    assert not (tmp_path / "ran").exists()
+    # Không tiến trình nào được tạo, kể cả một tiến trình bị dừng ngay sau đó: không có cả file log của nó.
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_a_tool_that_ends_on_its_own_is_not_reported_as_stopped(tmp_path):

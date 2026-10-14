@@ -145,3 +145,18 @@ def test_a_step_that_ends_because_the_job_stopped_is_cancelled_not_failed(sessio
 
     (row,) = steps(session)
     assert row.status == "cancelled"
+
+
+def test_a_handler_that_carries_on_after_a_tool_error_does_not_carry_on_after_a_stop(session, context):
+    # Việc gắn mẫu bắt mọi `Exception` của một dataset rồi đi tiếp sang dataset sau. Lệnh dừng phải đi xuyên qua đó.
+    hang = "import time; time.sleep(60)"
+    threading.Timer(0.5, context.stop.set).start()
+    carried_on = []
+
+    with pytest.raises(JobStopped):
+        try:
+            context.run_tool("place", ["python3", "-c", hang], timeout=20)
+        except Exception:  # noqa: BLE001 - đúng kiểu bắt lỗi mà handler thật đang dùng
+            carried_on.append("next dataset")
+
+    assert carried_on == []
